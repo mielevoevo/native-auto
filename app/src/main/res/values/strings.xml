@@ -1,0 +1,42 @@
+<resources>
+    <string name="app_name">Native Auto</string>
+
+    <string name="trip_channel_name">Trip tracking</string>
+    <string name="trip_pause">Pause</string>
+    <string name="trip_resume">Resume</string>
+    <string name="trip_end">End trip</string>
+    <string name="trip_new">New trip</string>
+    <string name="trip_paused">Trip paused</string>
+    <string name="trip_ended">Trip ended</string>
+
+    <string name="location_denied">Location access is needed for speed</string>
+    <string name="location_allow">Allow location</string>
+    <string name="location_off">Location is turned off</string>
+    <string name="location_turn_on">Turn on location</string>
+
+    <string name="media_access_message">See and control what\'s playing</string>
+    <string name="media_access_action">Grant notification access</string>
+    <string name="media_idle_title">Nothing playing</string>
+    <string name="media_idle_subtitle">Press play to resume</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_speed_unit">Speed unit</string>
+    <string name="settings_map_width">Map width (Duo)</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_battery">Battery indicator</string>
+    <string name="settings_battery_hint">Top right, with the clock</string>
+    <string name="settings_trip">Trip</string>
+    <string name="settings_reset_trip">Reset trip</string>
+    <string name="settings_reset_confirm">Tap again to reset</string>
+    <string name="settings_reset_hint">Saves this trip and starts a new one</string>
+    <string name="settings_history">Trip history</string>
+    <string name="settings_voice">Voice guidance</string>
+    <string name="settings_voice_hint">Spoken turn prompts (English)</string>
+    <string name="settings_auto_layout">Auto layout</string>
+    <string name="settings_auto_layout_hint">Map on screen while navigating</string>
+    <string name="settings_simulate_nav">Simulate navigation</string>
+    <string name="settings_simulate_nav_hint">Guidance drives itself along the route</string>
+    <string name="settings_debug">Debug</string>
+    <string name="settings_fake_gps">Fake GPS (scripted drive)</string>
+    <string name="settings_done">Done</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The OLED theme's bg (ui/theme/Color.kt); a light theme just starts black for a frame. -->
+    <color name="window_background">#FF000000</color>
+</resources>

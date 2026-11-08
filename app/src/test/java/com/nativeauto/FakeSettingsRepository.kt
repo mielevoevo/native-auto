@@ -1,0 +1,34 @@
+package com.nativeauto
+
+import com.nativeauto.settings.SavedLayout
+import com.nativeauto.settings.SettingsRepository
+import com.nativeauto.settings.SpeedUnit
+import com.nativeauto.settings.ClockFace
+import com.nativeauto.settings.ThemeMode
+import kotlinx.coroutines.flow.MutableStateFlow
+
+/** In-memory [SettingsRepository] for ViewModel tests. */
+class FakeSettingsRepository : SettingsRepository {
+    override val speedUnit = MutableStateFlow(SpeedUnit.KMH)
+    override suspend fun setSpeedUnit(unit: SpeedUnit) { speedUnit.value = unit }
+    override val useFakeGps = MutableStateFlow(false)
+    override suspend fun setUseFakeGps(enabled: Boolean) { useFakeGps.value = enabled }
+    override val showTraffic = MutableStateFlow(false)
+    override suspend fun setShowTraffic(enabled: Boolean) { showTraffic.value = enabled }
+    override val showBattery = MutableStateFlow(true)
+    override suspend fun setShowBattery(enabled: Boolean) { showBattery.value = enabled }
+    override val savedLayout = MutableStateFlow(SavedLayout.Default)
+    override suspend fun saveLayout(layout: SavedLayout) { savedLayout.value = layout }
+    override val voiceGuidance = MutableStateFlow(true)
+    override suspend fun setVoiceGuidance(enabled: Boolean) { voiceGuidance.value = enabled }
+    override val themeMode = MutableStateFlow(ThemeMode.DARK)
+    override suspend fun setThemeMode(mode: ThemeMode) { themeMode.value = mode }
+    override val clockFace = MutableStateFlow(ClockFace.DIGITAL)
+    override suspend fun setClockFace(face: ClockFace) { clockFace.value = face }
+    override val clockSeconds = MutableStateFlow(false)
+    override suspend fun setClockSeconds(enabled: Boolean) { clockSeconds.value = enabled }
+    override val autoLayout = MutableStateFlow(true)
+    override suspend fun setAutoLayout(enabled: Boolean) { autoLayout.value = enabled }
+    override val simulateNavigation = MutableStateFlow(false)
+    override suspend fun setSimulateNavigation(enabled: Boolean) { simulateNavigation.value = enabled }
+}
