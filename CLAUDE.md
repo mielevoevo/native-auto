@@ -8,6 +8,28 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   build adds 0.1 to the minor version (8c → 2.1, 8d → 2.2, …) and 1 to `versionCode`, in
   `app/build.gradle.kts`, once that sub-phase's tests pass.
 - `MAPS_API_KEY` goes in `local.properties` only (fallback placeholder in `local.defaults.properties`).
+  Other keys (e.g. TomTom) follow the same pattern: a placeholder in `local.defaults.properties`, the
+  real value only ever added by the user to `local.properties`. Never read or edit `local.properties`.
+
+## Workspace rules (user, 2026-11-09): stay on D, emulator only
+
+- **Start every build / adb / emulator command with `. /d/tsunaayukii/native-auto/.dev/env.sh`.** It
+  points Gradle's cache, the emulator (AVD), Android user files and temp files at `.dev/` (git-ignored,
+  inside this project on D) and pins `ANDROID_SERIAL=emulator-5554`. Use `adbe` (adb fixed to the
+  emulator) instead of raw adb. Install only to the emulator, never to a phone or the PC.
+- Emulator launch: `. .dev/env.sh; "$EMU" -avd Medium_Phone_API_37.0 -memory 2048 -gpu swiftshader_indirect -no-snapshot-save`
+  (run in the background). Its disk lives in `.dev/android-user/avd/`.
+- Files written only in: `app/`, `gradle/`, `baselineprofile/`, root build files,
+  `local.defaults.properties` (placeholders), `CLAUDE.md`, `Rider-Feedback.md`, `DECISIONS.md`,
+  `.gitignore`, `.dev/`. Plus Claude Code's own memory folder. Scratch work goes in `.dev/scratch/`.
+- On C, only *run* the Android SDK and Android Studio's JBR (installed there); never write there.
+  Known unavoidable: the emulator drops a tiny "running" marker in C's temp folder.
+- Kotlin compiles in-process (`gradle.properties`), so no Kotlin daemon writes to `%LOCALAPPDATA%`.
+  The debug keystore in `.dev/android-user/` is a copy of the original, so builds stay signed alike.
+- **Git:** local repo, branch `main`, one commit per finished sub-phase. No remote, never push
+  (blocked in `.claude/settings.local.json`); the user decides on GitHub.
+- **Unattended phases (8d → 11c):** don't stop to ask. Take the recommended option and log it in
+  `DECISIONS.md`. The user tests on the phone once, after 11c.
 
 ## Deliberate deviations from the handoff's reference code
 
