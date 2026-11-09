@@ -152,9 +152,9 @@ class GarageScreenTest {
         await("garage_refuel_dialog")
         // The odometer is prefilled with the estimate, the price with the fuel's default.
         assertEquals("12000", tag("garage_refuel_odo").fieldText())
-        assertEquals("12500", tag("garage_refuel_price").fieldText())
+        assertEquals("15900", tag("garage_refuel_price").fieldText())
         tag("garage_refuel_amount").performTextReplacement("50.000") // Rp, Indonesian thousands
-        rule.waitUntil(5_000) { tag("garage_refuel_result").fetchText() == "= 4.0 L" }
+        rule.waitUntil(5_000) { tag("garage_refuel_result").fetchText() == "= 3.1 L" }
         click("garage_refuel_save")
         awaitGone("garage_refuel_dialog")
 
@@ -167,7 +167,7 @@ class GarageScreenTest {
         count("garage_cost").assertCountEquals(0)
         scrollClick("garage_cost_toggle")
         await("garage_cost")
-        rule.waitUntil(5_000) { tag("garage_refill_estimate").fetchText() == "Next refill ≈ 0.0 L × Rp 12.500 = Rp 0" }
+        rule.waitUntil(5_000) { tag("garage_refill_estimate").fetchText() == "Next refill ≈ 0.0 L × Rp 15.900 = Rp 0" }
 
         // Delete needs two taps.
         scrollClick("garage_refuel_delete")

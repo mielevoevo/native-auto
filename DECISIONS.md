@@ -179,9 +179,9 @@ Format: **sub-phase · decision** — why, and how to change it.
 
 - **The untracked-km design (2026-11-09) shipped here**, as the user asked: "Add untracked km" in the bike
   detail, no prompts, the narrower factor band, km/L from odometer deltas, trip recovery.
-- **Fuel prices to start from:** Pertalite Rp 10.000, Pertamax Rp 12.500, Pertamax Turbo Rp 13.500 per
-  litre (approximate pump prices; the spec's Rp 19.600 example looked like a placeholder). Each refuel stores
-  the price typed at the pump for that fuel type, and that price is used from then on.
+- **Fuel prices to start from (corrected by the user, 2026-11-09):** Pertamax Rp 15.900 ("almost 16k"),
+  Pertamax Turbo Rp 19.600, Pertalite Rp 10.000 (not confirmed). Each refuel stores the price typed at the
+  pump for that fuel type, and that price is used from then on.
 - **Refuel form:** Full tank (default) / Partial; fuel type (the bike's by default); amount as **Paid (Rp)**
   (default) or **Litres**, the other worked out from the price per litre; odometer prefilled with the
   estimate. An amount over twice the tank (Rp typed into Litres) isn't accepted.
@@ -208,3 +208,25 @@ Format: **sub-phase · decision** — why, and how to change it.
   and the phone hasn't rebooted since; otherwise saved as ended at the last checkpointed fix (no end-of-trip
   summary for it). Known edge: if the app is swiped away and the process dies before the save finishes, the
   next launch within 10 min resumes that trip; End then saves it.
+
+## Concerns to check at the phone test (noted after 11b)
+
+Things the emulator can't settle, or that I'm not sure of. None blocks 11c.
+
+1. **Pertalite's default price (Rp 10.000) is unconfirmed.** Harmless: the first Pertalite refuel replaces it.
+2. **"Almost 16k" was stored as Rp 15.900** for Pertamax. Correct it at the first fill-up if it's off.
+3. **Refuelled sits below the fold in the Garage on a landscape phone** (odometer, ride button, then fuel).
+   Fine for the Garage screen; 11c's expanded Garage card puts Refuelled in reach on the dashboard.
+4. **Trip recovery only runs when the app is opened.** If Android restarts the process in the background
+   (the media listener can do that) the lost trip waits until the app is opened; if that's over 10 min after
+   the last checkpoint, it's saved as ended instead of resumed.
+5. **The gap in a resumed trip counts as riding time** (and as moving time if the first fix after it is
+   moving), joined by a straight line. A long detour while the app was dead shows as a straight segment.
+6. **Swiped away + process dies before the save finishes** → the next launch within 10 min resumes that
+   trip. Rare; ending it then saves it as normal.
+7. **Range follows odometer corrections** (a higher reading = less fuel left), though km/L doesn't change.
+   Tell me if the 2026-11-08 "correction doesn't change the range" meant something stricter.
+8. **The range is an upper bound between readings:** untracked rides only count once logged.
+9. **Reboot path of trip recovery is unit-tested only** (the emulator check covered a kill, same boot).
+10. **HyperOS kills:** the app's checkpoint survives a kill, but whether HyperOS lets the trip service be
+    restarted on reopen without the app's battery setting on "No restrictions" needs the real phone.

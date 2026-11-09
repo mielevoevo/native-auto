@@ -26,8 +26,8 @@ enum class BikeType(val label: String) {
  */
 enum class FuelType(val label: String, val defaultPricePerL: Double) {
     PERTALITE("Pertalite", 10_000.0),
-    PERTAMAX("Pertamax", 12_500.0),
-    PERTAMAX_TURBO("Pertamax Turbo", 13_500.0),
+    PERTAMAX("Pertamax", 15_900.0),
+    PERTAMAX_TURBO("Pertamax Turbo", 19_600.0),
 }
 
 /**
