@@ -673,6 +673,19 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
 - Still v3.3, versionCode **18** (rider confirmed; Phase 13 moves to 19 / 20). Effort: medium.
 - Tests: editing a price changes the refuel prefill and the refill estimate; defaults; release smoke edits a price.
 
+## WIP: two-step feedback for the card hold (rider, 2026-11-09)
+
+- **Problem:** after the hold, the card lifts, and letting go without moving opens the picker. On the mount
+  it's hard to tell whether the hold has registered, and whether a release will mean "drag" or "pick".
+- **Proposal:** two visibly different stages, each with its own buzz:
+  1. **Lifted = drag mode** (after the hold time): ring completes, card scales up with a cyan outline, one
+     short buzz. Moving now drags; releasing here does nothing (the card settles back).
+  2. **Still held ~0.7 s more without moving = picker armed:** a second ring (or a grid icon) fills in the
+     card's centre, a double buzz, the card dims slightly. Releasing now opens the picker.
+  - Moving at any time drops back to drag mode, so a drag can't open the picker by accident.
+- Applies to `ui/dashboard/PaneDrag.kt` (a new `armedPicker` state), `DragOverlay`, haptics. Timing as a
+  setting only if the default doesn't suit gloves.
+
 ## Phase 13 (WIP, planned 2026-11-09, not started): call controls + portrait
 
 **Versions (rider):** 13a ships as **3.4.1**, 13b as **3.4.2** (versionCode 19, 20; 12c took 18).
