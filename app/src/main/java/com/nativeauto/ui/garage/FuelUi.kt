@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,6 +39,10 @@ import com.nativeauto.garage.FuelType
 import com.nativeauto.garage.RefuelDraft
 import com.nativeauto.garage.RefuelRecord
 import com.nativeauto.garage.UnknownFuel
+import com.nativeauto.garage.Consumption
+import com.nativeauto.garage.KMPL_PLAUSIBLE
+import com.nativeauto.garage.gaugeBars
+import com.nativeauto.garage.gaugeLitres
 import com.nativeauto.garage.costPerKm
 import com.nativeauto.garage.formatKmPerL
 import com.nativeauto.garage.formatLitres
@@ -68,6 +73,7 @@ internal fun FuelSection(
     refuelArmed: Long?,
     onRefuel: () -> Unit,
     onDeleteRefuel: (Long) -> Unit,
+    onSetLevel: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
@@ -79,10 +85,10 @@ internal fun FuelSection(
         Column(Modifier.weight(1f)) {
             Text("Range", style = MaterialTheme.typography.labelLarge, color = colors.textDim)
             val level = fuel?.level
-            val range = level?.rangeKm
+            val range = level?.cautiousRangeKm
             val low = (level?.fraction ?: 1.0) <= LOW_FUEL_FRACTION
             Text(
-                range?.let { "${it.roundToLong()} km" } ?: "—",
+                range?.let { "$it km" } ?: "—",
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.SemiBold,
                 color = if (low && range != null) colors.red else colors.text,
@@ -110,10 +116,16 @@ internal fun FuelSection(
         }
     }
     Spacer(Modifier.height(8.dp))
-    OutlinedButton(
-        onClick = { haptics.toggle(!showCost); showCost = !showCost },
-        modifier = Modifier.heightIn(min = 56.dp).testTag("garage_cost_toggle"),
-    ) { Text(if (showCost) "Hide costs" else "Calculate refill") }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 12b: a level from the bike's own gauge, before (or between) full fill-ups.
+        OutlinedButton(onClick = onSetLevel, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_set_level")) {
+            Text("Set fuel level")
+        }
+        OutlinedButton(
+            onClick = { haptics.toggle(!showCost); showCost = !showCost },
+            modifier = Modifier.heightIn(min = 56.dp).testTag("garage_cost_toggle"),
+        ) { Text(if (showCost) "Hide costs" else "Calculate refill") }
+    }
     if (showCost && fuel != null) CostPanel(fuel)
     if (fuel != null && fuel.refuels.isNotEmpty()) {
         Spacer(Modifier.height(12.dp))
@@ -126,14 +138,106 @@ internal fun FuelSection(
     }
 }
 
-/** "4.1 L of 6.6 L · 36.4 km/L learned", or why the level is unknown. */
+/** "4.1 L of 6.6 L · 36.4 km/L from 3 fill-ups", or why the level is unknown. */
 private fun fuelLine(f: FuelState): String {
-    val kmpl = formatKmPerL(f.consumption.kmPerL) + if (f.consumption.learned) " learned" else " (starting value)"
+    val kmpl = formatKmPerL(f.consumption.kmPerL) + " " + kmplSource(f.consumption)
     val level = f.level
     return when {
-        level.litres != null -> "${formatLitres(level.litres)} of ${trimNumber(level.tankLitres)} L · $kmpl"
-        level.unknownBecause == UnknownFuel.AWAY -> "Unknown after away km: a full fill-up restarts it · $kmpl"
-        else -> "Log a full fill-up to start the tank estimate · $kmpl"
+        level.litres != null -> "${formatLitres(level.litres)} of ${trimNumber(level.tankLitres)} L" +
+            (if (level.fromGauge) " (from the gauge)" else "") + " · $kmpl" + cautiousNote(f)
+        level.unknownBecause == UnknownFuel.AWAY -> "Unknown after away km: set the level or fill up · $kmpl"
+        else -> "Set the level from the gauge, or log a full fill-up · $kmpl"
+    }
+}
+
+/** 12b: where the km/L comes from: "from 3 fill-ups + 2 rides", or "(starting value)". */
+internal fun kmplSource(c: Consumption): String {
+    if (!c.learned) return "(starting value)"
+    val parts = buildList {
+        if (c.tanksUsed > 0) add(if (c.tanksUsed == 1) "1 fill-up" else "${c.tanksUsed} fill-ups")
+        if (c.dashUsed > 0) add(if (c.dashUsed == 1) "1 ride" else "${c.dashUsed} rides")
+    }
+    return "from " + parts.joinToString(" + ")
+}
+
+/** 12b: " · range at 34.0 km/L" when recent tanks are below the long run (the range uses those). */
+internal fun cautiousNote(f: FuelState): String =
+    if (f.consumption.cautiousKmPerL < f.consumption.kmPerL - 0.05) " · range at ${formatKmPerL(f.consumption.cautiousKmPerL)}" else ""
+
+/**
+ * 12b "Set fuel level": the bars lit on the bike's gauge (6 on the NMAX gen 1, 8 on gen 2) and
+ * the odometer. The level counts the last bar as half used, so the range leans low.
+ */
+@Composable
+internal fun FuelLevelDialog(bike: BikeRecord, estimateKm: Double?, onSave: (bars: Int, ofBars: Int, odometerKm: Double) -> Unit, onDismiss: () -> Unit) {
+    val of = gaugeBars(bike.bikeModel)
+    var bars by rememberSaveable { mutableStateOf<Int?>(null) }
+    var odoText by rememberSaveable { mutableStateOf(estimateKm?.let(::wholeNumber) ?: "") }
+    // The estimate can arrive after the dialog opens (the Garage screen reads it as a flow): fill it in then.
+    var prefilled by rememberSaveable { mutableStateOf(estimateKm != null) }
+    LaunchedEffect(estimateKm) {
+        if (!prefilled && estimateKm != null && odoText.isBlank()) odoText = wholeNumber(estimateKm)
+        if (estimateKm != null) prefilled = true
+    }
+    val odo = parseNumber(odoText, thousands = true)?.takeIf { it >= 0 }
+    val ok = bars != null && odo != null
+    GarageDialog(
+        tag = "garage_level_dialog",
+        title = "Set fuel level · ${bike.name}",
+        onDismiss = onDismiss,
+        action = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp)) { Text("Cancel") }
+            Spacer(Modifier.width(8.dp))
+            FilledTonalButton(
+                onClick = { onSave(bars!!, of, odo!!) },
+                enabled = ok,
+                modifier = Modifier.heightIn(min = 56.dp).testTag("garage_level_save"),
+            ) { Text("Save") }
+        },
+    ) {
+        Text(
+            "How many bars does the gauge show? The range works from there, on the low side, until the next full fill-up.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = AppTheme.colors.textDim,
+        )
+        Segments<Int?>((0..of).toList(), bars, { "$it" }, { "garage_level_bar_$it" }) { bars = it }
+        bars?.let { b ->
+            Text(
+                "About ${formatLitres(gaugeLitres(b, of, bike.tankLitres))} of ${trimNumber(bike.tankLitres)} L",
+                style = MaterialTheme.typography.bodyMedium,
+                color = AppTheme.colors.textDim,
+                modifier = Modifier.testTag("garage_level_litres"),
+            )
+        }
+        NumberField(odoText, { odoText = it }, "Odometer (km)", odoText.isNotBlank() && odo == null, "garage_level_odo", Modifier.fillMaxWidth(), whole = true)
+    }
+}
+
+/** 12b: the bike's own average for the ride just ended (its dash), optional. */
+@Composable
+fun DashKmPerLDialog(bikeName: String, onSave: (Double) -> Unit, onDismiss: () -> Unit) {
+    var value by rememberSaveable { mutableStateOf("") }
+    val kmpl = parseNumber(value)?.takeIf { it in KMPL_PLAUSIBLE }
+    GarageDialog(
+        tag = "kmpl_dialog",
+        title = "$bikeName's km/L",
+        onDismiss = onDismiss,
+        action = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp).testTag("kmpl_skip")) { Text("Skip") }
+            Spacer(Modifier.width(8.dp))
+            FilledTonalButton(
+                onClick = { onSave(kmpl!!) },
+                enabled = kmpl != null,
+                modifier = Modifier.heightIn(min = 56.dp).testTag("kmpl_save"),
+            ) { Text("Save") }
+        },
+    ) {
+        Text(
+            "What average did the dash show for this ride? Optional: it helps the range estimate.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = AppTheme.colors.textDim,
+        )
+        NumberField(value, { value = it }, "km/L", value.isNotBlank() && kmpl == null, "kmpl_value", Modifier.fillMaxWidth(), onDone = { kmpl?.let(onSave) })
     }
 }
 

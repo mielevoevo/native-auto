@@ -14,6 +14,8 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import com.nativeauto.garage.BikeRecord
+import com.nativeauto.garage.DashKmPerL
+import com.nativeauto.garage.FuelMark
 import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.GarageDao
 import com.nativeauto.garage.OdometerReading
@@ -144,9 +146,9 @@ interface RecentPlaceDao {
     entities = [
         TripRecord::class, RecentPlaceRecord::class, TrackPointRecord::class, BikeRecord::class, OdometerReading::class,
         RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
-        ServiceItem::class, ServiceRecord::class,
+        ServiceItem::class, ServiceRecord::class, FuelMark::class, DashKmPerL::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -247,5 +249,23 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS index_service_records_bikeId ON service_records (bikeId)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_service_records_itemId ON service_records (itemId)")
+    }
+}
+
+/** 12b: gauge readings ("Set fuel level") and the bike's dash km/L after a ride. */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS fuel_marks (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bikeId TEXT NOT NULL, timeMs INTEGER NOT NULL, " +
+                "odometerKm REAL NOT NULL, bars INTEGER NOT NULL, ofBars INTEGER NOT NULL, litres REAL NOT NULL)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_fuel_marks_bikeId ON fuel_marks (bikeId)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS dash_kmpl (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bikeId TEXT NOT NULL, timeMs INTEGER NOT NULL, " +
+                "kmPerL REAL NOT NULL, tripKm REAL NOT NULL)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_dash_kmpl_bikeId ON dash_kmpl (bikeId)")
     }
 }

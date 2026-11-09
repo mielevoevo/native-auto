@@ -1,5 +1,10 @@
 package com.nativeauto.ui.speed
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.nativeauto.history.TripOutcome
+import com.nativeauto.ui.garage.DashKmPerLDialog
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -79,12 +84,14 @@ fun SpeedCard(
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val garage by garageViewModel.ui.collectAsStateWithLifecycle()
-    val recent by logViewModel.recent.collectAsStateWithLifecycle()
+    val period by logViewModel.period.collectAsStateWithLifecycle()
+    val periodM by logViewModel.periodM.collectAsStateWithLifecycle()
     val outcome by logViewModel.outcome.collectAsStateWithLifecycle()
     val endArmed by logViewModel.endArmed.collectAsStateWithLifecycle()
     val visible by logViewModel.visible.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptics = rememberHaptics()
+    var askingDash by rememberSaveable { mutableStateOf(false) }
     val actions = remember(logViewModel) {
         TripLogActions(
             start = { haptics.tap(); TripService.start(context) },
@@ -92,10 +99,29 @@ fun SpeedCard(
             resume = { haptics.tap(); TripService.resume(context) },
             end = { if (logViewModel.onEndTapped()) haptics.confirm() else haptics.tap() },
             dismissSummary = { haptics.tap(); logViewModel.dismissSummary() },
+            askDashKmPerL = { haptics.tap(); askingDash = true },
+        )
+    }
+    // 12b: the bike's own km/L for the trip just saved; one answer per trip.
+    val savedTrip = (outcome as? TripOutcome.Saved)?.trip
+    val bike = garage.state?.bike
+    var dashGiven by rememberSaveable(savedTrip?.id) { mutableStateOf<Double?>(null) }
+    if (askingDash && savedTrip != null && bike != null) {
+        DashKmPerLDialog(
+            bikeName = bike.name,
+            onSave = { v ->
+                haptics.confirm()
+                garageViewModel.addDashKmPerL(bike.id, v, savedTrip.distanceM / 1000)
+                dashGiven = v
+                askingDash = false
+            },
+            onDismiss = { askingDash = false },
         )
     }
     SpeedCardContent(
-        mode, layout, ui, TripLogUi(recent, outcome, endArmed, visible, garage.reminder), actions,
+        mode, layout, ui,
+        TripLogUi(period, periodM, outcome, endArmed, visible, garage.reminder, bike?.name, dashGiven),
+        actions,
         // 11c (§6): a small red tank when fuel is low and no Garage card shows it already.
         lowFuel = garage.lowFuel && !layout.isOnScreen(Pane.GARAGE),
     )
@@ -141,7 +167,7 @@ fun SpeedCardContent(
             }
             FaceDots(pager.currentPage, FACES, Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp))
             if (lowFuel) LowFuelIcon(modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp))
-            if (ui.tripState == TripState.Ended) TripSummary(mode, ui, log, actions.dismissSummary)
+            if (ui.tripState == TripState.Ended) TripSummary(mode, ui, log, actions.dismissSummary, actions.askDashKmPerL)
         }
     }
 }

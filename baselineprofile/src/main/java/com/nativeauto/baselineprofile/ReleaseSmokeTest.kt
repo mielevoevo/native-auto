@@ -101,6 +101,8 @@ class ReleaseSmokeTest {
         find("settings_sheet")
         tap("settings_theme_LIGHT")
         tap("settings_trip_options")
+        tap("settings_period_WEEK")
+        tap("settings_period_DAY")
         tap("settings_trip_options_done")
         tap("settings_theme_DARK")
         tap("settings_done")
@@ -117,6 +119,12 @@ class ReleaseSmokeTest {
         tap("garage_save")
         gone("garage_editor")
         find("garage_bike_Gen 1")
+        // 12b: a level from the gauge before the first fill-up.
+        scrollTap("garage_set_level")
+        find("garage_level_dialog")
+        tap("garage_level_bar_3")
+        tap("garage_level_save")
+        gone("garage_level_dialog")
         scrollTap("garage_refuel")
         find("garage_refuel_dialog")
         type("garage_refuel_amount", "50000")
@@ -187,6 +195,7 @@ class ReleaseSmokeTest {
         find("garage_card_value")
         tap("maximize_GARAGE")
         find("garage_card_full")
+        find("garage_card_kmpl_source")
         tap("maximize_GARAGE")
 
         // Search and a route preview (network permitting), then cancel.

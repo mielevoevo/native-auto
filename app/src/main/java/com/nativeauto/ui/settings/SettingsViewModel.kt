@@ -80,6 +80,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setAutoPauseMinutes(minutes) }
     }
 
+    val totalPeriod: StateFlow<com.nativeauto.settings.TotalPeriod> =
+        settings.totalPeriod.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.nativeauto.settings.TotalPeriod.DAY)
+
+    fun setTotalPeriod(period: com.nativeauto.settings.TotalPeriod) {
+        viewModelScope.launch { settings.setTotalPeriod(period) }
+    }
+
     fun setAutoEndMinutes(minutes: Int) {
         viewModelScope.launch { settings.setAutoEndMinutes(minutes) }
     }

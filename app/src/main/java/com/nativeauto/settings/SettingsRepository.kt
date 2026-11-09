@@ -66,6 +66,10 @@ interface SettingsRepository {
     val garageValue: Flow<GarageValue>
     suspend fun setGarageValue(value: GarageValue)
 
+    /** 12b: the period of the log face's distance total. */
+    val totalPeriod: Flow<TotalPeriod>
+    suspend fun setTotalPeriod(period: TotalPeriod)
+
     /** 12a: refresh-rate policy (R4). Auto by default. */
     val refreshMode: Flow<RefreshMode>
     suspend fun setRefreshMode(mode: RefreshMode)
@@ -209,6 +213,13 @@ class DataStoreSettingsRepository @Inject constructor(
     override val garageValue: Flow<GarageValue> =
         prefs.map { enumOrDefault(it[GARAGE_VALUE], GarageValue.RANGE) }.distinctUntilChanged()
 
+    override val totalPeriod: Flow<TotalPeriod> =
+        prefs.map { enumOrDefault(it[TOTAL_PERIOD], TotalPeriod.DAY) }.distinctUntilChanged()
+
+    override suspend fun setTotalPeriod(period: TotalPeriod) {
+        store.edit { it[TOTAL_PERIOD] = period.name }
+    }
+
     override suspend fun setGarageValue(value: GarageValue) {
         store.edit { it[GARAGE_VALUE] = value.name }
     }
@@ -276,6 +287,7 @@ class DataStoreSettingsRepository @Inject constructor(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CLOCK_FACE = stringPreferencesKey("clock_face")
         val GARAGE_VALUE = stringPreferencesKey("garage_value")
+        val TOTAL_PERIOD = stringPreferencesKey("total_period")
         val REFRESH_MODE = stringPreferencesKey("refresh_mode")
         val DRAG_HOLD_MS = longPreferencesKey("drag_hold_ms")
         val CLOCK_SECONDS = booleanPreferencesKey("clock_seconds")

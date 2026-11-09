@@ -187,12 +187,13 @@ class GarageRepository @Inject constructor(
             dao.observeRefuels(bikeId),
             dao.observeReadings(bikeId).map { rs -> rs.filter { it.readingKind == ReadingKind.AWAY }.map { it.timeMs } }.distinctUntilChanged(),
             odometer(bikeId).map { it.estimateKm },
-            dao.observePrices(),
-        ) { bike, refuels, away, odo, prices ->
+            combine(dao.observePrices(), dao.observeFuelMarks(bikeId), dao.observeDashKmPerL(bikeId), ::Triple),
+        ) { bike, refuels, away, odo, (prices, marks, dash) ->
             val tank = bike?.tankLitres ?: BikeModel.OTHER.tankLitres
-            val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away)
+            val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away, dash)
             FuelState(
-                level = fuelLevel(tank, consumption.kmPerL, refuels, away, odo),
+                // 12b: the level burns at the cautious figure, so litres left and range lean low together.
+                level = fuelLevel(tank, consumption.cautiousKmPerL, refuels, away, odo, marks),
                 consumption = consumption,
                 refuels = refuels,
                 pricePerL = priceOf(bike?.fuel ?: FuelType.PERTAMAX, prices),
@@ -227,6 +228,33 @@ class GarageRepository @Inject constructor(
     }
 
     suspend fun deleteRefuel(id: Long) = lock.withLock { dao.deleteRefuel(id) }
+
+    /**
+     * 12b "Set fuel level": [bars] lit of the gauge's [ofBars], with the bike's odometer. The
+     * odometer is treated like a refuel's (within a kilometre = the estimate, else a reading).
+     */
+    suspend fun setFuelLevel(bikeId: String, bars: Int, ofBars: Int, odometerKm: Double) {
+        val estimate = estimateNow(bikeId)
+        val odo = if (estimate != null && abs(odometerKm - estimate) < REFUEL_SAME_KM) {
+            estimate
+        } else {
+            enterReading(bikeId, odometerKm)
+            odometerKm
+        }
+        lock.withLock {
+            val tank = dao.bike(bikeId)?.tankLitres ?: BikeModel.OTHER.tankLitres
+            dao.insertFuelMark(
+                FuelMark(bikeId = bikeId, timeMs = wall.nowMs(), odometerKm = odo, bars = bars, ofBars = ofBars, litres = gaugeLitres(bars, ofBars, tank)),
+            )
+        }
+    }
+
+    /** 12b: the bike's dash km/L after a ride; it trains the estimate with the fill-ups. False if implausible. */
+    suspend fun addDashKmPerL(bikeId: String, kmPerL: Double, tripKm: Double): Boolean = lock.withLock {
+        if (kmPerL !in KMPL_PLAUSIBLE) return@withLock false
+        dao.insertDashKmPerL(DashKmPerL(bikeId = bikeId, timeMs = wall.nowMs(), kmPerL = kmPerL, tripKm = tripKm))
+        true
+    }
 
     /**
      * The rider's own ride without the app ("Add untracked km"): re-anchors the odometer at the

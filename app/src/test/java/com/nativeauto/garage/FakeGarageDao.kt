@@ -90,4 +90,23 @@ internal class FakeGarageDao : GarageDao {
     override suspend fun allServiceRecords() = serviceRecords.value.sortedWith(compareBy({ it.timeMs }, { it.id }))
     override suspend fun deleteAllServices() { services.value = emptyList() }
     override suspend fun deleteAllServiceRecords() { serviceRecords.value = emptyList() }
+    // ---- 12b ----
+    val marks = MutableStateFlow<List<FuelMark>>(emptyList())
+    val dash = MutableStateFlow<List<DashKmPerL>>(emptyList())
+    override suspend fun deleteFuelMarks(id: String) { marks.value = marks.value.filterNot { it.bikeId == id } }
+    override suspend fun deleteDashKmPerL(id: String) { dash.value = dash.value.filterNot { it.bikeId == id } }
+    override fun observeFuelMarks(bikeId: String) = marks.map { l -> l.filter { it.bikeId == bikeId }.sortedWith(compareByDescending<FuelMark> { it.timeMs }.thenByDescending { it.id }) }
+    override suspend fun insertFuelMark(mark: FuelMark): Long {
+        val id = marks.value.size + 1L
+        marks.value += mark.copy(id = id)
+        return id
+    }
+    override fun observeDashKmPerL(bikeId: String) = dash.map { l -> l.filter { it.bikeId == bikeId }.sortedWith(compareByDescending<DashKmPerL> { it.timeMs }.thenByDescending { it.id }) }
+    override suspend fun insertDashKmPerL(entry: DashKmPerL): Long {
+        val id = dash.value.size + 1L
+        dash.value += entry.copy(id = id)
+        return id
+    }
+    override suspend fun deleteAllFuelMarks() { marks.value = emptyList() }
+    override suspend fun deleteAllDashKmPerL() { dash.value = emptyList() }
 }

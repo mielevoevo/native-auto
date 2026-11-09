@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nativeauto.history.TripDao
 import com.nativeauto.history.TripOutcome
-import com.nativeauto.history.TripRecord
+import com.nativeauto.history.periodDistanceM
+import com.nativeauto.settings.TotalPeriod
+import java.time.ZoneId
 import com.nativeauto.history.TripRecorder
 import com.nativeauto.trip.TripState
 import com.nativeauto.settings.SettingsRepository
@@ -18,6 +20,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -43,10 +48,32 @@ class TripLogViewModel @Inject constructor(
         .map { TelemetryStat.entries.toSet() - it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TelemetryStat.entries.toSet() - TelemetryStat.DEFAULT_HIDDEN)
 
-    /** The last few saved rides, newest first. */
-    val recent: StateFlow<List<TripRecord>> = dao.observeAll()
-        .map { it.take(RECENT_COUNT) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val period: StateFlow<TotalPeriod> = settings.totalPeriod
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TotalPeriod.DAY)
+
+    /** Re-reads the clock each minute, so "Today" rolls over at midnight. */
+    private val minutes = flow {
+        while (true) {
+            emit(Unit)
+            delay(60_000)
+        }
+    }
+
+    private val savedM = combine(dao.observeAll(), settings.totalPeriod, minutes) { trips, p, _ ->
+        periodDistanceM(trips, p, System.currentTimeMillis(), ZoneId.systemDefault())
+    }.distinctUntilChanged()
+
+    /**
+     * 12b (R2): metres in the chosen period: the saved trips plus the one running or paused (an
+     * ended trip is already saved, or was too short to keep).
+     */
+    val periodM: StateFlow<Double> = combine(
+        savedM,
+        tracker.state,
+        tracker.stats.map { it.distanceM }.distinctUntilChanged(),
+    ) { saved, state, live ->
+        saved + if (state == TripState.Running || state == TripState.Paused) live else 0.0
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0.0)
 
     val outcome: StateFlow<TripOutcome?> = recorder.lastOutcome
 
@@ -81,6 +108,5 @@ class TripLogViewModel @Inject constructor(
 
     companion object {
         const val ARM_MS = 3_000L
-        const val RECENT_COUNT = 3
     }
 }

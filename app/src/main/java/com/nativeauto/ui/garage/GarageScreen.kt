@@ -73,6 +73,7 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
     var correcting by rememberSaveable { mutableStateOf<String?>(null) }
     var refuelling by rememberSaveable { mutableStateOf<String?>(null) }
     var addingUntracked by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingLevel by rememberSaveable { mutableStateOf<String?>(null) }
     // 11c: the service editor (0 = a new item) and "Mark done", for the selected bike.
     var editingService by rememberSaveable { mutableStateOf<Long?>(null) }
     var doneService by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -114,6 +115,7 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                             onEdit = { haptics.tap(); editing = selected.id },
                             onCorrect = { haptics.tap(); correcting = selected.id },
                             onUntracked = { haptics.tap(); addingUntracked = selected.id },
+                            onSetLevel = { haptics.tap(); settingLevel = selected.id },
                             onRefuel = { haptics.tap(); refuelling = selected.id },
                             onAddService = { haptics.tap(); editingService = 0L },
                             onEditService = { haptics.tap(); editingService = it.id },
@@ -226,6 +228,20 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
             }
         }
     }
+    settingLevel?.let { id ->
+        val bike = list?.firstOrNull { it.id == id }
+        if (bike == null) {
+            settingLevel = null
+        } else {
+            val odo by remember(id) { viewModel.odometer(id) }.collectAsStateWithLifecycle(null)
+            FuelLevelDialog(
+                bike = bike,
+                estimateKm = odo?.estimateKm,
+                onSave = { bars, of, km -> haptics.confirm(); viewModel.setFuelLevel(id, bars, of, km); settingLevel = null },
+                onDismiss = { settingLevel = null },
+            )
+        }
+    }
     addingUntracked?.let { id ->
         val bike = list?.firstOrNull { it.id == id }
         if (bike == null) {
@@ -299,6 +315,7 @@ private fun BikeDetail(
     onEdit: () -> Unit,
     onCorrect: () -> Unit,
     onUntracked: () -> Unit,
+    onSetLevel: () -> Unit,
     onRefuel: () -> Unit,
     onAddService: () -> Unit,
     onEditService: (ServiceItem) -> Unit,
@@ -364,6 +381,7 @@ private fun BikeDetail(
             fuel = fuel,
             refuelArmed = refuelArmed,
             onRefuel = onRefuel,
+            onSetLevel = onSetLevel,
             onDeleteRefuel = { id -> if (viewModel.onDeleteRefuelTapped(id)) haptics.confirm() else haptics.tap() },
         )
         Spacer(Modifier.height(20.dp))

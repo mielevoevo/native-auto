@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -233,6 +234,26 @@ class GarageRepositoryTest {
         assertEquals(ReadingKind.CORRECTION, rig.dao.lastReading(gen1)!!.readingKind)
         assertEquals(1_050.0, rig.dao.refuels.value.last().odometerKm, 0.0)
         assertEquals(12_500.0, rig.dao.prices.value.single().pricePerL, 0.0)
+    }
+
+    @Test fun `a gauge reading sets the level until a full fill, dash km per litre trains`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        rig.garage.setFuelLevel(gen1, bars = 3, ofBars = 6, odometerKm = 1_000.4)
+        var f = rig.garage.fuel(gen1).first()
+        assertEquals(gaugeLitres(3, 6, 6.6), f.level.litres!!, 1e-9)
+        assertTrue(f.level.fromGauge)
+        // Within a km of the estimate: no correction logged.
+        assertEquals(1, rig.dao.readings.value.size)
+        assertTrue(rig.garage.addDashKmPerL(gen1, 42.0, 20.0))
+        assertFalse(rig.garage.addDashKmPerL(gen1, 500.0, 20.0))
+        f = rig.garage.fuel(gen1).first()
+        assertEquals(1, f.consumption.dashUsed)
+        advanceTimeBy(60_000)
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 4.0, odometerKm = 1_000.0))
+        f = rig.garage.fuel(gen1).first()
+        assertFalse(f.level.fromGauge)
+        assertEquals(6.6, f.level.litres!!, 1e-9)
     }
 
     @Test fun `fuel state follows fill-ups, rides and untracked km`() = runTest {

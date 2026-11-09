@@ -11,6 +11,7 @@ import com.nativeauto.history.MIGRATION_1_2
 import com.nativeauto.history.MIGRATION_2_3
 import com.nativeauto.history.MIGRATION_3_4
 import com.nativeauto.history.MIGRATION_4_5
+import com.nativeauto.history.MIGRATION_5_6
 import com.nativeauto.history.LiveTripDao
 import com.nativeauto.history.RoomTripCheckpoints
 import com.nativeauto.history.TripCheckpoints
@@ -45,7 +46,7 @@ object DataModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "native-auto.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .build()
 
     @Provides fun provideTripDao(db: AppDatabase): TripDao = db.trips()

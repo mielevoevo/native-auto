@@ -14,8 +14,6 @@
     <string name="log_pause">Pause trip</string>
     <string name="log_end">End trip</string>
     <string name="log_end_confirm">Tap ⏹ again to end</string>
-    <string name="log_recent">Recent rides</string>
-    <string name="log_no_rides">No rides yet</string>
     <string name="log_faces">Speed and trip log: swipe to switch</string>
     <string name="summary_title">Trip complete</string>
     <string name="summary_too_short">Too short to save</string>
@@ -47,6 +45,7 @@
     <string name="settings_drag_hold">Hold to move a card</string>
     <string name="settings_refresh_hint">Moving things are always smooth. When nothing moves, Auto lets the phone decide, Power saver drops to the lowest rate, Smooth stays at the fastest.</string>
     <string name="settings_screen_options">Screen options</string>
+    <string name="settings_total_period">Speed card total</string>
     <string name="settings_screen_options_hint">Battery, refresh rate, hold to move</string>
     <string name="settings_battery">Battery indicator</string>
     <string name="settings_battery_hint">Top right, with the clock</string>

@@ -1,5 +1,9 @@
 package com.nativeauto.ui.speed
 
+import com.nativeauto.settings.TotalPeriod
+import com.nativeauto.garage.formatKmPerL
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.heightIn
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -63,13 +67,19 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /** What the log face and the summary show, besides the trip figures in [SpeedometerUiState]. */
 data class TripLogUi(
-    val recent: List<TripRecord> = emptyList(),
+    /** 12b (R2): the period of the distance total, and its metres (saved trips + the live one). */
+    val period: TotalPeriod = TotalPeriod.DAY,
+    val periodM: Double = 0.0,
     val outcome: TripOutcome? = null,
     val endArmed: Boolean = false,
     /** The figures shown on the log face and the summary (9c). */
     val visible: Set<TelemetryStat> = TelemetryStat.entries.toSet() - TelemetryStat.DEFAULT_HIDDEN,
     /** 11c: a service due soon or overdue on the active bike (shown at trip start and end, never as a pop-up). */
     val reminder: ServiceDue? = null,
+    /** 12b: the active bike, which the summary's "Bike's km/L" goes to (null: no prompt). */
+    val bikeName: String? = null,
+    /** 12b: the km/L given for this summary's trip, once saved. */
+    val dashKmPerL: Double? = null,
 )
 
 /** The log face's buttons and the summary's dismiss. */
@@ -80,6 +90,8 @@ class TripLogActions(
     /** First tap arms (⏹ turns red), the second ends; the card adds the haptics. */
     val end: () -> Unit,
     val dismissSummary: () -> Unit,
+    /** 12b: the summary's optional "Bike's km/L". */
+    val askDashKmPerL: () -> Unit = {},
 ) {
     companion object {
         val None = TripLogActions({}, {}, {}, {}, {})
@@ -91,7 +103,7 @@ class TripLogActions(
 /**
  * The log face (Rider-Feedback §2): music-player-style controls with no text labels
  * (▶ start / resume, ⏸ pause, ⏹ end, red on the first tap), the trip's figures (zero with no
- * trip), and the last rides where the card has room.
+ * trip), and (12b) the day / week / month distance total.
  */
 @Composable
 internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, actions: TripLogActions) {
@@ -111,7 +123,8 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
                 softWrap = false,
                 modifier = Modifier.testTag("log_line"),
             )
-            log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) }
+            // A due service outranks the total on the small face: it's rare and it matters.
+            log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) } ?: PeriodTotal(log, ui, small = true)
         }
         CardMode.Wide -> Row(
             Modifier.requiredHeightIn(min = 112.dp).fillMaxSize().padding(horizontal = 24.dp),
@@ -131,7 +144,7 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
             log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp)) }
             StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 3, tileHeight = 76.dp)
             Spacer(Modifier.height(12.dp))
-            RecentRides(log.recent, ui, Modifier.weight(1f))
+            PeriodTotal(log, ui, small = false)
         }
         CardMode.Fullscreen -> Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
             Column(Modifier.weight(1.1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
@@ -142,7 +155,7 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
                 log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) }
             }
             Spacer(Modifier.width(24.dp))
-            RecentRides(log.recent, ui, Modifier.weight(1f).fillMaxHeight())
+            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { PeriodTotal(log, ui, small = false) }
         }
     }
 }
@@ -203,31 +216,17 @@ private fun LogButton(
     }
 }
 
+/** 12b (R2): "Today 42.3 km", in the speed unit's distance, saved trips plus the live one. */
 @Composable
-private fun RecentRides(recent: List<TripRecord>, ui: SpeedometerUiState, modifier: Modifier) {
-    Column(modifier.testTag("log_recent"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(R.string.log_recent), style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.textDim)
-        if (recent.isEmpty()) {
-            Text(stringResource(R.string.log_no_rides), style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim)
-        }
-        recent.forEach { trip ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    formatDay(trip.startedAtMs),
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    formatDistance(trip.distanceM, ui.unit),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
-        }
-    }
+private fun PeriodTotal(log: TripLogUi, ui: SpeedometerUiState, small: Boolean) {
+    Text(
+        "${log.period.lead} ${formatDistance(log.periodM, ui.unit)}",
+        style = (if (small) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleLarge).copy(fontFeatureSettings = "tnum"),
+        color = if (small) AppTheme.colors.textDim else AppTheme.colors.text,
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier.padding(top = if (small) 4.dp else 0.dp).testTag("log_period"),
+    )
 }
 
 // ------------------------------------------------------------------ summary
@@ -238,7 +237,7 @@ private fun RecentRides(recent: List<TripRecord>, ui: SpeedometerUiState, modifi
  * which zeroes the trip until the next Start.
  */
 @Composable
-internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, onDismiss: () -> Unit) {
+internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, onDismiss: () -> Unit, onAskDash: () -> Unit = {}) {
     val outcome = log.outcome
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) { progress.animateTo(1f, tween(COUNT_UP_MS, easing = FastOutSlowInEasing)) }
@@ -278,6 +277,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                     softWrap = false,
                 )
                 if (outcome == TripOutcome.TooShort) SummaryNote(R.string.summary_too_short)
+                if (saved != null) DashPrompt(log, onAskDash, Modifier.padding(top = 6.dp))
                 log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 6.dp)) }
             }
             CardMode.Wide -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -295,9 +295,38 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                 StatGrid(figures, columns = if (mode == CardMode.Fullscreen) 4 else 3, tileHeight = 76.dp)
                 Spacer(Modifier.height(12.dp))
                 SummaryRoute(saved, outcome, Modifier.weight(1f).fillMaxWidth())
-                log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 6.dp)) }
-                SummaryNote(R.string.summary_close)
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        log.reminder?.let { ServiceBadge(it) }
+                        SummaryNote(R.string.summary_close)
+                    }
+                    if (saved != null) DashPrompt(log, onAskDash)
+                }
             }
+        }
+    }
+}
+
+/**
+ * 12b (R1): the optional "what did the bike's dash say?" after a saved ride. Only with a bike in
+ * the Garage; once answered it shows the figure instead. Never asked again for the same trip.
+ */
+@Composable
+private fun DashPrompt(log: TripLogUi, onAsk: () -> Unit, modifier: Modifier = Modifier) {
+    if (log.bikeName == null) return
+    val given = log.dashKmPerL
+    if (given != null) {
+        Text(
+            "Bike's ${formatKmPerL(given)} saved",
+            style = MaterialTheme.typography.bodyMedium,
+            color = AppTheme.colors.textDim,
+            maxLines = 1,
+            softWrap = false,
+            modifier = modifier.testTag("sum_dash_saved"),
+        )
+    } else {
+        FilledTonalButton(onClick = onAsk, modifier = modifier.heightIn(min = 56.dp).testTag("sum_dash")) {
+            Text("Bike's km/L", maxLines = 1, softWrap = false)
         }
     }
 }

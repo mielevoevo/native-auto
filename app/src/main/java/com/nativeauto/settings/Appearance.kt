@@ -39,6 +39,13 @@ const val DEFAULT_DRAG_HOLD_MS = 1_000L
  * 11c: the one value a normal-size Garage card shows big (Rider-Feedback §6 "Where it lives"),
  * chosen in the maximized card. Range by default.
  */
+/** 12b (R2): the log face's distance total. A week starts on Monday; a month is the calendar month. */
+enum class TotalPeriod(val label: String, val lead: String) {
+    DAY("Day", "Today"),
+    WEEK("Week", "This week"),
+    MONTH("Month", "This month"),
+}
+
 enum class GarageValue(val label: String) {
     RANGE("Range"),
     SINCE_REFUEL("Since fill-up"),

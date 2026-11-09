@@ -261,6 +261,29 @@ Format: **sub-phase · decision** — why, and how to change it.
    After the emulator settled, all of them passed. When many tests fail with that error, look at the
    emulator first (`dumpsys window | grep mCurrentFocus`).
 
+## 12b · Range, gauge level, dash km/L, period totals (v3.3)
+
+- **Gauge bars to litres:** n bars lit = n − ½ bars of the tank (a bar stays lit until it's empty, so the
+  middle of the last one, on the low side). 0 bars = 0 L.
+- **"Other" bikes get an 8-bar gauge** until the per-bike setting (after Phase 12).
+- **Cautious range** = the lower of the long-run km/L and the last 3 tanks' mean, rounded down to 5 km.
+  The level burns at the same figure, so litres left and range agree. No band (rider's call).
+- **Dash km/L weight 0.15** (a tank is 0.3): bike dashes usually read a little optimistic, and the figure
+  covers whatever the dash's trip counter covers. Asked only after a **saved** trip, only with a bike, as a
+  button on the summary (not a pop-up): skipping costs nothing.
+- **Range stays in km** like the odometer and everything in the Garage (11a). The period total follows
+  the km / mi setting like the other speed-card figures.
+- **Period total placement:** Compact shows it unless a service is due (the reminder is rarer and
+  matters more); Wide keeps its four figures. Chosen in Trip options, beside auto-pause / auto-end.
+- **Gauge readings and dash figures are not in the backup** (format 2 unchanged). A gauge reading is
+  replaced by the next full fill anyway; dash figures are a small nudge. Add them if a restore ever
+  loses something that matters.
+
+**Bugs found in 12b testing**
+1. "Set fuel level" from the Garage screen opened with an empty odometer: the screen reads the estimate as
+   a flow that answers after the dialog's first frame. The dialog now fills the field when the estimate
+   arrives, unless the rider has typed already. Caught by `theGaugeSetsALevelBeforeTheFirstFullFill`.
+
 ## Concerns to check at the phone test (noted after 11b)
 
 Things the emulator can't settle, or that I'm not sure of. None blocks 11c.

@@ -8,6 +8,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.roundToLong
 
 /**
@@ -48,6 +49,44 @@ data class FuelPrice(
     val updatedAtMs: Long,
 )
 
+/**
+ * 12b "Set fuel level": the tank as read off the bike's own gauge, with the odometer at that
+ * moment. Until the next full fill the level is walked forward from here instead.
+ */
+@Entity(tableName = "fuel_marks", indices = [Index("bikeId")])
+data class FuelMark(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bikeId: String,
+    val timeMs: Long,
+    val odometerKm: Double,
+    /** Bars lit on the gauge, out of [ofBars]. */
+    val bars: Int,
+    val ofBars: Int,
+    /** What that means in litres ([gaugeLitres], cautious). */
+    val litres: Double,
+)
+
+/** 12b: the bike's own trip average (km/L from its dash), given after a ride. */
+@Entity(tableName = "dash_kmpl", indices = [Index("bikeId")])
+data class DashKmPerL(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bikeId: String,
+    val timeMs: Long,
+    val kmPerL: Double,
+    /** GPS km of the ride it was given after. */
+    val tripKm: Double,
+)
+
+/** Bars on the bike's fuel gauge (rider, 2026-11-09): NMAX gen 1 6, gen 2 8. Per bike: after Phase 12. */
+fun gaugeBars(model: BikeModel): Int = if (model == BikeModel.NMAX_GEN1) 6 else 8
+
+/**
+ * Litres for [bars] lit out of [ofBars]. A bar stays lit until it's empty, so n bars means
+ * somewhere between n−1 and n: the cautious middle of the last bar, n − ½. No bars = 0.
+ */
+fun gaugeLitres(bars: Int, ofBars: Int, tankLitres: Double): Double =
+    if (bars <= 0 || ofBars <= 0) 0.0 else ((bars - 0.5) / ofBars).coerceIn(0.0, 1.0) * tankLitres
+
 /** Rp per litre for [fuel]: the last one logged, else the built-in default. */
 fun priceOf(fuel: FuelType, prices: List<FuelPrice>): Double =
     prices.firstOrNull { it.fuelType == fuel.name }?.pricePerL ?: fuel.defaultPricePerL
@@ -62,6 +101,12 @@ const val KMPL_FIRST_WEIGHT = 0.5
 
 /** Measures outside this are typos or a forgotten fill-up, whatever the estimate. */
 val KMPL_PLAUSIBLE = 10.0..100.0
+
+/** 12b: how far one dash figure moves the estimate. Smaller than a tank: dashes read optimistic. */
+const val DASH_WEIGHT = 0.15
+
+/** 12b: the cautious figure looks at this many recent tanks. */
+const val RECENT_TANKS = 3
 
 /** Once learning has started, a measure this far (±) from the estimate is an outlier. */
 const val KMPL_OUTLIER = 0.35
@@ -82,8 +127,23 @@ data class Consumption(
     val kmPerL: Double,
     /** Oldest first: the km/L trend. */
     val measures: List<TankMeasure>,
+    /** 12b: dash figures that taught the estimate. */
+    val dashUsed: Int = 0,
 ) {
-    val learned: Boolean get() = measures.any { it.used }
+    val learned: Boolean get() = measures.any { it.used } || dashUsed > 0
+
+    /** Full-to-full spans that taught the estimate. */
+    val tanksUsed: Int get() = measures.count { it.used }
+
+    /**
+     * 12b, the range's figure: the lower of the long-run estimate and the mean of the last
+     * [RECENT_TANKS] tanks, so a recent drop in economy shows at once and a good tank doesn't
+     * make the range promise more than the long run.
+     */
+    val cautiousKmPerL: Double get() {
+        val recent = measures.filter { it.used }.takeLast(RECENT_TANKS)
+        return if (recent.isEmpty()) kmPerL else minOf(kmPerL, recent.map { it.kmPerL }.average())
+    }
 }
 
 /** Oldest first; same-time entries by odometer. */
@@ -94,13 +154,32 @@ private fun chronological(refuels: List<RefuelRecord>) = refuels.sortedWith(comp
  * everything added after the first, up to and including the second (partials too). Spans with
  * an away reading in them ([awayTimesMs]) are skipped: others rode it.
  */
-fun learnConsumption(startKmPerL: Double, refuels: List<RefuelRecord>, awayTimesMs: List<Long>): Consumption {
+fun learnConsumption(
+    startKmPerL: Double,
+    refuels: List<RefuelRecord>,
+    awayTimesMs: List<Long>,
+    dash: List<DashKmPerL> = emptyList(),
+): Consumption {
     var estimate = startKmPerL
     var lastFull: RefuelRecord? = null
     var litres = 0.0
     var accepted = 0
+    var dashUsed = 0
     val measures = ArrayList<TankMeasure>()
+    // 12b: dash figures join in time order; they nudge the estimate and leave the tank spans alone.
+    val pending = dash.sortedWith(compareBy({ it.timeMs }, { it.id })).toMutableList()
+    fun takeDash(untilMs: Long) {
+        while (pending.isNotEmpty() && pending.first().timeMs <= untilMs) {
+            val v = pending.removeAt(0).kmPerL
+            val learning = accepted + dashUsed > 0
+            if (v in KMPL_PLAUSIBLE && (!learning || abs(v / estimate - 1) <= KMPL_OUTLIER)) {
+                estimate += DASH_WEIGHT * (v - estimate)
+                dashUsed++
+            }
+        }
+    }
     for (r in chronological(refuels)) {
+        takeDash(r.timeMs)
         if (lastFull == null) {
             if (r.full) lastFull = r
             continue
@@ -111,7 +190,7 @@ fun learnConsumption(startKmPerL: Double, refuels: List<RefuelRecord>, awayTimes
         val away = awayTimesMs.any { it > lastFull!!.timeMs && it <= r.timeMs }
         if (km > 0 && litres > 0 && !away) {
             val measured = km / litres
-            val plausible = measured in KMPL_PLAUSIBLE && (accepted == 0 || abs(measured / estimate - 1) <= KMPL_OUTLIER)
+            val plausible = measured in KMPL_PLAUSIBLE && (accepted + dashUsed == 0 || abs(measured / estimate - 1) <= KMPL_OUTLIER)
             if (plausible) {
                 estimate += (if (accepted == 0) KMPL_FIRST_WEIGHT else KMPL_WEIGHT) * (measured - estimate)
                 accepted++
@@ -123,7 +202,8 @@ fun learnConsumption(startKmPerL: Double, refuels: List<RefuelRecord>, awayTimes
         lastFull = r
         litres = 0.0
     }
-    return Consumption(estimate, measures)
+    takeDash(Long.MAX_VALUE)
+    return Consumption(estimate, measures, dashUsed)
 }
 
 // ---- Tank level and range ------------------------------------------------------------------
@@ -137,7 +217,12 @@ data class FuelLevel(
     val sinceRefuelKm: Double?,
     /** Why [litres] is null. */
     val unknownBecause: UnknownFuel? = null,
+    /** 12b: walked from a gauge reading ("Set fuel level"), not from a full fill. */
+    val fromGauge: Boolean = false,
 ) {
+    /** 12b: the one number the rider sees: [rangeKm] rounded down to 5 km. */
+    val cautiousRangeKm: Long? get() = rangeKm?.let { (floor(it / RANGE_STEP_KM) * RANGE_STEP_KM).toLong() }
+
     /** Upper bound between readings: untracked km only show up at the next reading. */
     val rangeKm: Double? get() = litres?.let { it * kmPerL }
     val fraction: Double? get() = litres?.let { (it / tankLitres).coerceIn(0.0, 1.0) }
@@ -147,9 +232,13 @@ data class FuelLevel(
 
 enum class UnknownFuel { NO_FULL_FILL, AWAY }
 
+/** The range is rounded down to this. */
+const val RANGE_STEP_KM = 5.0
+
 /**
  * The tank now: full at the last full fill, minus odometer km ÷ [kmPerL] at each later step,
  * plus each partial's litres (capped at the tank), minus the km since to [odometerNowKm].
+ * 12b: a gauge reading ([marks]) newer than the last full fill is the starting point instead.
  */
 fun fuelLevel(
     tankLitres: Double,
@@ -157,23 +246,27 @@ fun fuelLevel(
     refuels: List<RefuelRecord>,
     awayTimesMs: List<Long>,
     odometerNowKm: Double?,
+    marks: List<FuelMark> = emptyList(),
 ): FuelLevel {
     val sorted = chronological(refuels)
     val last = sorted.lastOrNull()
     val since = if (last != null && odometerNowKm != null) (odometerNowKm - last.odometerKm).coerceAtLeast(0.0) else null
     val fullIndex = sorted.indexOfLast { it.full }
-    if (fullIndex < 0) return FuelLevel(null, tankLitres, kmPerL, since, UnknownFuel.NO_FULL_FILL)
-    val full = sorted[fullIndex]
-    if (awayTimesMs.any { it > full.timeMs }) return FuelLevel(null, tankLitres, kmPerL, since, UnknownFuel.AWAY)
-    var litres = tankLitres
-    var odo = full.odometerKm
-    for (r in sorted.drop(fullIndex + 1)) {
+    val full = sorted.getOrNull(fullIndex)
+    val mark = marks.maxWithOrNull(compareBy({ it.timeMs }, { it.id }))?.takeIf { full == null || it.timeMs > full.timeMs }
+    if (full == null && mark == null) return FuelLevel(null, tankLitres, kmPerL, since, UnknownFuel.NO_FULL_FILL)
+    val anchorMs = mark?.timeMs ?: full!!.timeMs
+    if (awayTimesMs.any { it > anchorMs }) return FuelLevel(null, tankLitres, kmPerL, since, UnknownFuel.AWAY, fromGauge = mark != null)
+    var litres = mark?.litres?.coerceIn(0.0, tankLitres) ?: tankLitres
+    var odo = mark?.odometerKm ?: full!!.odometerKm
+    val after = if (mark != null) sorted.filter { it.timeMs > mark.timeMs } else sorted.drop(fullIndex + 1)
+    for (r in after) {
         litres = (litres - (r.odometerKm - odo).coerceAtLeast(0.0) / kmPerL).coerceAtLeast(0.0)
         litres = (litres + r.litres).coerceAtMost(tankLitres)
         odo = maxOf(odo, r.odometerKm)
     }
     if (odometerNowKm != null) litres = (litres - (odometerNowKm - odo).coerceAtLeast(0.0) / kmPerL).coerceAtLeast(0.0)
-    return FuelLevel(litres, tankLitres, kmPerL, since)
+    return FuelLevel(litres, tankLitres, kmPerL, since, fromGauge = mark != null)
 }
 
 // ---- Amounts, costs, spend -----------------------------------------------------------------

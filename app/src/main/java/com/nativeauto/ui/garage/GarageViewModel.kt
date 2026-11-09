@@ -62,6 +62,9 @@ class GarageViewModel @Inject constructor(private val garage: GarageRepository) 
 
     fun addUntrackedKm(bikeId: String, km: Double) = viewModelScope.launch { garage.addUntrackedKm(bikeId, km) }
 
+    fun setFuelLevel(bikeId: String, bars: Int, ofBars: Int, odometerKm: Double) =
+        viewModelScope.launch { garage.setFuelLevel(bikeId, bars, ofBars, odometerKm) }
+
     // ---- 11c ----
 
     fun services(bikeId: String): Flow<List<ServiceDue>> = garage.services(bikeId)

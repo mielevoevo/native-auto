@@ -163,7 +163,7 @@ class GarageScreenTest {
         awaitGone("garage_refuel_dialog")
 
         // Full tank: 6.6 L × 36 km/L.
-        rule.waitUntil(5_000) { tag("garage_range").fetchText() == "238 km" }
+        rule.waitUntil(5_000) { tag("garage_range").fetchText() == "235 km" }
         count("garage_refuel_row").assertCountEquals(1)
         // Accepting the prefilled odometer logs no correction.
         count("garage_reading").assertCountEquals(1)
@@ -179,6 +179,25 @@ class GarageScreenTest {
         scrollClick("garage_refuel_delete")
         rule.waitUntil(5_000) { count("garage_refuel_row").fetchSemanticsNodes().isEmpty() }
         rule.waitUntil(5_000) { tag("garage_range").fetchText() == "—" }
+    }
+
+    @Test fun theGaugeSetsALevelBeforeTheFirstFullFill() {
+        runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        openGarage()
+        rule.waitUntil(5_000) { tag("garage_range").fetchText() == "—" }
+        scrollClick("garage_set_level")
+        await("garage_level_dialog")
+        // NMAX gen 1: six bars, 0 to 6; the odometer prefilled.
+        count("garage_level_bar_6").assertCountEquals(1)
+        count("garage_level_bar_7").assertCountEquals(0)
+        assertEquals("12000", tag("garage_level_odo").fieldText())
+        click("garage_level_bar_3")
+        rule.waitUntil(5_000) { tag("garage_level_litres").fetchText().let { it.startsWith("About 2.") && it.endsWith(" of 6.6 L") } }
+        click("garage_level_save")
+        awaitGone("garage_level_dialog")
+        // 2.75 L × 36 km/L = 99 km, rounded down to 95.
+        rule.waitUntil(5_000) { tag("garage_range").fetchText() == "95 km" }
+        rule.waitUntil(5_000) { tag("garage_fuel_line").fetchText().contains("from the gauge") }
     }
 
     @Test fun untrackedKmAddToTheOdometerOnceItIsSet() {
@@ -276,7 +295,7 @@ class GarageScreenTest {
         click("pick_GARAGE")
         awaitGone("picker_sheet")
         rule.waitUntil(5_000) { count("garage_card_value").fetchSemanticsNodes().isNotEmpty() }
-        assertEquals("38 km", tag("garage_card_value").fetchText())
+        assertEquals("35 km", tag("garage_card_value").fetchText()) // 37.6, rounded down to 5 km (12b)
         awaitText("Garage · Gen 1")
         await("garage_tank")
         // The card shows it now, so the speed card doesn't.

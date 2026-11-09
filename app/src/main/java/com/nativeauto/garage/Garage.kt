@@ -176,11 +176,19 @@ interface GarageDao {
     @Query("UPDATE trips SET bikeId = :id WHERE bikeId IS NULL")
     suspend fun tagUntaggedTrips(id: String)
 
+    @Query("DELETE FROM fuel_marks WHERE bikeId = :id")
+    suspend fun deleteFuelMarks(id: String)
+
+    @Query("DELETE FROM dash_kmpl WHERE bikeId = :id")
+    suspend fun deleteDashKmPerL(id: String)
+
     /** The bike, its readings, fill-ups and services go; its trips stay in the history, untagged. */
     @Transaction
     suspend fun deleteBike(id: String) {
         deleteReadings(id)
         deleteRefuels(id)
+        deleteFuelMarks(id)
+        deleteDashKmPerL(id)
         deleteServices(id)
         deleteServiceRecords(id)
         untagTrips(id)
@@ -235,6 +243,26 @@ interface GarageDao {
 
     @Upsert
     suspend fun upsertPrice(price: FuelPrice)
+
+    // ---- 12b: gauge readings and dash km/L ----
+
+    @Query("SELECT * FROM fuel_marks WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC")
+    fun observeFuelMarks(bikeId: String): Flow<List<FuelMark>>
+
+    @Insert
+    suspend fun insertFuelMark(mark: FuelMark): Long
+
+    @Query("SELECT * FROM dash_kmpl WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC")
+    fun observeDashKmPerL(bikeId: String): Flow<List<DashKmPerL>>
+
+    @Insert
+    suspend fun insertDashKmPerL(entry: DashKmPerL): Long
+
+    @Query("DELETE FROM fuel_marks")
+    suspend fun deleteAllFuelMarks()
+
+    @Query("DELETE FROM dash_kmpl")
+    suspend fun deleteAllDashKmPerL()
 
     // ---- 11c: services ----
 
@@ -307,6 +335,8 @@ interface GarageDao {
     /** Device tests start from an empty garage. */
     @Transaction
     suspend fun clear() {
+        deleteAllFuelMarks()
+        deleteAllDashKmPerL()
         deleteAllServiceRecords()
         deleteAllServices()
         deleteAllRefuels()

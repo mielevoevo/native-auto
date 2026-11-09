@@ -91,6 +91,7 @@ fun SettingsSheet(
     val voice by viewModel.voiceGuidance.collectAsStateWithLifecycle()
     val autoPause by viewModel.autoPauseMinutes.collectAsStateWithLifecycle()
     val autoEnd by viewModel.autoEndMinutes.collectAsStateWithLifecycle()
+    val totalPeriod by viewModel.totalPeriod.collectAsStateWithLifecycle()
     val hiddenStats by viewModel.hiddenStats.collectAsStateWithLifecycle()
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
     val simulate by viewModel.simulateNavigation.collectAsStateWithLifecycle()
@@ -191,6 +192,15 @@ fun SettingsSheet(
                         tag = { "settings_auto_end_$it" },
                         stacked = true,
                     ) { haptics.tick(); viewModel.setAutoEndMinutes(it) }
+                    // 12b (R2): the log face's distance total.
+                    ChoiceRow(
+                        label = R.string.settings_total_period,
+                        options = com.nativeauto.settings.TotalPeriod.entries,
+                        selected = totalPeriod,
+                        text = { it.label },
+                        tag = { "settings_period_${it.name}" },
+                        stacked = true,
+                    ) { haptics.tick(); viewModel.setTotalPeriod(it) }
 
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {

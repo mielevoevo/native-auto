@@ -544,6 +544,36 @@ Rider-Feedback "Revisions after the first look" R3 and R4.
   opens the picker without zooming, drag swaps with the map kept, an early swipe is the card's own,
   fullscreen by its button. Tests hold with `down` / `advanceEventTime(1_300)` / `up`.
 
+## Phase 12b: range, gauge level, dash km/L, period totals (built 2026-11-09, v3.3)
+
+Rider-Feedback "Revisions after the first look" R1 and R2.
+- **Room v6** (`MIGRATION_5_6`): `fuel_marks` (`FuelMark`: bike, time, odometer, bars, ofBars, litres) and
+  `dash_kmpl` (`DashKmPerL`: bike, time, kmPerL, tripKm). Deleting a bike or `clear()` removes them.
+  Not in the backup (format 2 unchanged; see DECISIONS 12b).
+- **Set fuel level (`garage/Fuel.kt`):** `gaugeBars(model)` (NMAX gen 1 = 6, else 8; per bike after
+  Phase 12), `gaugeLitres` counts the last lit bar as half used. `fuelLevel(..., marks)`: a mark newer
+  than the last full fill is the starting point (`FuelLevel.fromGauge`); away km after it = unknown.
+  `GarageRepository.setFuelLevel` treats the odometer like a refuel's (within 1 km = the estimate).
+  UI: `FuelLevelDialog` (`garage_level_dialog`, `garage_level_bar_<n>`, `garage_level_litres`,
+  `garage_level_odo`, `garage_level_save`) from `garage_set_level` (bike detail) and
+  `garage_card_set_level` (expanded Garage card).
+- **Cautious range:** `Consumption.cautiousKmPerL` = min(long-run estimate, mean of the last
+  `RECENT_TANKS` = 3 used tanks); the repository burns the level at that figure, and
+  `FuelLevel.cautiousRangeKm` rounds the range down to 5 km. Every range on screen uses it.
+  `kmplSource` / `cautiousNote` explain the figure (`garage_card_kmpl_source`, the fuel line).
+- **Dash km/L:** `learnConsumption(..., dash)` folds dash figures in by time with `DASH_WEIGHT` 0.15
+  (plausible range, ±35% outlier once learning started); `Consumption.dashUsed`. Asked on the trip
+  summary of a **saved** trip when a bike exists: `sum_dash` → `DashKmPerLDialog` (`kmpl_dialog`,
+  `kmpl_value`, `kmpl_save`, `kmpl_skip`); afterwards `sum_dash_saved`. One answer per trip.
+- **Period total (R2):** `TotalPeriod` DAY / WEEK (from Monday) / MONTH (calendar) in
+  `SettingsRepository.totalPeriod`, chosen in Trip options (`settings_period_<NAME>`).
+  `history/PeriodTotals.kt` (pure): trips count for the period they started in.
+  `TripLogViewModel.periodM` = saved trips + the running / paused trip, re-read each minute.
+  The log face's `log_period` ("Today 42.3 km", speed unit's distance) replaces "Recent rides":
+  Compact shows it unless a service reminder is due; Expanded / Fullscreen always.
+- Tests: `FuelLevel12bTest`, `PeriodTotalsTest`, a `GarageRepositoryTest` case; device:
+  `GarageScreenTest.theGaugeSetsALevelBeforeTheFirstFullFill`, `TripSummaryDashTest` (stateless card).
+
 ## App font: Geist (applied 2026-11-09, after 11c)
 
 - **Geist** (Vercel, OFL; licence in `assets/licenses/geist-OFL.txt`), bundled as static TTFs from the `geist`

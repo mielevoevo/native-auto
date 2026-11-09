@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,6 +57,7 @@ import com.nativeauto.garage.GarageCardState
 import com.nativeauto.garage.GarageRepository
 import com.nativeauto.garage.RefuelDraft
 import com.nativeauto.garage.ServiceDue
+import com.nativeauto.garage.UnknownFuel
 import com.nativeauto.garage.dueText
 import com.nativeauto.garage.formatOdometer
 import com.nativeauto.garage.reminderText
@@ -111,6 +113,11 @@ class GarageCardViewModel @Inject constructor(
     fun ride(id: String) = viewModelScope.launch { garage.activate(id) }
 
     fun logRefuel(bikeId: String, draft: RefuelDraft) = viewModelScope.launch { garage.logRefuel(bikeId, draft) }
+
+    fun setFuelLevel(bikeId: String, bars: Int, ofBars: Int, odometerKm: Double) =
+        viewModelScope.launch { garage.setFuelLevel(bikeId, bars, ofBars, odometerKm) }
+
+    fun addDashKmPerL(bikeId: String, kmPerL: Double, tripKm: Double) = viewModelScope.launch { garage.addDashKmPerL(bikeId, kmPerL, tripKm) }
 }
 
 // ---- The tank: 5 chunky segments (Rider-Feedback §6) ----
@@ -196,6 +203,7 @@ fun GarageCard(
     val value by viewModel.value.collectAsStateWithLifecycle()
     val state = ui.state
     var refuelling by rememberSaveable { mutableStateOf(false) }
+    var settingLevel by rememberSaveable { mutableStateOf(false) }
     DashboardCard(title = state?.bike?.name?.let { "Garage · $it" } ?: "Garage", pane = Pane.GARAGE, mode = mode, layout = layout) {
         AnimatedContent(
             targetState = mode,
@@ -208,11 +216,20 @@ fun GarageCard(
                 !ui.loaded -> Box(Modifier.fillMaxSize())
                 state == null -> NoBike(onOpenGarage)
                 m == CardMode.Compact || m == CardMode.Wide -> SmallGarage(state, value, m)
-                else -> ExpandedGarage(state, value, viewModel, onRefuel = { refuelling = true }, onOpenGarage)
+                else -> ExpandedGarage(state, value, viewModel, onRefuel = { refuelling = true }, onSetLevel = { settingLevel = true }, onOpenGarage)
             }
         }
     }
     val s = state
+    if (settingLevel && s != null) {
+        val haptics = rememberHaptics()
+        FuelLevelDialog(
+            bike = s.bike,
+            estimateKm = s.odometer.estimateKm,
+            onSave = { bars, of, km -> haptics.confirm(); viewModel.setFuelLevel(s.bike.id, bars, of, km); settingLevel = false },
+            onDismiss = { settingLevel = false },
+        )
+    }
     if (refuelling && s != null) {
         val prices by viewModel.prices.collectAsStateWithLifecycle()
         val haptics = rememberHaptics()
@@ -243,9 +260,17 @@ private fun bigValue(state: GarageCardState, value: GarageValue): BigValue {
     val colors = AppTheme.colors
     return when (value) {
         GarageValue.RANGE -> {
-            val range = state.fuel.level.rangeKm
-            val low = (state.fuel.level.fraction ?: 1.0) <= LOW_FUEL_FRACTION
-            BigValue(range?.let { "${it.roundToLong()} km" } ?: "—", "range left", if (low && range != null) colors.red else null)
+            // 12b (R1): one cautious number, rounded down to 5 km.
+            val level = state.fuel.level
+            val range = level.cautiousRangeKm
+            val low = (level.fraction ?: 1.0) <= LOW_FUEL_FRACTION
+            val label = when {
+                range == null && level.unknownBecause == UnknownFuel.AWAY -> "fill up or set level"
+                range == null -> "set fuel level"
+                level.fromGauge -> "range · from gauge"
+                else -> "range left"
+            }
+            BigValue(range?.let { "$it km" } ?: "—", label, if (low && range != null) colors.red else null)
         }
         GarageValue.SINCE_REFUEL -> BigValue(state.fuel.level.sinceRefuelKm?.let { "${it.roundToLong()} km" } ?: "—", "since fill-up", null)
         GarageValue.ODOMETER -> BigValue(state.odometer.estimateKm?.let(::formatOdometer) ?: "—", "odometer", null)
@@ -312,6 +337,7 @@ private fun ExpandedGarage(
     value: GarageValue,
     viewModel: GarageCardViewModel,
     onRefuel: () -> Unit,
+    onSetLevel: () -> Unit,
     onOpenGarage: () -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -337,6 +363,15 @@ private fun ExpandedGarage(
             "Odometer" to (state.odometer.estimateKm?.let(::formatOdometer) ?: "Not set"),
             "km/L" to String.format(Locale.US, "%.1f", state.fuel.consumption.kmPerL),
         )
+        Text(
+            "km/L ${kmplSource(state.fuel.consumption)}" + cautiousNote(state.fuel),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textDim,
+            modifier = Modifier.testTag("garage_card_kmpl_source"),
+        )
+        OutlinedButton(onClick = { haptics.tap(); onSetLevel() }, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_card_set_level")) {
+            Text("Set fuel level")
+        }
         state.nextService?.let { next ->
             Text(
                 reminderText(next),

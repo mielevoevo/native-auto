@@ -27,6 +27,8 @@ class FakeSettingsRepository : SettingsRepository {
     override suspend fun setClockFace(face: ClockFace) { clockFace.value = face }
     override val garageValue = MutableStateFlow(com.nativeauto.settings.GarageValue.RANGE)
     override suspend fun setGarageValue(value: com.nativeauto.settings.GarageValue) { garageValue.value = value }
+    override val totalPeriod = MutableStateFlow(com.nativeauto.settings.TotalPeriod.DAY)
+    override suspend fun setTotalPeriod(period: com.nativeauto.settings.TotalPeriod) { totalPeriod.value = period }
     override val refreshMode = MutableStateFlow(com.nativeauto.settings.RefreshMode.AUTO)
     override suspend fun setRefreshMode(mode: com.nativeauto.settings.RefreshMode) { refreshMode.value = mode }
     override val dragHoldMs = MutableStateFlow(com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS)
