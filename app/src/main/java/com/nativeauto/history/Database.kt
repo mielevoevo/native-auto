@@ -13,6 +13,9 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import com.nativeauto.garage.BikeRecord
+import com.nativeauto.garage.GarageDao
+import com.nativeauto.garage.OdometerReading
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -133,10 +136,15 @@ interface RecentPlaceDao {
     suspend fun trim(keep: Int)
 }
 
-@Database(entities = [TripRecord::class, RecentPlaceRecord::class, TrackPointRecord::class], version = 2, exportSchema = false)
+@Database(
+    entities = [TripRecord::class, RecentPlaceRecord::class, TrackPointRecord::class, BikeRecord::class, OdometerReading::class],
+    version = 3,
+    exportSchema = false,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun trips(): TripDao
     abstract fun recentPlaces(): RecentPlaceDao
+    abstract fun garage(): GarageDao
 }
 
 /**
@@ -155,5 +163,27 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
                 "accuracyM REAL NOT NULL)",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS index_track_points_tripId ON track_points (tripId)")
+    }
+}
+
+/**
+ * v2 → v3 (11a): the Garage's bikes and odometer readings. Trips already have `bikeId` (9c);
+ * the first bike added adopts the untagged ones.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS bikes (" +
+                "id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, model TEXT NOT NULL, " +
+                "tankLitres REAL NOT NULL, reserveLitres REAL NOT NULL, fuelType TEXT NOT NULL, " +
+                "startKmPerL REAL NOT NULL, odoFactor REAL NOT NULL, active INTEGER NOT NULL, " +
+                "lastUsedAtMs INTEGER NOT NULL, createdAtMs INTEGER NOT NULL, PRIMARY KEY(id))",
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS odometer_readings (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bikeId TEXT NOT NULL, timeMs INTEGER NOT NULL, " +
+                "km REAL NOT NULL, kind TEXT NOT NULL, awayKm REAL NOT NULL, tripOffsetM REAL NOT NULL)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_odometer_readings_bikeId ON odometer_readings (bikeId)")
     }
 }

@@ -85,6 +85,12 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import com.nativeauto.garage.BikeRecord
+import com.nativeauto.garage.GarageDao
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.foundation.horizontalScroll
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -111,7 +117,19 @@ class TripHistoryViewModel @Inject constructor(
     recorder: TripRecorder,
     settings: SettingsRepository,
     private val files: TripFiles,
+    garage: GarageDao,
 ) : ViewModel() {
+
+    /** 11a: the Garage's bikes, for the filter and the bike name on each trip. */
+    val bikes: StateFlow<List<BikeRecord>> = garage.observeBikes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The bike the list is narrowed to; null = all trips. */
+    private val _bikeFilter = MutableStateFlow<String?>(null)
+    val bikeFilter: StateFlow<String?> = _bikeFilter.asStateFlow()
+
+    fun filterBike(id: String?) {
+        _bikeFilter.value = id
+    }
 
     /** Share sheets to open (GPX export, backup); the screen starts them. */
     private val _share = MutableSharedFlow<Intent>(extraBufferCapacity = 1)
@@ -143,7 +161,13 @@ class TripHistoryViewModel @Inject constructor(
     }
 
     /** Null while loading, so the empty state doesn't flash before the first read. */
-    val trips: StateFlow<List<TripRecord>?> = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val allTrips: StateFlow<List<TripRecord>?> = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** The list as shown: all trips, or one bike's (a filter on a bike that's gone shows all). */
+    val trips: StateFlow<List<TripRecord>?> =
+        combine(allTrips, _bikeFilter, bikes) { all, filter, bikes ->
+            if (filter == null || bikes.none { it.id == filter }) all else all?.filter { it.bikeId == filter }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val unit: StateFlow<SpeedUnit> = settings.speedUnit.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SpeedUnit.KMH)
 
@@ -189,6 +213,10 @@ class TripHistoryViewModel @Inject constructor(
 @Composable
 fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hiltViewModel()) {
     val trips by viewModel.trips.collectAsStateWithLifecycle()
+    val bikes by viewModel.bikes.collectAsStateWithLifecycle()
+    val bikeFilter by viewModel.bikeFilter.collectAsStateWithLifecycle()
+    // Bike names on trips and the filter only matter with two bikes or more.
+    val bikeNames = if (bikes.size >= 2) bikes.associate { it.id to it.name } else emptyMap()
     val unit by viewModel.unit.collectAsStateWithLifecycle()
     val visible by viewModel.visible.collectAsStateWithLifecycle()
     val armed by viewModel.deleteArmed.collectAsStateWithLifecycle()
@@ -199,7 +227,7 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
         uri?.let(viewModel::import)
     }
     var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val selected = trips?.firstOrNull { it.id == selectedId }
+    val selected = viewModel.allTrips.collectAsStateWithLifecycle().value?.firstOrNull { it.id == selectedId }
     val haptics = rememberHaptics()
 
     BackHandler { if (selected != null) selectedId = null else onClose() }
@@ -241,10 +269,14 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                 }
                 Spacer(Modifier.width(16.dp))
             }
+            if (selected == null && bikeNames.isNotEmpty()) {
+                BikeFilter(bikes, bikeFilter) { haptics.tick(); viewModel.filterBike(it) }
+            }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     selected != null -> TripDetail(
                         trip = selected,
+                        bikeName = bikeNames[selected.bikeId],
                         unit = unit,
                         visible = visible,
                         maps = viewModel.maps,
@@ -274,7 +306,7 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                                 DayHeader(group, unit)
                             }
                             items(group.trips, key = { it.id }) { trip ->
-                                TripCard(trip, unit, viewModel.maps) {
+                                TripCard(trip, unit, viewModel.maps, bikeNames[trip.bikeId]) {
                                     haptics.tap()
                                     selectedId = trip.id
                                 }
@@ -289,6 +321,36 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
+            )
+        }
+    }
+}
+
+/** 11a: All bikes · Gen 1 · Gen 2. */
+@Composable
+private fun BikeFilter(bikes: List<BikeRecord>, selected: String?, onSelect: (String?) -> Unit) {
+    val colors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = AppTheme.colors.navy,
+        selectedLabelColor = AppTheme.colors.onNavy,
+    )
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            selected = selected == null,
+            onClick = { onSelect(null) },
+            label = { Text("All bikes") },
+            colors = colors,
+            modifier = Modifier.heightIn(min = 56.dp).testTag("history_bike_all"),
+        )
+        bikes.forEach { bike ->
+            FilterChip(
+                selected = selected == bike.id,
+                onClick = { onSelect(bike.id) },
+                label = { Text(bike.name) },
+                colors = colors,
+                modifier = Modifier.heightIn(min = 56.dp).testTag("history_bike_${bike.name}"),
             )
         }
     }
@@ -321,7 +383,7 @@ private fun EmptyHistory() {
 }
 
 @Composable
-private fun TripCard(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, onClick: () -> Unit) {
+private fun TripCard(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, bikeName: String?, onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -332,7 +394,8 @@ private fun TripCard(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, onClick:
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    "${formatDay(trip.startedAtMs)} · ${formatTime(trip.startedAtMs)}–${formatTime(trip.endedAtMs)}",
+                    "${formatDay(trip.startedAtMs)} · ${formatTime(trip.startedAtMs)}–${formatTime(trip.endedAtMs)}" +
+                        (bikeName?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -353,6 +416,7 @@ private fun TripCard(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, onClick:
 @Composable
 private fun TripDetail(
     trip: TripRecord,
+    bikeName: String?,
     unit: SpeedUnit,
     visible: Set<TelemetryStat>,
     maps: TripMaps,
@@ -364,7 +428,7 @@ private fun TripDetail(
         TripMapImage(trip, maps, width = 520.dp, height = 300.dp, modifier = Modifier.weight(1.3f).fillMaxHeight())
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
             Text(
-                "${formatTime(trip.startedAtMs)} – ${formatTime(trip.endedAtMs)}",
+                "${formatTime(trip.startedAtMs)} – ${formatTime(trip.endedAtMs)}" + (bikeName?.let { " · $it" } ?: ""),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

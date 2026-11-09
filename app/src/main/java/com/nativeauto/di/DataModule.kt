@@ -8,6 +8,10 @@ import com.nativeauto.core.WallClock
 import com.nativeauto.history.AddressResolver
 import com.nativeauto.history.AppDatabase
 import com.nativeauto.history.MIGRATION_1_2
+import com.nativeauto.history.MIGRATION_2_3
+import com.nativeauto.garage.ActiveBike
+import com.nativeauto.garage.GarageDao
+import com.nativeauto.garage.GarageRepository
 import com.nativeauto.history.GeocoderAddressResolver
 import com.nativeauto.history.RecentPlaceDao
 import com.nativeauto.history.SnapshotTripMaps
@@ -36,11 +40,12 @@ object DataModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "native-auto.db")
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides fun provideTripDao(db: AppDatabase): TripDao = db.trips()
     @Provides fun provideRecentPlaceDao(db: AppDatabase): RecentPlaceDao = db.recentPlaces()
+    @Provides fun provideGarageDao(db: AppDatabase): GarageDao = db.garage()
 
     /**
      * One client for routing (FOSSGIS Valhalla) and search (Photon). Both are free community
@@ -68,4 +73,6 @@ abstract class DataBindings {
     @Binds abstract fun bindRecentPlaces(impl: RoomRecentPlaces): RecentPlaces
     @Binds abstract fun bindAddressResolver(impl: GeocoderAddressResolver): AddressResolver
     @Binds abstract fun bindTripMaps(impl: SnapshotTripMaps): TripMaps
+    // 11a: trips are tagged with the Garage's active bike.
+    @Binds abstract fun bindActiveBike(impl: GarageRepository): ActiveBike
 }

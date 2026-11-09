@@ -34,6 +34,13 @@ class ResetSettingsRule : ExternalResource() {
             SettingsEntryPoint::class.java,
         ).navigator()
         InstrumentationRegistry.getInstrumentation().runOnMainSync { navigator.stop() }
+        // 11a: no bikes (so no Garage prompts) unless the test adds them.
+        val entry = EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            SettingsEntryPoint::class.java,
+        )
+        entry.garageDao().clear()
+        entry.garage().dismissPrompt()
         settings.saveLayout(SavedLayout.Default)
         settings.setSpeedUnit(SpeedUnit.KMH)
         settings.setShowBattery(true)

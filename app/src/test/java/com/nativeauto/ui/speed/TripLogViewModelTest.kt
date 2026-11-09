@@ -62,7 +62,7 @@ class TripLogViewModelTest {
         val resolver = object : AddressResolver {
             override suspend fun addressOf(point: GeoPoint): String? = null
         }
-        val recorder = TripRecorder(tracker, Dao(), resolver, clock, WallClock { 0L }, backgroundScope).also { it.start() }
+        val recorder = TripRecorder(tracker, Dao(), resolver, { null }, clock, WallClock { 0L }, backgroundScope).also { it.start() }
         return tracker to TripLogViewModel(tracker, recorder, Dao(), com.nativeauto.FakeSettingsRepository())
     }
 

@@ -66,8 +66,10 @@ class TripRecorderTest {
         val source = Source()
         val dao = FakeTripDao()
         val addresses = FakeAddresses()
+        /** The Garage's active bike, as the recorder reads it at save time (11a). */
+        var bikeId: String? = null
         val tracker = TripTracker(source, clock, scope.backgroundScope)
-        val recorder = TripRecorder(tracker, dao, addresses, clock, WallClock { WALL_BASE_MS + scope.testScheduler.currentTime }, scope.backgroundScope)
+        val recorder = TripRecorder(tracker, dao, addresses, { bikeId }, clock, WallClock { WALL_BASE_MS + scope.testScheduler.currentTime }, scope.backgroundScope)
             .also {
                 // The geometry tests drive a few hundred metres; the real limits have their own tests.
                 it.minDistanceM = 100.0
@@ -193,6 +195,17 @@ class TripRecorderTest {
 
         rig.dao.delete(t.id)
         assertEquals(emptyList<TrackPointRecord>(), rig.dao.points(t.id))
+    }
+
+    @Test fun `a trip is tagged with the bike active when it is saved`() = runTest {
+        val rig = Rig(this)
+        rig.bikeId = "Gen 1"
+        rig.startTrip()
+        rig.drive(30)
+        // Switched mid-trip: the whole trip goes to the bike selected last.
+        rig.bikeId = "Gen 2"
+        rig.tracker.end(); runCurrent()
+        assertEquals("Gen 2", rig.dao.trips.value.single().bikeId)
     }
 
     @Test fun `stopped time is trip time below walking pace, pauses excluded`() = runTest {

@@ -143,3 +143,34 @@ Format: **sub-phase · decision** — why, and how to change it.
 - **Short links** (`maps.app.goo.gl`, `goo.gl/maps`) are expanded by following redirects by hand (max 5)
   until a full maps URL, passing through Google's consent page via its `continue` parameter.
 - **HERE skipped** (card issue, as planned).
+
+## 11a · Bike profiles and odometer (v3.0)
+
+- **No bikes are pre-made:** the Garage starts empty with three quick-add buttons (NMAX 2015–2019 =
+  6.6 L, NMAX 2020+ = 7.1 L, Other scooter). You name them (Gen 1, Gen 2). Built-in "Gen 1"/"Gen 2" would be the
+  user's private names in the code.
+- **Your existing trips go to the first bike you add** (they were all ridden on one bike).
+  Deleting a bike keeps its trips in the history, just untagged.
+- **Colour / photo left out:** the bike's name shows everywhere, and bike colours would break the theme's
+  status-colour rule (amber and red only, no green). Easy to add later.
+- **Defaults:** reserve ≈ 20% of the tank (1.3 L / 1.4 L), the Garage card's red last segment in 11c; fuel
+  Pertamax; starting 36 km/L (the spec's figure; 11b learns the real one). All editable in the bike editor.
+- **Odometer = last reading + GPS km of that bike's trips since × a learned factor.** Each correction
+  re-anchors the odometer and, over at least 30 GPS km, moves the factor halfway to the measured ratio
+  (recent corrections count more). Ratios outside 0.8–1.2 are ignored as typos or forgotten readings. The
+  Garage shows the learned drift ("GPS reads 2.0% short"). As decided, it doesn't touch the range estimate.
+- **A reading taken mid-trip (at the pump) is handled exactly:** only the rest of that trip counts after it.
+- **Away check after 3 days unused** ("after weeks" in the spec; 3 days catches a long weekend at home and
+  the prompt is skippable): switching to a bike idle that long asks "Gen 2's odometer now?", prefilled. A
+  higher reading is logged as **away km** (counts for servicing, no trips, and 11b will treat the fuel level
+  as unknown until a full refuel); the same value means nobody rode it, so nothing is stored; a lower one is
+  just a correction. Skip = counters carry on from the app's own km.
+- **"Which bike?" (debug builds only):** at a trip's first fix, if the active bike's last saved trip ended
+  more than 50 km away and you have two bikes or more. Compares two points on the phone; nothing is sent.
+  Not in release builds until there's a disclosure and an opt-in (§6 privacy note).
+- **Switching bike:** in the Garage (tap a bike → "Ride Gen 2"). The settings row shows "Riding Gen 1" and opens
+  the Garage. The Garage card's quick picker comes with the card in 11c.
+- **History filter by bike:** chips (All bikes · Gen 1 · Gen 2) and the bike's name on each trip, only once
+  there are two bikes or more.
+- **Odometer always in km** (bikes' own unit), even with mph set for speed.
+- **Indonesian number style accepted:** "12.345" in an odometer field is 12,345 km; "6,6" in a litre field is 6.6 L.

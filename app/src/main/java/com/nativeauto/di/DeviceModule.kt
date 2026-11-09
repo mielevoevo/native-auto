@@ -32,4 +32,7 @@ interface SettingsEntryPoint {
     fun tripFiles(): com.nativeauto.history.TripFiles
     /** 10b: tests that open shared links put navigation back to idle. */
     fun navigator(): com.nativeauto.nav.Navigator
+    /** 11a: tests start from an empty Garage, and seed bikes through the repository. */
+    fun garage(): com.nativeauto.garage.GarageRepository
+    fun garageDao(): com.nativeauto.garage.GarageDao
 }

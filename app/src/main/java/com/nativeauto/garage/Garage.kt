@@ -1,0 +1,212 @@
+package com.nativeauto.garage
+
+import androidx.room.Dao
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.Insert
+import androidx.room.PrimaryKey
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
+import com.nativeauto.history.TripRecord
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * The kind of bike. v1 builds scooters (CVT) only; manual-chain, sport and others are WIP for
+ * later (each will bring its own service template in 11c's model). Stored by name.
+ */
+enum class BikeType(val label: String) {
+    SCOOTER_CVT("Scooter (CVT)"),
+}
+
+/** Indonesian pump fuels. Prices per litre arrive with 11b's refuel log. */
+enum class FuelType(val label: String) {
+    PERTALITE("Pertalite"),
+    PERTAMAX("Pertamax"),
+    PERTAMAX_TURBO("Pertamax Turbo"),
+}
+
+/**
+ * Lean v1 presets (Rider-Feedback §6): the NMAX generations, which differ by tank. Reserve
+ * defaults to ~20% of the tank (the Garage card's red last segment, 11c). Everything stays
+ * editable; [OTHER] starts from the gen-2 numbers.
+ */
+enum class BikeModel(val label: String, val shortLabel: String, val tankLitres: Double, val reserveLitres: Double) {
+    NMAX_GEN1("NMAX 2015–2019", "NMAX ’15–’19", 6.6, 1.3),
+    NMAX_GEN2("NMAX 2020+", "NMAX ’20+", 7.1, 1.4),
+    OTHER("Other scooter", "Other", 7.1, 1.4),
+}
+
+/** Starting consumption for a new bike; 11b learns the real figure from full-to-full fill-ups. */
+const val DEFAULT_KM_PER_L = 36.0
+
+/**
+ * One of the rider's bikes. Exactly one is [active] once any exist: trips are tagged with it,
+ * and the odometer and (11b/11c) fuel and service counters follow it.
+ */
+@Entity(tableName = "bikes")
+data class BikeRecord(
+    @PrimaryKey val id: String,
+    val name: String,
+    /** [BikeType] name. */
+    val type: String = BikeType.SCOOTER_CVT.name,
+    /** [BikeModel] name. */
+    val model: String,
+    val tankLitres: Double,
+    val reserveLitres: Double,
+    /** [FuelType] name. */
+    val fuelType: String,
+    val startKmPerL: Double,
+    /** Bike km per GPS km, learned from odometer corrections (1.0 until then). */
+    val odoFactor: Double = 1.0,
+    val active: Boolean = false,
+    /** When the bike stopped being the active one (or was created): the away-km check (§6). */
+    val lastUsedAtMs: Long,
+    val createdAtMs: Long,
+) {
+    val bikeModel: BikeModel get() = BikeModel.entries.firstOrNull { it.name == model } ?: BikeModel.OTHER
+    val fuel: FuelType get() = FuelType.entries.firstOrNull { it.name == fuelType } ?: FuelType.PERTAMAX
+}
+
+/** Why an odometer reading was entered. Stored by name. */
+enum class ReadingKind {
+    /** The first reading of a bike. */
+    SET,
+    /** The rider fixed the estimate (teaches [BikeRecord.odoFactor]). */
+    CORRECTION,
+    /**
+     * Read after the bike was away (ridden by others): the gap is [OdometerReading.awayKm]. It
+     * advances service counters but adds no trips, and makes the fuel level unknown until the
+     * next full refuel (11b).
+     */
+    AWAY,
+}
+
+/**
+ * The bike's real odometer at [timeMs]. The estimate after it is [km] plus the GPS distance
+ * of the bike's trips since, times the learned factor (see `Odometer.kt`).
+ */
+@Entity(tableName = "odometer_readings", indices = [Index("bikeId")])
+data class OdometerReading(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bikeId: String,
+    val timeMs: Long,
+    val km: Double,
+    /** [ReadingKind] name. */
+    val kind: String,
+    /** AWAY only: km ridden while the app wasn't there. */
+    val awayKm: Double = 0.0,
+    /**
+     * GPS metres the trip running at [timeMs] had already covered (0 if none). That trip is
+     * saved later with its full distance, and only the part after the reading counts.
+     */
+    val tripOffsetM: Double = 0.0,
+) {
+    val readingKind: ReadingKind get() = ReadingKind.entries.firstOrNull { it.name == kind } ?: ReadingKind.CORRECTION
+}
+
+@Dao
+interface GarageDao {
+    @Query("SELECT * FROM bikes ORDER BY createdAtMs")
+    fun observeBikes(): Flow<List<BikeRecord>>
+
+    @Query("SELECT * FROM bikes WHERE active = 1 LIMIT 1")
+    fun observeActive(): Flow<BikeRecord?>
+
+    @Query("SELECT * FROM bikes WHERE active = 1 LIMIT 1")
+    suspend fun activeBike(): BikeRecord?
+
+    @Query("SELECT * FROM bikes WHERE id = :id")
+    suspend fun bike(id: String): BikeRecord?
+
+    @Query("SELECT * FROM bikes ORDER BY lastUsedAtMs DESC")
+    suspend fun bikesByUse(): List<BikeRecord>
+
+    @Insert
+    suspend fun insertBike(bike: BikeRecord)
+
+    @Update
+    suspend fun updateBike(bike: BikeRecord)
+
+    @Query("UPDATE bikes SET odoFactor = :factor WHERE id = :id")
+    suspend fun setFactor(id: String, factor: Double)
+
+    @Query("UPDATE bikes SET active = 0, lastUsedAtMs = :nowMs WHERE active = 1")
+    suspend fun deactivateAll(nowMs: Long)
+
+    @Query("UPDATE bikes SET active = 1 WHERE id = :id")
+    suspend fun markActive(id: String)
+
+    /** One active bike at a time; the one left behind remembers when (the away-km check). */
+    @Transaction
+    suspend fun switchActive(id: String, nowMs: Long) {
+        deactivateAll(nowMs)
+        markActive(id)
+    }
+
+    @Query("DELETE FROM bikes WHERE id = :id")
+    suspend fun deleteBikeRow(id: String)
+
+    @Query("DELETE FROM odometer_readings WHERE bikeId = :id")
+    suspend fun deleteReadings(id: String)
+
+    @Query("UPDATE trips SET bikeId = NULL WHERE bikeId = :id")
+    suspend fun untagTrips(id: String)
+
+    /** The first bike adopts the trips recorded before the Garage existed. */
+    @Query("UPDATE trips SET bikeId = :id WHERE bikeId IS NULL")
+    suspend fun tagUntaggedTrips(id: String)
+
+    /** The bike and its readings go; its trips stay in the history, untagged. */
+    @Transaction
+    suspend fun deleteBike(id: String) {
+        deleteReadings(id)
+        untagTrips(id)
+        deleteBikeRow(id)
+    }
+
+    @Insert
+    suspend fun insertReading(reading: OdometerReading): Long
+
+    @Query("SELECT * FROM odometer_readings WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC")
+    fun observeReadings(bikeId: String): Flow<List<OdometerReading>>
+
+    @Query("SELECT * FROM odometer_readings WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC LIMIT 1")
+    fun observeLastReading(bikeId: String): Flow<OdometerReading?>
+
+    @Query("SELECT * FROM odometer_readings WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC LIMIT 1")
+    suspend fun lastReading(bikeId: String): OdometerReading?
+
+    /**
+     * GPS metres of the bike's saved trips after [sinceMs]. A trip that was running at that
+     * moment counts only past [offsetM] (what it had covered by then).
+     */
+    @Query(
+        "SELECT COALESCE(SUM(CASE WHEN startedAtMs < :sinceMs THEN MAX(distanceM - :offsetM, 0) ELSE distanceM END), 0) " +
+            "FROM trips WHERE bikeId = :bikeId AND endedAtMs > :sinceMs",
+    )
+    fun observeMetersSince(bikeId: String, sinceMs: Long, offsetM: Double): Flow<Double>
+
+    @Query(
+        "SELECT COALESCE(SUM(CASE WHEN startedAtMs < :sinceMs THEN MAX(distanceM - :offsetM, 0) ELSE distanceM END), 0) " +
+            "FROM trips WHERE bikeId = :bikeId AND endedAtMs > :sinceMs",
+    )
+    suspend fun metersSince(bikeId: String, sinceMs: Long, offsetM: Double): Double
+
+    /** Where the bike was last ridden to (the debug "which bike?" check). */
+    @Query("SELECT * FROM trips WHERE bikeId = :bikeId ORDER BY endedAtMs DESC LIMIT 1")
+    suspend fun lastTrip(bikeId: String): TripRecord?
+
+    @Query("DELETE FROM bikes")
+    suspend fun deleteAllBikes()
+
+    @Query("DELETE FROM odometer_readings")
+    suspend fun deleteAllReadings()
+
+    /** Device tests start from an empty garage. */
+    @Transaction
+    suspend fun clear() {
+        deleteAllReadings()
+        deleteAllBikes()
+    }
+}

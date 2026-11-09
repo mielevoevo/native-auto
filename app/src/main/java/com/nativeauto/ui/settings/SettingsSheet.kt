@@ -63,6 +63,7 @@ import com.nativeauto.ui.theme.appSwitchColors
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
 import com.nativeauto.ui.dashboard.DashboardLayoutState
+import com.nativeauto.ui.garage.GarageViewModel
 import kotlin.math.abs
 
 /**
@@ -76,8 +77,11 @@ fun SettingsSheet(
     layout: DashboardLayoutState,
     onDismiss: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenGarage: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
+    garage: GarageViewModel = hiltViewModel(),
 ) {
+    val activeBike by garage.active.collectAsStateWithLifecycle()
     val unit by viewModel.speedUnit.collectAsStateWithLifecycle()
     val showBattery by viewModel.showBattery.collectAsStateWithLifecycle()
     val fakeGps by viewModel.useFakeGps.collectAsStateWithLifecycle()
@@ -247,6 +251,28 @@ fun SettingsSheet(
                             Icon(AppIcons.History, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.settings_history))
+                        }
+                    }
+                    // 11a: the Garage (bikes, odometer); the hint names the bike being ridden.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_garage), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                activeBike?.let { stringResource(R.string.settings_garage_riding, it.name) }
+                                    ?: stringResource(R.string.settings_garage_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.testTag("settings_garage_bike"),
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        FilledTonalButton(
+                            onClick = { haptics.tap(); onOpenGarage() },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("settings_garage"),
+                        ) {
+                            Icon(AppIcons.Bike, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.settings_garage_open))
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {

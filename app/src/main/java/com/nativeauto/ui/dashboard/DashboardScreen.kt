@@ -41,6 +41,8 @@ import com.nativeauto.ui.components.LocalPanePicker
 import com.nativeauto.ui.components.LocalStatusCorner
 import com.nativeauto.ui.components.StatusCorner
 import com.nativeauto.ui.history.TripHistoryScreen
+import com.nativeauto.ui.garage.GarageScreen
+import com.nativeauto.ui.garage.GaragePrompts
 import com.nativeauto.ui.map.MapPane
 import com.nativeauto.ui.media.MediaCard
 import com.nativeauto.ui.nav.NextTurnCard
@@ -101,6 +103,9 @@ fun DashboardRoute(viewModel: DashboardViewModel = hiltViewModel()) {
 fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(), battery: BatteryStatus? = null) {
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
+    var garageOpen by rememberSaveable { mutableStateOf(false) }
+    // A full-screen page over the panes (history, Garage): the map can sleep, back belongs to it.
+    val covered = historyOpen || garageOpen
     var layoutsOpen by rememberSaveable { mutableStateOf(false) }
     var pickerFor by rememberSaveable { mutableStateOf<Pane?>(null) }
     // The small clock beside the battery, unless a clock pane is on screen (8c).
@@ -114,7 +119,7 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
     }
     val picker = remember { { pane: Pane -> pickerFor = pane } }
 
-    BackHandler(enabled = !historyOpen && (layout.fullscreen != null || layout.maximized != null)) { layout.back() }
+    BackHandler(enabled = !covered && (layout.fullscreen != null || layout.maximized != null)) { layout.back() }
 
     val rects = Pane.entries.map { pane ->
         animateRectAsState(layout.rectOf(pane), spring(stiffness = Spring.StiffnessMediumLow), label = "rect_${pane.name}")
@@ -130,7 +135,7 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
             Layout(
                 content = {
                     Pane.entries.forEach { pane ->
-                        PaneSlot(Modifier.testTag(SlotTag.of(pane))) { PaneContent(pane, layout) { historyOpen } }
+                        PaneSlot(Modifier.testTag(SlotTag.of(pane))) { PaneContent(pane, layout) { historyOpen || garageOpen } }
                     }
                 },
                 measurePolicy = paneMeasurePolicy(rects),
@@ -138,11 +143,14 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
             )
             // Over the panes, never instead of them: the map stays composed underneath (rule #3).
             if (historyOpen) TripHistoryScreen(onClose = { historyOpen = false })
+            if (garageOpen) GarageScreen(onClose = { garageOpen = false })
             // 9b: double back closes, only when back has nothing else to do. Sheets live in their
             // own windows and take back first.
-            CloseOnDoubleBack(enabled = !historyOpen && layout.fullscreen == null && layout.maximized == null)
+            CloseOnDoubleBack(enabled = !covered && layout.fullscreen == null && layout.maximized == null)
             // 10b: a link shared from Google Maps being opened (or why it couldn't be).
             LinkStatusPill()
+            // 11a: the away-km question and (debug) "which bike?".
+            GaragePrompts()
         }
     }
 
@@ -154,6 +162,10 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
                 settingsOpen = false
                 historyOpen = true
             },
+            onOpenGarage = {
+                settingsOpen = false
+                garageOpen = true
+            },
         )
     }
     if (layoutsOpen) LayoutSwitcherSheet(layout, onDismiss = { layoutsOpen = false })
@@ -161,10 +173,10 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
 }
 
 @Composable
-private fun PaneContent(pane: Pane, layout: DashboardLayoutState, historyOpen: () -> Boolean) {
+private fun PaneContent(pane: Pane, layout: DashboardLayoutState, covered: () -> Boolean) {
     when (pane) {
-        // Off screen (or under the history) for a while, the map sleeps.
-        Pane.MAP -> MapPane(layout, onScreen = layout.isOnScreen(Pane.MAP) && !historyOpen())
+        // Off screen (or under the history / Garage) for a while, the map sleeps.
+        Pane.MAP -> MapPane(layout, onScreen = layout.isOnScreen(Pane.MAP) && !covered())
         Pane.MEDIA -> MediaCard(layout.modeOf(Pane.MEDIA), layout)
         Pane.SPEED -> SpeedCard(layout.modeOf(Pane.SPEED), layout)
         Pane.NAV -> NextTurnCard(layout.modeOf(Pane.NAV), layout)

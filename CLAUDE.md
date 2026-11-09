@@ -410,6 +410,31 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
 - Device tests deliver real share intents (`DashboardScreenTest.share`); `ResetSettingsRule` stops the
   navigator (`SettingsEntryPoint.navigator()`, on the main thread) so a preview doesn't leak.
 
+## Phase 11a: bikes and odometer (built 2026-11-09, beyond the handoff)
+
+- **Room v3** (`MIGRATION_2_3`): `bikes` (`BikeRecord`: id UUID, name, type, model, tank, reserve, fuel,
+  startKmPerL, `odoFactor`, `active`, `lastUsedAtMs`) and `odometer_readings` (`OdometerReading`: kind
+  SET / CORRECTION / AWAY, `awayKm`, `tripOffsetM`). `GarageDao` in `garage/Garage.kt`; `MigrationTest` now
+  opens a v1 file under v3.
+- **`garage/Odometer.kt` (pure):** estimate = last reading + factor × GPS km since (`metersSince`: trips
+  ending after the reading; the trip running at the reading counts past `tripOffsetM`; the live trip too).
+  `learnFactor` (≥ 30 km, 0.8–1.2, weight 0.5), `decideReading`, `needsAwayCheck` (3 days), `parseNumber`
+  (Indonesian thousands with `thousands = true`). Tests: `OdometerTest`, `GarageRepositoryTest` (fake DAO,
+  real `TripTracker`).
+- **`GarageRepository`** (singleton, also bound as `ActiveBike`): add (the first bike is active and adopts
+  untagged trips), update, delete (trips untagged, the most recently used bike takes over), `activate`
+  (raises `GaragePrompt.OdometerNow` after 3 days idle), `enterReading`, `odometer(id)` flow (live trip
+  rounded to 10 m). `startWhichBikeCheck()` runs from `NativeAutoApp` in **debug builds only**
+  (`GaragePrompt.WhichBike`, > 50 km from the active bike's last trip end, ≥ 2 bikes).
+- **`TripRecorder`** tags each saved trip with `ActiveBike.id()` at save time (the last selected bike).
+- **UI (`ui/garage/`):** `GarageScreen` over the dashboard like the history (`garage_screen`; the map sleeps
+  under it, back closes it); `BikeEditor`, `OdometerDialog`, `GaragePrompts` (at the dashboard root) in
+  `GarageDialogs.kt`; one activity-scoped `GarageViewModel`. Settings' Trip column: Garage row
+  (`settings_garage`, hint `settings_garage_bike` "Riding Gen 1"). History: bike chips (`history_bike_all`,
+  `history_bike_<name>`) and the bike name on trips, only with ≥ 2 bikes.
+- Device tests: `GarageScreenTest`; `ResetSettingsRule` clears the Garage (`SettingsEntryPoint.garageDao()`)
+  and its prompt. Odometer always in km.
+
 ## Known issues (deferred)
 
 - **TomTom key pending (WIP, 10a):** add `TOMTOM_API_KEY` to `local.properties`, rebuild, compare on the

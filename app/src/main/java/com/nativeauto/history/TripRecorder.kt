@@ -3,6 +3,7 @@ package com.nativeauto.history
 import com.nativeauto.core.MonotonicClock
 import com.nativeauto.core.WallClock
 import com.nativeauto.di.ApplicationScope
+import com.nativeauto.garage.ActiveBike
 import com.nativeauto.nav.GeoPoint
 import com.nativeauto.trip.SpeedSample
 import com.nativeauto.trip.TripState
@@ -27,6 +28,7 @@ import javax.inject.Singleton
  * - the path is the fixes the reducer *accepted* (each new `lastSample`), so it matches the
  *   distance on the card; rejected spikes and poor fixes never reach it;
  * - a trip is saved when it ends (End, auto-end, notification, app swiped away);
+ * - it is tagged with the Garage's active bike at save time (11a);
  * - a discarded trip (Reset, 9a) is dropped: the tracker clears it without ending it;
  * - very short trips aren't kept: under [MIN_DISTANCE_M] or under [MIN_MOVING_MS] of moving
  *   time (opening the app at a desk, a Start pressed by mistake).
@@ -39,6 +41,7 @@ class TripRecorder @Inject constructor(
     private val tracker: TripTracker,
     private val dao: TripDao,
     private val addresses: AddressResolver,
+    private val bike: ActiveBike,
     private val clock: MonotonicClock,
     private val wall: WallClock,
     @ApplicationScope private val scope: CoroutineScope,
@@ -139,6 +142,8 @@ class TripRecorder @Inject constructor(
                 endLon = end.longitude,
                 track = Polyline.encode(track),
                 stoppedMs = (s.elapsedNanos(endNanos) - s.movingNanos).coerceAtLeast(0) / 1_000_000,
+                // 11a: the bike selected last (a switch mid-trip moves the whole trip to it).
+                bikeId = bike.id(),
             )
         val full = r.fixes.map {
             TrackPointRecord(

@@ -60,6 +60,10 @@
     <string name="settings_telemetry_choose">Choose</string>
     <string name="settings_telemetry_hint">Shown on the trip log, the summary and the history. Every trip records all of them.</string>
     <string name="settings_history">Trip history</string>
+    <string name="settings_garage">Garage</string>
+    <string name="settings_garage_hint">Bikes and odometer</string>
+    <string name="settings_garage_riding">Riding %1$s</string>
+    <string name="settings_garage_open">Garage</string>
     <string name="settings_voice">Voice guidance</string>
     <string name="settings_voice_hint">Spoken turn prompts (English)</string>
     <string name="settings_auto_layout">Auto layout</string>

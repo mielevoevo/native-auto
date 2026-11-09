@@ -16,8 +16,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 9c: a version-1 database (as Phase 8a shipped it, written here by hand) opens under v2 with
- * its trips intact, stopped time backfilled, and the full-track table working.
+ * 9c: a version-1 database (as Phase 8a shipped it, written here by hand) opens under the current
+ * version with its trips intact, stopped time backfilled, and the full-track table working.
+ * 11a: through v2 → v3, the Garage's tables are created and match Room's schema (Room checks).
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationTest {
@@ -53,7 +54,7 @@ class MigrationTest {
             db.version = 1
         }
 
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
         try {
             val dao = room.trips()
             val old = dao.observeAll().first().single()
@@ -72,6 +73,20 @@ class MigrationTest {
             dao.delete(id)
             assertTrue(dao.points(id).isEmpty())
             assertNull(dao.observe(id).first())
+
+            // v3: bikes and readings; the first bike can adopt the old trip.
+            val garage = room.garage()
+            garage.insertBike(
+                com.nativeauto.garage.BikeRecord(
+                    id = "b1", name = "Gen 1", model = "NMAX_GEN1", tankLitres = 6.6, reserveLitres = 1.3,
+                    fuelType = "PERTAMAX", startKmPerL = 36.0, active = true, lastUsedAtMs = 0, createdAtMs = 0,
+                ),
+            )
+            garage.tagUntaggedTrips("b1")
+            assertEquals("b1", dao.observe(old.id).first()?.bikeId)
+            garage.insertReading(com.nativeauto.garage.OdometerReading(bikeId = "b1", timeMs = 0, km = 12_000.0, kind = "SET"))
+            assertEquals(5_000.0, garage.metersSince("b1", sinceMs = 0, offsetM = 0.0), 0.0)
+            assertEquals(12_000.0, garage.lastReading("b1")!!.km, 0.0)
         } finally {
             room.close()
         }
