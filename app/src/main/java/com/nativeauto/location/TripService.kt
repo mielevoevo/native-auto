@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.nativeauto.MainActivity
 import com.nativeauto.R
 import com.nativeauto.core.MonotonicClock
+import com.nativeauto.core.SelfClose
 import com.nativeauto.settings.SettingsRepository
 import com.nativeauto.trip.TripState
 import com.nativeauto.trip.TripTracker
@@ -43,7 +44,11 @@ import kotlinx.coroutines.launch
  *
  * The notification offers Pause / Resume (the service stays up, the GPS goes off) and
  * End trip (the service stops; the next start is a fresh trip). It also stops itself if the
- * trip ends on its own (location permission revoked).
+ * trip ends on its own (location permission revoked, auto-end) or is discarded (Reset).
+ *
+ * Phase 9a: started only by the rider's Start (never on app open). Ending from the
+ * notification arms [SelfClose]; swiping the app away in recent apps ends and saves the trip
+ * (Android gives no chance to ask).
  */
 @AndroidEntryPoint
 class TripService : LifecycleService() {
@@ -51,6 +56,7 @@ class TripService : LifecycleService() {
     @Inject lateinit var tracker: TripTracker
     @Inject lateinit var clock: MonotonicClock
     @Inject lateinit var settings: SettingsRepository
+    @Inject lateinit var selfClose: SelfClose
 
     private var observing: Job? = null
     private var foreground = false
@@ -71,7 +77,10 @@ class TripService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             ACTION_END -> {
+                // Only the notification sends this; ending in the app goes straight to the tracker
+                // (the service then stops on its own), so an app ended in use never self-closes.
                 tracker.end()
+                selfClose.arm()
                 shutDown()
                 return START_NOT_STICKY
             }
@@ -88,10 +97,18 @@ class TripService : LifecycleService() {
             return START_NOT_STICKY
         }
         tracker.start()
+        selfClose.disarm()
         if (observing?.isActive != true) observing = observeTrip()
         // Not sticky: a system restart from the background can't get "while in use" location
         // access anyway, and the trip itself lives in memory. Reopening the app restarts it.
         return START_NOT_STICKY
+    }
+
+    /** Swiped away in recent apps: the trip is saved, and everything stops. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        tracker.end()
+        shutDown()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
@@ -122,9 +139,9 @@ class TripService : LifecycleService() {
 
     private fun observeTrip() = lifecycleScope.launch {
         launch {
-            // The trip can end on its own (permission revoked): don't linger with a stale
-            // notification. Pausing keeps the service (and the Resume button) up.
-            tracker.state.first { it == TripState.Ended }
+            // The trip can end on its own (permission revoked, auto-end) or be discarded:
+            // don't linger with a stale notification. Pausing keeps the service up.
+            tracker.state.first { it == TripState.Ended || it == TripState.Idle }
             shutDown()
         }
         combine(
@@ -202,8 +219,9 @@ class TripService : LifecycleService() {
         const val ACTION_END = "com.nativeauto.action.END_TRIP"
 
         /**
-         * Starts tracking, or keeps it as it is: a paused trip stays paused, an ended one is
-         * replaced by a fresh trip. Call while the app is visible, with location granted.
+         * The rider's Start: starts tracking, or keeps it as it is (a paused trip stays paused,
+         * an ended one is replaced by a fresh trip). Call while the app is visible, with
+         * location granted.
          */
         fun start(context: Context) {
             try {

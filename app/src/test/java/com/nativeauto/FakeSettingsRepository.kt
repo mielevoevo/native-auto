@@ -27,6 +27,10 @@ class FakeSettingsRepository : SettingsRepository {
     override suspend fun setClockFace(face: ClockFace) { clockFace.value = face }
     override val clockSeconds = MutableStateFlow(false)
     override suspend fun setClockSeconds(enabled: Boolean) { clockSeconds.value = enabled }
+    override val autoPauseMinutes = MutableStateFlow(5)
+    override suspend fun setAutoPauseMinutes(minutes: Int) { autoPauseMinutes.value = minutes }
+    override val autoEndMinutes = MutableStateFlow(30)
+    override suspend fun setAutoEndMinutes(minutes: Int) { autoEndMinutes.value = minutes }
     override val autoLayout = MutableStateFlow(true)
     override suspend fun setAutoLayout(enabled: Boolean) { autoLayout.value = enabled }
     override val simulateNavigation = MutableStateFlow(false)

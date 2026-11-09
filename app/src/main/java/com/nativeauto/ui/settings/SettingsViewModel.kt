@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import com.nativeauto.settings.DEFAULT_AUTO_END_MIN
+import com.nativeauto.settings.DEFAULT_AUTO_PAUSE_MIN
 import kotlinx.coroutines.launch
 
 /** Backs the settings sheet. (Map width is layout state, set straight on DashboardLayoutState.) */
@@ -45,6 +47,19 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setThemeMode(mode) }
     }
 
+    val autoPauseMinutes: StateFlow<Int> =
+        settings.autoPauseMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_AUTO_PAUSE_MIN)
+    val autoEndMinutes: StateFlow<Int> =
+        settings.autoEndMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_AUTO_END_MIN)
+
+    fun setAutoPauseMinutes(minutes: Int) {
+        viewModelScope.launch { settings.setAutoPauseMinutes(minutes) }
+    }
+
+    fun setAutoEndMinutes(minutes: Int) {
+        viewModelScope.launch { settings.setAutoEndMinutes(minutes) }
+    }
+
     fun setAutoLayout(enabled: Boolean) {
         viewModelScope.launch { settings.setAutoLayout(enabled) }
     }
@@ -70,7 +85,7 @@ class SettingsViewModel @Inject constructor(
     fun setUseFakeGps(enabled: Boolean) {
         viewModelScope.launch {
             settings.setUseFakeGps(enabled)
-            tracker.reset()
+            tracker.discard()
         }
     }
 
@@ -89,7 +104,7 @@ class SettingsViewModel @Inject constructor(
         disarm?.cancel()
         if (_resetArmed.value) {
             _resetArmed.value = false
-            tracker.reset()
+            tracker.discard()
             return true
         }
         _resetArmed.value = true

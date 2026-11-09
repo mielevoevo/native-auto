@@ -21,7 +21,10 @@ import kotlinx.coroutines.launch
 /**
  * Process-wide trip state (rule #10). Collects [SpeedSampleSource] in the application scope,
  * so tracking outlives any screen. TripService drives the life cycle ([start], [pause],
- * [resume], [end]); ViewModels only observe [stats] and [state].
+ * [resume], [end], [discard]); ViewModels only observe [stats] and [state].
+ *
+ * Phase 9a: a trip starts only when the rider presses Start (no auto-start on app open), and
+ * Reset means [discard]: the trip is dropped without saving and the tracker goes back to Idle.
  *
  * Source failures never escape (the scope has no exception handler, so one would crash
  * the app). Instead they become a [GpsStatus]:
@@ -74,11 +77,14 @@ class TripTracker @Inject constructor(
         collect()
     }
 
-    /** Stops the GPS and freezes the trip clock. No-op unless running. */
-    fun pause() {
+    /**
+     * Stops the GPS and freezes the trip clock. No-op unless running. [auto] marks a pause by
+     * auto-pause (no movement for a while), so the card can say why.
+     */
+    fun pause(auto: Boolean = false) {
         if (_state.value != TripState.Running) return
         cancelCollection()
-        _stats.update { it.copy(pausedAtNanos = clock.nowNanos()) }
+        _stats.update { it.copy(pausedAtNanos = clock.nowNanos(), autoPaused = auto) }
         _state.value = TripState.Paused
     }
 
@@ -93,7 +99,10 @@ class TripTracker @Inject constructor(
         _stats.update {
             it.copy(
                 pausedNanos = it.pausedNanos + (now - (it.pausedAtNanos ?: now)),
+                // Auto-pause counts from the resume, not from the last movement before the pause.
+                lastMovingAtNanos = now,
                 pausedAtNanos = null,
+                autoPaused = false,
                 lastSample = null,
                 currentSpeedMps = 0f,
                 gpsStatus = GpsStatus.Searching,
@@ -110,15 +119,15 @@ class TripTracker @Inject constructor(
         _state.value = TripState.Ended
     }
 
-    /** Zeroes the trip in place: running or paused, the new trip starts now. */
-    fun reset() {
-        val now = clock.nowNanos()
-        _stats.value = when (_state.value) {
-            TripState.Running -> TripStats(startedAtNanos = now)
-            TripState.Paused -> TripStats(startedAtNanos = now, pausedAtNanos = now)
-            TripState.Idle, TripState.Ended -> TripStats()
-        }
-        if (_state.value == TripState.Ended) _state.value = TripState.Idle
+    /**
+     * Reset = discard (9a): the trip is dropped without saving, the GPS read stops and the
+     * tracker is Idle; nothing runs until the next Start. Also clears an ended trip's figures.
+     */
+    fun discard() {
+        cancelCollection()
+        _stats.value = TripStats()
+        _lastFix.value = null
+        _state.value = TripState.Idle
     }
 
     private fun collect() {

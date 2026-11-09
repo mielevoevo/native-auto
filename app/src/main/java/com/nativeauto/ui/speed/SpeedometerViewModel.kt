@@ -9,7 +9,16 @@ import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.trip.GpsStatus
 import com.nativeauto.trip.TripState
 import com.nativeauto.trip.TripStats
+import com.nativeauto.trip.TripReducer
 import com.nativeauto.trip.TripTracker
+import com.nativeauto.trip.SpeedSample
+import com.nativeauto.location.LiveLocation
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import com.nativeauto.trip.averageSpeedMps
 import com.nativeauto.trip.elapsedNanos
 import com.nativeauto.trip.movingAverageMps
@@ -28,24 +37,37 @@ import kotlinx.coroutines.flow.stateIn
 /**
  * Observes [TripTracker] (never drives it, rule #10) and turns SI stats into display units.
  * This is the only place that converts m/s and metres into km/h, mph, km or mi (rule #7).
+ *
+ * Phase 9a: with no trip running (idle, paused, ended) the hero still shows the live speed,
+ * read from [LiveLocation] (the same GPS read the map uses), so the speedometer works without
+ * a trip.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SpeedometerViewModel @Inject constructor(
     tracker: TripTracker,
     private val clock: MonotonicClock,
     settings: SettingsRepository,
     permission: LocationPermissionState,
+    live: LiveLocation,
 ) : ViewModel() {
+
+    private val liveWhenStopped: Flow<SpeedSample?> = tracker.state
+        .map { it == TripState.Running }
+        .distinctUntilChanged()
+        .flatMapLatest { running ->
+            if (running) flowOf(null) else live.fixes.map<SpeedSample, SpeedSample?> { it }.onStart { emit(null) }
+        }
 
     val ui: StateFlow<SpeedometerUiState> =
         combine(
-            tracker.stats,
+            combine(tracker.stats, liveWhenStopped, ::Pair),
             tripSecondTicks(tracker, clock),
             settings.speedUnit,
             tracker.state,
             permission.granted,
-        ) { stats, _, unit, trip, granted ->
-            stats.toUiState(nowNanos = clock.nowNanos(), unit = unit, tripState = trip, locationGranted = granted)
+        ) { (stats, liveFix), _, unit, trip, granted ->
+            stats.toUiState(nowNanos = clock.nowNanos(), unit = unit, tripState = trip, locationGranted = granted, liveFix = liveFix)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SpeedometerUiState.Empty)
 
     companion object {
@@ -81,20 +103,34 @@ internal fun TripStats.toUiState(
     unit: SpeedUnit,
     tripState: TripState,
     locationGranted: Boolean = true,
+    liveFix: SpeedSample? = null,
 ): SpeedometerUiState {
     val last = lastSample
     val stale = last != null && nowNanos - last.timestampNanos > SpeedometerViewModel.STALE_AFTER_NANOS
+    val liveFresh = liveFix != null && nowNanos - liveFix.timestampNanos <= SpeedometerViewModel.STALE_AFTER_NANOS
     val gps = when {
         !locationGranted -> GpsStatus.PermissionDenied
+        tripState != TripState.Running -> when {
+            // No trip: the tile follows the map's GPS read.
+            liveFix == null -> if (gpsStatus == GpsStatus.Disabled) gpsStatus else GpsStatus.Searching
+            liveFresh -> GpsStatus.Fix
+            else -> GpsStatus.Stale
+        }
         gpsStatus == GpsStatus.Disabled || gpsStatus == GpsStatus.PermissionDenied -> gpsStatus
         stale -> GpsStatus.Stale
         else -> gpsStatus
     }
     val blind = gps == GpsStatus.Disabled || gps == GpsStatus.PermissionDenied
-    // Paused or ended: no live speed, only the (frozen) trip figures.
-    val live = tripState == TripState.Running
+    // Running: the trip's own speed. Otherwise the figures are frozen (or zero) and the hero shows
+    // the live fix the map reads, when there is a fresh one with a speed.
+    val speedMps = if (tripState == TripState.Running) {
+        if (last == null || stale) null else currentSpeedMps
+    } else {
+        liveFix?.takeIf { liveFresh && it.hasSpeed }
+            ?.let { if (it.speedMps < TripReducer.STATIONARY_MPS) 0f else it.speedMps }
+    }
     return SpeedometerUiState(
-        speed = if (last == null || stale || blind || !live) null else currentSpeedMps.toUnit(unit),
+        speed = if (blind) null else speedMps?.toUnit(unit),
         maxSpeed = maxSpeedMps.toUnit(unit),
         avgSpeed = averageSpeedMps(nowNanos).toUnit(unit),
         movingAvgSpeed = movingAverageMps().toUnit(unit),
@@ -105,6 +141,7 @@ internal fun TripStats.toUiState(
         unit = unit,
         gps = gps,
         tripState = tripState,
+        autoPaused = tripState == TripState.Paused && autoPaused,
     )
 }
 

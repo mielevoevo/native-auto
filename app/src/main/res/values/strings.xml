@@ -8,6 +8,9 @@
     <string name="trip_new">New trip</string>
     <string name="trip_paused">Trip paused</string>
     <string name="trip_ended">Trip ended</string>
+    <string name="trip_none">No trip running</string>
+    <string name="trip_start">Start trip</string>
+    <string name="trip_auto_paused">Auto-paused: no movement</string>
 
     <string name="location_denied">Location access is needed for speed</string>
     <string name="location_allow">Allow location</string>
@@ -28,7 +31,11 @@
     <string name="settings_trip">Trip</string>
     <string name="settings_reset_trip">Reset trip</string>
     <string name="settings_reset_confirm">Tap again to reset</string>
-    <string name="settings_reset_hint">Saves this trip and starts a new one</string>
+    <string name="settings_reset_hint">Discards this trip without saving</string>
+    <string name="settings_auto_pause">Auto-pause</string>
+    <string name="settings_auto_end">Auto-end</string>
+    <string name="settings_auto_hint">Auto-pause: no movement for this long. Auto-end: paused this long; the trip is saved.</string>
+    <string name="settings_off">Off</string>
     <string name="settings_history">Trip history</string>
     <string name="settings_voice">Voice guidance</string>
     <string name="settings_voice_hint">Spoken turn prompts (English)</string>

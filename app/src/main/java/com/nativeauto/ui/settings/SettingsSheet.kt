@@ -68,6 +68,8 @@ fun SettingsSheet(
     val fakeGps by viewModel.useFakeGps.collectAsStateWithLifecycle()
     val resetArmed by viewModel.resetArmed.collectAsStateWithLifecycle()
     val voice by viewModel.voiceGuidance.collectAsStateWithLifecycle()
+    val autoPause by viewModel.autoPauseMinutes.collectAsStateWithLifecycle()
+    val autoEnd by viewModel.autoEndMinutes.collectAsStateWithLifecycle()
     val simulate by viewModel.simulateNavigation.collectAsStateWithLifecycle()
     val autoLayout by viewModel.autoLayout.collectAsStateWithLifecycle()
     val theme by viewModel.themeMode.collectAsStateWithLifecycle()
@@ -191,6 +193,26 @@ fun SettingsSheet(
                         }
                     }
 
+                    // 9a: "forgot to close the app". 0 = off.
+                    val off = stringResource(R.string.settings_off)
+                    val minutes = { m: Int -> if (m == 0) off else "$m min" }
+                    ChoiceRow(
+                        label = R.string.settings_auto_pause,
+                        options = AUTO_PAUSE_CHOICES,
+                        selected = autoPause,
+                        text = { minutes(it) },
+                        tag = { "settings_auto_pause_$it" },
+                        stacked = stacked,
+                    ) { haptics.tick(); viewModel.setAutoPauseMinutes(it) }
+                    ChoiceRow(
+                        label = R.string.settings_auto_end,
+                        options = AUTO_END_CHOICES,
+                        selected = autoEnd,
+                        text = { minutes(it) },
+                        tag = { "settings_auto_end_$it" },
+                        stacked = stacked,
+                    ) { haptics.tick(); viewModel.setAutoEndMinutes(it) }
+
                     if (BuildConfig.DEBUG) {
                         HorizontalDivider()
                         Text(stringResource(R.string.settings_debug), style = MaterialTheme.typography.titleMedium)
@@ -226,6 +248,8 @@ fun SettingsSheet(
 }
 
 private val SPLIT_PRESETS = listOf(0.4f, 0.5f, 0.6f)
+private val AUTO_PAUSE_CHOICES = listOf(0, 3, 5, 10)
+private val AUTO_END_CHOICES = listOf(0, 15, 30, 60)
 
 @Composable
 private fun <T> ChoiceRow(

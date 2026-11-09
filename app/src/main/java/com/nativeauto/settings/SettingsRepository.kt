@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -62,7 +63,18 @@ interface SettingsRepository {
     /** The analog face's second hand. Off by default: it redraws every second. */
     val clockSeconds: Flow<Boolean>
     suspend fun setClockSeconds(enabled: Boolean)
+
+    /** Auto-pause after this many minutes below walking pace; 0 = off (9a, default 5). */
+    val autoPauseMinutes: Flow<Int>
+    suspend fun setAutoPauseMinutes(minutes: Int)
+
+    /** Auto-end (and save) after this many minutes paused; 0 = off (9a, default 30). */
+    val autoEndMinutes: Flow<Int>
+    suspend fun setAutoEndMinutes(minutes: Int)
 }
+
+const val DEFAULT_AUTO_PAUSE_MIN = 5
+const val DEFAULT_AUTO_END_MIN = 30
 
 /**
  * The persisted part of the dashboard layout. Modes (fullscreen / maximized) and auto-layout
@@ -182,7 +194,23 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[CLOCK_SECONDS] = enabled }
     }
 
+    override val autoPauseMinutes: Flow<Int> =
+        prefs.map { it[AUTO_PAUSE_MIN] ?: DEFAULT_AUTO_PAUSE_MIN }.distinctUntilChanged()
+
+    override suspend fun setAutoPauseMinutes(minutes: Int) {
+        store.edit { it[AUTO_PAUSE_MIN] = minutes.coerceAtLeast(0) }
+    }
+
+    override val autoEndMinutes: Flow<Int> =
+        prefs.map { it[AUTO_END_MIN] ?: DEFAULT_AUTO_END_MIN }.distinctUntilChanged()
+
+    override suspend fun setAutoEndMinutes(minutes: Int) {
+        store.edit { it[AUTO_END_MIN] = minutes.coerceAtLeast(0) }
+    }
+
     private companion object {
+        val AUTO_PAUSE_MIN = intPreferencesKey("auto_pause_min")
+        val AUTO_END_MIN = intPreferencesKey("auto_end_min")
         val SPEED_UNIT = stringPreferencesKey("speed_unit")
         val USE_FAKE_GPS = booleanPreferencesKey("use_fake_gps")
         val SHOW_TRAFFIC = booleanPreferencesKey("show_traffic")

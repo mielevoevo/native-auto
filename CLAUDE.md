@@ -308,6 +308,31 @@ bike the week of 2026-11-02 (speed, map, media, saved trips all fine; search too
   `testTagsAsResourceId` (`Modifier.sheetTag` for sheets, which live in their own window).
 - Emulator numbers are relative only (SwiftShader, 60 Hz). Real frame times: phone, release build.
 
+## Phase 9a: trip state machine (built 2026-11-09, beyond the handoff)
+
+Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "Decided").
+- **No auto-start:** `PermissionsGate` only asks for permissions; a trip starts when the rider presses
+  Start (`TripService.start`). Until 9b's log face, the idle speed card's hero prompt is "No trip
+  running · Start trip" (`hero_action`).
+- **Reset = discard:** `TripTracker.discard()` (was `reset()`) stops the GPS read, clears the figures
+  and `lastFix`, and goes Idle; `TripRecorder` saves nothing for a trip cleared without ending.
+- **Live speed without a trip:** `SpeedometerViewModel` reads `LiveLocation` when the trip isn't
+  running, so the hero shows the speed (the map's GPS read); the trip figures stay frozen or zero.
+- **Auto-pause / auto-end (`trip/AutoTrip.kt`):** `autoAction()` is pure; `AutoTrip` (started in
+  `NativeAutoApp`) checks every 10 s while running or paused. Below `STATIONARY_MPS` since
+  `TripStats.lastMovingAtNanos` (or the start / resume) for `autoPauseMinutes` → `pause(auto = true)`
+  (`TripStats.autoPaused`, "Auto-paused: no movement"); paused for `autoEndMinutes` → `end()` (saved).
+  0 = off. Settings rows in the Trip column (`settings_auto_pause_N`, `settings_auto_end_N`).
+- **Short trips dropped:** under 300 m or under 2 min moving (`TripRecorder.MIN_DISTANCE_M`,
+  `MIN_MOVING_MS`; tests lower them through `minDistanceM` / `minMovingMs`).
+- **Closing:** swiping the app away (`TripService.onTaskRemoved`) or the activity really finishing
+  (`MainActivity.onDestroy`, not a rotation) ends and saves the trip; the service stops when the trip
+  is Ended or Idle. A notification End arms `core/SelfClose`: the app left in the background finishes
+  its task 10 min later (`closeRequests`); becoming visible or a new Start cancels it.
+- Device tests: `ResetSettingsRule` also discards any trip (via `SettingsEntryPoint.tripTracker()`),
+  so each test starts Idle. Taps meant for the speed card itself go off-centre (the Start button sits
+  in the middle).
+
 ## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);

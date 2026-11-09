@@ -25,6 +25,10 @@ class ResetSettingsRule : ExternalResource() {
         ).settings()
 
     override fun before() = runBlocking {
+        EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            SettingsEntryPoint::class.java,
+        ).tripTracker().discard()
         settings.saveLayout(SavedLayout.Default)
         settings.setSpeedUnit(SpeedUnit.KMH)
         settings.setShowBattery(true)
@@ -32,5 +36,7 @@ class ResetSettingsRule : ExternalResource() {
         settings.setThemeMode(ThemeMode.DARK)
         settings.setClockFace(ClockFace.DIGITAL)
         settings.setClockSeconds(false)
+        settings.setAutoPauseMinutes(com.nativeauto.settings.DEFAULT_AUTO_PAUSE_MIN)
+        settings.setAutoEndMinutes(com.nativeauto.settings.DEFAULT_AUTO_END_MIN)
     }
 }

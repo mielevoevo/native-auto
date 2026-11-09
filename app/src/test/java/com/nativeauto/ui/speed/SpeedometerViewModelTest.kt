@@ -10,6 +10,8 @@ import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.trip.GpsStatus
 import com.nativeauto.trip.SpeedSample
 import com.nativeauto.trip.TripTracker
+import com.nativeauto.location.LiveLocation
+import com.nativeauto.trip.TripState
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -58,6 +60,10 @@ class SpeedometerViewModelTest {
         override suspend fun setClockFace(face: ClockFace) { clockFace.value = face }
         override val clockSeconds = MutableStateFlow(false)
         override suspend fun setClockSeconds(enabled: Boolean) { clockSeconds.value = enabled }
+        override val autoPauseMinutes = MutableStateFlow(5)
+        override suspend fun setAutoPauseMinutes(minutes: Int) { autoPauseMinutes.value = minutes }
+        override val autoEndMinutes = MutableStateFlow(30)
+        override suspend fun setAutoEndMinutes(minutes: Int) { autoEndMinutes.value = minutes }
         override val autoLayout = MutableStateFlow(true)
         override suspend fun setAutoLayout(enabled: Boolean) { autoLayout.value = enabled }
         override val simulateNavigation = MutableStateFlow(false)
@@ -85,8 +91,26 @@ class SpeedometerViewModelTest {
             val tracker = TripTracker(source, clock, backgroundScope)
             tracker.start()
             runCurrent() // let the tracker subscribe before tests emit (SharedFlow drops unobserved fixes)
-            block(source, settings, SpeedometerViewModel(tracker, clock, settings, permission), clock)
+            block(source, settings, SpeedometerViewModel(tracker, clock, settings, permission, LiveLocation(tracker, source, backgroundScope)), clock)
         }
+
+    @Test fun `with no trip the hero shows the live speed and the trip stays at zero`() = runTest {
+        val clock = TestClock(testScheduler)
+        val source = ManualSource()
+        val tracker = TripTracker(source, clock, backgroundScope) // never started: Idle
+        val vm = SpeedometerViewModel(tracker, clock, FakeSettings(), permission, LiveLocation(tracker, source, backgroundScope))
+        vm.ui.test {
+            runCurrent()
+            advanceTimeBy(1_000)
+            source.fixes.emit(fixAt(clock, 25f)); runCurrent()
+            val ui = expectMostRecentItem()
+            assertEquals(TripState.Idle, ui.tripState)
+            assertEquals(90, ui.speed) // 25 m/s
+            assertEquals(0.0, ui.distance, 0.0)
+            assertEquals(0, ui.maxSpeed)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
     private fun fixAt(clock: TestClock, speed: Float) = SpeedSample(clock.nowNanos(), speed, 0.3f, 4f, 51.0, 0.0)
 

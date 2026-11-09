@@ -188,7 +188,7 @@ private fun SpeedFullscreen(ui: SpeedometerUiState) {
 /**
  * The hero, or, when there can be no live speed, a smaller "--" with the way out:
  * access denied → permission dialog, location off → settings, paused → Resume,
- * ended → New trip.
+ * ended → New trip, idle → Start trip.
  * [explain] adds a one-line reason where the card has room for it (not in Compact).
  */
 @Composable
@@ -201,9 +201,14 @@ private fun HeroArea(ui: SpeedometerUiState, size: TextUnit, explain: Boolean = 
         ui.gps == GpsStatus.Disabled ->
             HeroPrompt(R.string.location_off, R.string.location_turn_on, access.openLocationSettings)
         ui.tripState == TripState.Paused ->
-            HeroPrompt(R.string.trip_paused, R.string.trip_resume) { TripService.resume(context) }
+            HeroPrompt(if (ui.autoPaused) R.string.trip_auto_paused else R.string.trip_paused, R.string.trip_resume) {
+                TripService.resume(context)
+            }
         ui.tripState == TripState.Ended ->
             HeroPrompt(R.string.trip_ended, R.string.trip_new) { TripService.start(context) }
+        // 9a: no trip starts by itself. The log face (9b) takes over these controls.
+        ui.tripState == TripState.Idle ->
+            HeroPrompt(R.string.trip_none, R.string.trip_start) { TripService.start(context) }
         else -> null
     }
     if (prompt == null) {

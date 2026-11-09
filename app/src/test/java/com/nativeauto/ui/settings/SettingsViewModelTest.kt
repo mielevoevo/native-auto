@@ -59,8 +59,9 @@ class SettingsViewModelTest {
         advanceTimeBy(1_000)
         assertTrue("second tap resets", vm.onResetTripTapped())
         assertFalse(vm.resetArmed.value)
-        assertTrue("a new trip started", tracker.stats.value.startedAtNanos!! > startedAt!!)
-        assertEquals(TripState.Running, tracker.state.value)
+        // 9a: Reset discards the trip; nothing runs until the next Start.
+        assertNull(tracker.stats.value.startedAtNanos)
+        assertEquals(TripState.Idle, tracker.state.value)
     }
 
     @Test fun anArmedResetExpires() = runTest(main) {

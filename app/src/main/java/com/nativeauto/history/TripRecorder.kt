@@ -23,8 +23,10 @@ import javax.inject.Singleton
  * tracker stays unaware of storage:
  * - the path is the fixes the reducer *accepted* (each new `lastSample`), so it matches the
  *   distance on the card; rejected spikes and poor fixes never reach it;
- * - a trip is finished when it ends, or when a reset replaces it with a new one;
- * - trips under [MIN_DISTANCE_M] (opening the app at a desk) aren't kept.
+ * - a trip is saved when it ends (End, auto-end, notification, app swiped away);
+ * - a discarded trip (Reset, 9a) is dropped: the tracker clears it without ending it;
+ * - very short trips aren't kept: under [MIN_DISTANCE_M] or under [MIN_MOVING_MS] of moving
+ *   time (opening the app at a desk, a Start pressed by mistake).
  *
  * A trip in progress lives in memory, like the tracker's figures; if the process dies
  * mid-trip, that trip is lost with them.
@@ -38,6 +40,12 @@ class TripRecorder @Inject constructor(
     private val wall: WallClock,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
+    /** The short-trip limits; tests lower them to check the path geometry on short drives. */
+    internal var minDistanceM = MIN_DISTANCE_M
+    internal var minMovingMs = MIN_MOVING_MS
+
+    private fun worthKeeping(s: TripStats) =
+        s.distanceM >= minDistanceM && s.movingNanos / 1_000_000 >= minMovingMs
     private var started = false
     private val addressLock = Mutex()
 
@@ -58,8 +66,7 @@ class TripRecorder @Inject constructor(
                 val key = stats.startedAtNanos
                 rec?.let { r ->
                     if (r.startedAtNanos != key) {
-                        // Replaced by a reset (or cleared): it finished just now.
-                        if (!r.saved) save(r, endNanos = clock.nowNanos())
+                        // Cleared without ending: discarded (Reset), so nothing is saved.
                         rec = null
                     }
                 }
@@ -91,7 +98,7 @@ class TripRecorder @Inject constructor(
             val end = GeoPoint(last.latitude, last.longitude)
             if (r.points.lastOrNull() != end) r.points += end
         }
-        if (s.distanceM < MIN_DISTANCE_M || r.points.size < 2) return
+        if (!worthKeeping(s) || r.points.size < 2) return
         val nowNanos = clock.nowNanos()
         val nowMs = wall.nowMs()
         fun wallMs(nanos: Long) = nowMs - (nowNanos - nanos) / 1_000_000
@@ -133,7 +140,9 @@ class TripRecorder @Inject constructor(
         }
 
     internal companion object {
-        const val MIN_DISTANCE_M = 100.0
+        const val MIN_DISTANCE_M = 300.0
+        const val MIN_MOVING_MS = 120_000L
+
         const val MIN_STEP_M = 3.0
         const val SIMPLIFY_TOLERANCE_M = 4.0
     }

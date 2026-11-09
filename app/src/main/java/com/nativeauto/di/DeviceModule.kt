@@ -25,4 +25,6 @@ abstract class DeviceModule {
 @InstallIn(SingletonComponent::class)
 interface SettingsEntryPoint {
     fun settings(): SettingsRepository
+    /** Device tests start each test with no trip (9a: nothing starts on its own). */
+    fun tripTracker(): com.nativeauto.trip.TripTracker
 }

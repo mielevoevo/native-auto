@@ -8,6 +8,7 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
@@ -18,6 +19,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.espresso.Espresso
@@ -63,6 +66,11 @@ class DashboardScreenTest {
     private fun tag(t: String) = rule.onNodeWithTag(t, useUnmergedTree = true)
     private fun count(t: String) = rule.onAllNodesWithTag(t, useUnmergedTree = true)
     private fun click(t: String) { tag(t).performClick(); rule.waitForIdle() }
+    /** Off-centre: since 9a the idle card's centre holds the Start trip button. */
+    private fun tapSpeedCardEdge() {
+        rule.onNodeWithTag("pane_SPEED").performTouchInput { click(percentOffset(0.1f, 0.85f)) }
+        rule.waitForIdle()
+    }
     private fun back() { Espresso.pressBack(); rule.waitForIdle() }
     private fun SemanticsNodeInteraction.width(): Dp = getBoundsInRoot().let { it.right - it.left }
     private fun SemanticsNodeInteraction.height(): Dp = getBoundsInRoot().let { it.bottom - it.top }
@@ -339,6 +347,27 @@ class DashboardScreenTest {
         rule.onAllNodesWithText("km/h", useUnmergedTree = true).assertCountEquals(0)
     }
 
+    @Test fun aTripStartsOnlyOnStartAndResetDiscardsIt() {
+        // 9a: opening the app starts nothing.
+        rule.onNodeWithText("Start trip", useUnmergedTree = true).assertIsDisplayed()
+        click("hero_action")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Start trip", useUnmergedTree = true).fetchSemanticsNodes().isEmpty() }
+        openSettings()
+        click("settings_reset_trip")
+        click("settings_reset_trip")
+        closeSettings()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Start trip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun autoPauseAndAutoEndAreSettings() {
+        openSettings()
+        click("settings_auto_pause_10")
+        click("settings_auto_end_0")
+        tag("settings_auto_pause_10").assertIsSelected()
+        tag("settings_auto_end_0").assertIsSelected()
+        closeSettings()
+    }
+
     @Test fun resetTripAsksForASecondTap() {
         openSettings()
         click("settings_reset_trip")
@@ -351,9 +380,9 @@ class DashboardScreenTest {
     // ---------------------------------------------------------------- Phase 2: gestures
 
     @Test fun tappingACardTogglesMaximize() {
-        rule.onNodeWithTag("pane_SPEED").performClick(); rule.waitForIdle()
+        tapSpeedCardEdge()
         assertMode(Pane.SPEED, CardMode.Expanded)
-        rule.onNodeWithTag("pane_SPEED").performClick(); rule.waitForIdle()
+        tapSpeedCardEdge()
         assertMode(Pane.SPEED, CardMode.Compact)
     }
 

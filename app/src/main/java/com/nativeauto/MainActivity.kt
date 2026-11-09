@@ -26,18 +26,28 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import com.nativeauto.core.SelfClose
+import com.nativeauto.trip.TripState
+import com.nativeauto.trip.TripTracker
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var locationPermission: LocationPermissionState
     @Inject lateinit var settings: SettingsRepository
+    @Inject lateinit var selfClose: SelfClose
+    @Inject lateinit var tracker: TripTracker
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
+        // 9a: ten minutes after a trip is ended from the notification, an app left in the
+        // background closes itself.
+        lifecycleScope.launch { selfClose.closeRequests.collect { finishAndRemoveTask() } }
 
         setContent {
             // Dark until DataStore answers (a few ms): the window is black anyway.
@@ -65,16 +75,31 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        selfClose.onVisible()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getSystemService(PowerManager::class.java)?.addThermalStatusListener(mainExecutor, thermalListener)
         }
     }
 
     override fun onStop() {
+        selfClose.onHidden()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getSystemService(PowerManager::class.java)?.removeThermalStatusListener(thermalListener)
         }
         super.onStop()
+    }
+
+    /**
+     * 9a, closing the app stops everything: when the activity really finishes (not a rotation),
+     * a trip in progress is ended and saved; the service then stops on its own, and the map's
+     * GPS read ends with the activity. The Save / Discard prompt on double back is 9b.
+     */
+    override fun onDestroy() {
+        if (isFinishing && !isChangingConfigurations) {
+            val state = tracker.state.value
+            if (state == TripState.Running || state == TripState.Paused) tracker.end()
+        }
+        super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

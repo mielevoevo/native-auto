@@ -64,7 +64,12 @@ class TripRecorderTest {
         val addresses = FakeAddresses()
         val tracker = TripTracker(source, clock, scope.backgroundScope)
         val recorder = TripRecorder(tracker, dao, addresses, clock, WallClock { WALL_BASE_MS + scope.testScheduler.currentTime }, scope.backgroundScope)
-            .also { it.start() }
+            .also {
+                // The geometry tests drive a few hundred metres; the real limits have their own tests.
+                it.minDistanceM = 100.0
+                it.minMovingMs = 0
+                it.start()
+            }
 
         /** Metres north of the equator; fixes run due north. */
         var north = 0.0
@@ -103,7 +108,7 @@ class TripRecorderTest {
         runCurrent()
         // More state changes after the end don't save it again.
         advanceTimeBy(10_000); runCurrent()
-        rig.tracker.reset(); runCurrent()
+        rig.tracker.discard(); runCurrent()
 
         val t = rig.dao.trips.value.single()
         assertEquals(WALL_BASE_MS + 5_000, t.startedAtMs)
@@ -130,6 +135,41 @@ class TripRecorderTest {
         assertEquals(emptyList<TripRecord>(), rig.dao.trips.value)
     }
 
+    /** At the real limits (9a): at least 300 m and 2 min of moving time. */
+    private fun Rig.realLimits() = apply {
+        recorder.minDistanceM = TripRecorder.MIN_DISTANCE_M
+        recorder.minMovingMs = TripRecorder.MIN_MOVING_MS
+    }
+
+    @Test fun `a fast trip under 2 min of moving isn't kept`() = runTest {
+        val rig = Rig(this).realLimits()
+        rig.startTrip()
+        rig.drive(100) // 2 km, but only 100 s
+        rig.tracker.end(); runCurrent()
+        assertEquals(emptyList<TripRecord>(), rig.dao.trips.value)
+    }
+
+    @Test fun `a long slow trip under 300 m isn't kept`() = runTest {
+        val rig = Rig(this).realLimits()
+        rig.startTrip()
+        rig.emit(rig.fix(speed = 1f))
+        repeat(200) { // 200 m in 200 s
+            advanceTimeBy(1_000)
+            rig.north += 1.0
+            rig.emit(rig.fix(speed = 1f))
+        }
+        rig.tracker.end(); runCurrent()
+        assertEquals(emptyList<TripRecord>(), rig.dao.trips.value)
+    }
+
+    @Test fun `a trip over both limits is kept`() = runTest {
+        val rig = Rig(this).realLimits()
+        rig.startTrip()
+        rig.drive(121) // 2.42 km in 121 s
+        rig.tracker.end(); runCurrent()
+        assertEquals(2420.0, rig.dao.trips.value.single().distanceM, 1e-6)
+    }
+
     @Test fun `a trip that never got a fix isn't kept`() = runTest {
         val rig = Rig(this)
         rig.startTrip()
@@ -138,23 +178,20 @@ class TripRecorderTest {
         assertEquals(emptyList<TripRecord>(), rig.dao.trips.value)
     }
 
-    @Test fun `reset mid-trip saves the old trip and records the new one separately`() = runTest {
+    @Test fun `reset discards the trip and the next start records a new one`() = runTest {
         val rig = Rig(this)
         rig.startTrip()
         rig.drive(10) // 200 m
-        rig.tracker.reset(); runCurrent()
+        rig.tracker.discard(); runCurrent()
+        assertEquals(emptyList<TripRecord>(), rig.dao.trips.value)
 
-        val first = rig.dao.trips.value.single()
-        assertEquals(200.0, first.distanceM, 1e-6)
-        assertEquals(WALL_BASE_MS + 10_000, first.endedAtMs)
-
-        // The new trip's path starts where it was reset, not where the first one began.
+        // The new trip's path starts where it was started, not where the discarded one began.
         advanceTimeBy(1_000)
         rig.north += SPEED
+        rig.startTrip()
         rig.drive(10)
         rig.tracker.end(); runCurrent()
-        val second = rig.dao.trips.value.last()
-        assertEquals(2, rig.dao.trips.value.size)
+        val second = rig.dao.trips.value.single()
         assertEquals(220.0, second.startLat * METERS_PER_DEGREE_LAT, 1e-6)
         assertEquals(420.0, second.endLat * METERS_PER_DEGREE_LAT, 1e-6)
         assertEquals(200.0, second.distanceM, 1e-6)

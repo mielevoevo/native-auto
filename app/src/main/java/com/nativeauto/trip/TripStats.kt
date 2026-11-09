@@ -15,6 +15,10 @@ data class TripStats(
     val pausedAtNanos: Long? = null,
     /** Set once the trip has ended: every figure is frozen from here on. */
     val endedAtNanos: Long? = null,
+    /** The last accepted fix above walking pace; auto-pause counts from here (9a). */
+    val lastMovingAtNanos: Long? = null,
+    /** True while the trip was paused by auto-pause rather than by hand. */
+    val autoPaused: Boolean = false,
 )
 
 /** Trip time: from the start to now (or to the pause / end), minus time spent paused. */

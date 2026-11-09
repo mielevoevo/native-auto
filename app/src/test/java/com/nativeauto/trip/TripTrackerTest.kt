@@ -95,7 +95,7 @@ class TripTrackerTest {
         assertEquals(frozen, tracker.stats.value)
         assertEquals(30_000_000_000L, frozen.elapsedNanos(clock.nowNanos()))
 
-        tracker.reset()
+        tracker.discard()
         assertEquals(TripStats(), tracker.stats.value)
         assertNull(tracker.stats.value.startedAtNanos)
         assertEquals(TripState.Idle, tracker.state.value)
@@ -174,14 +174,35 @@ class TripTrackerTest {
         assertEquals(TripState.Running, tracker.state.value)
     }
 
-    @Test fun `reset while tracking restarts the trip clock now`() = runTest {
+    @Test fun `discard while tracking drops the trip and stops the GPS`() = runTest {
+        val clock = TestClock(testScheduler)
+        val source = FlakySource()
+        val tracker = TripTracker(source, clock, backgroundScope)
+        tracker.start(); runCurrent()
+        advanceTimeBy(1_000)
+        source.fixes.emit(SpeedSample(clock.nowNanos(), 20f, 0.3f, 4f, 51.0, 0.0)); runCurrent()
+        tracker.discard(); runCurrent()
+        assertEquals(TripState.Idle, tracker.state.value)
+        assertEquals(TripStats(), tracker.stats.value)
+        assertNull(tracker.lastFix.value)
+        // No collection any more: later fixes change nothing.
+        source.fixes.emit(SpeedSample(clock.nowNanos(), 20f, 0.3f, 4f, 51.001, 0.0)); runCurrent()
+        assertEquals(TripStats(), tracker.stats.value)
+        // Nothing runs until the next Start.
+        tracker.resume()
+        assertEquals(TripState.Idle, tracker.state.value)
+    }
+
+    @Test fun `pause by auto-pause is marked and resume clears it`() = runTest {
         val clock = TestClock(testScheduler)
         val tracker = TripTracker(FakeSpeedSampleSource(clock), clock, backgroundScope)
-        tracker.start()
-        advanceTimeBy(20_000); runCurrent()
-        tracker.reset()
-        assertEquals(clock.nowNanos(), tracker.stats.value.startedAtNanos)
-        assertEquals(0.0, tracker.stats.value.distanceM, 0.0)
+        tracker.start(); runCurrent()
+        tracker.pause(auto = true)
+        assertTrue(tracker.stats.value.autoPaused)
+        advanceTimeBy(5_000)
+        tracker.resume()
+        assertEquals(false, tracker.stats.value.autoPaused)
+        assertEquals(clock.nowNanos(), tracker.stats.value.lastMovingAtNanos)
     }
 
     /** Fails like the fused source would, as scripted by the test. */

@@ -26,16 +26,16 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleStartEffect
 import com.nativeauto.location.LocationPermissionState
-import com.nativeauto.location.TripService
 
 /**
  * Runtime-permission onboarding, in the order the handoff asks for (§9, Phase 4):
- * precise location → notifications (Android 13+) → start [TripService].
+ * precise location → notifications (Android 13+). Since 9a no trip starts here: the rider
+ * presses Start (the speed card), which starts `TripService`.
  *
  * - Asks once per launch; a denial shows as `GpsStatus.PermissionDenied` ("Denied") on the
  *   speed card, which offers a retry through [LocalLocationAccess].
  * - Each time the app comes to the foreground it re-checks access (it may have changed in
- *   system settings) and (re)starts the service, so tracking resumes after "Stop".
+ *   system settings).
  * - Notifications are optional: without them the trip still runs, just without the shade entry.
  *
  * Notification *listener* access (media, Phase 6) isn't a runtime permission and isn't here.
@@ -47,17 +47,13 @@ fun PermissionsGate(permission: LocationPermissionState, content: @Composable ()
     var askedLocation by rememberSaveable { mutableStateOf(false) }
     var askedNotifications by rememberSaveable { mutableStateOf(false) }
 
-    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        // Granted or not, tracking goes ahead: the notification is a nicety.
-        if (permission.granted.value) TripService.start(context)
-    }
+    // Granted or not, trips work: the notification is a nicety.
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     fun afterLocationGranted() {
         if (needsNotificationPermission(context) && !askedNotifications) {
             askedNotifications = true
             notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            TripService.start(context)
         }
     }
 

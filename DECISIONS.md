@@ -37,3 +37,18 @@ Format: **sub-phase · decision** — why, and how to change it.
   starts, and one run lost a button under emulator load. Not chased further. The real check is the phone
   (release build, `adb shell dumpsys gfxinfo com.nativeauto` after maximizing / opening settings).
 
+
+## 9a · Trip state machine
+
+- **Idle speed card: "No trip running · Start trip"** in the hero, styled like the Paused / Ended
+  prompts — a stopgap until 9b's log face (▶ ⏸ ⏹). The hero shows the live speed (the map's GPS read)
+  without a trip, at the prompt's smaller size.
+- **Auto-pause choices Off / 3 / 5 / 10 min (default 5); auto-end Off / 15 / 30 / 60 min (default 30)**,
+  as segmented rows in the settings' Trip column. Checked every 10 s. Auto-pause doesn't auto-resume
+  (that would need the GPS kept on while paused); the card says "Auto-paused: no movement".
+- **Short trips: kept only from 300 m *and* 2 min of moving time** (the roadmap's "under ~300 m or under
+  ~2 min" read as "either one drops it"). Constants in `TripRecorder`.
+- **Self-close 10 min after a notification End** (the short end of "10–15 min"; the GPS is already off).
+  Coming back to the app cancels it. Ending inside the app never self-closes.
+- **Closing the app saves the trip**: swiping it away (`onTaskRemoved`) and the activity really finishing
+  both end and save. The Save / Discard / Cancel prompt on double back comes with 9b's back hint.

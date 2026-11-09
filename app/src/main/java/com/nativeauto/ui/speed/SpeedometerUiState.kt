@@ -16,6 +16,8 @@ data class SpeedometerUiState(
     val unit: SpeedUnit,
     val gps: GpsStatus,
     val tripState: TripState,
+    /** Paused by auto-pause (no movement for a while), not by hand (9a). */
+    val autoPaused: Boolean = false,
 ) {
     /** The handoff's `isTracking`, derived so it can never disagree with [tripState]. */
     val isTracking: Boolean get() = tripState == TripState.Running

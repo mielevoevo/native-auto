@@ -32,6 +32,7 @@ object TripReducer {
         val prev = s.lastSample ?: return s.copy(
             startedAtNanos = s.startedAtNanos ?: fix.timestampNanos,
             lastSample = fix, currentSpeedMps = speed, gpsStatus = GpsStatus.Fix,
+            lastMovingAtNanos = if (speed > 0f) fix.timestampNanos else s.lastMovingAtNanos,
         )
 
         val dtNanos = fix.timestampNanos - prev.timestampNanos
@@ -55,6 +56,7 @@ object TripReducer {
             distanceM = s.distanceM + dDist,
             movingNanos = s.movingNanos + if (speed > 0f) dtNanos else 0L,
             gpsStatus = GpsStatus.Fix,
+            lastMovingAtNanos = if (speed > 0f) fix.timestampNanos else s.lastMovingAtNanos,
         )
     }
 }
