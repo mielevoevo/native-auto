@@ -177,6 +177,11 @@ class GarageRepository @Inject constructor(
 
     fun prices(): Flow<List<FuelPrice>> = dao.observePrices()
 
+    /** 12c: the rider's price for [fuel] (a rate change), kept until changed again. Past refuels keep theirs. */
+    suspend fun setPrice(fuel: FuelType, pricePerL: Double) = lock.withLock {
+        dao.upsertPrice(FuelPrice(fuel.name, pricePerL, wall.nowMs()))
+    }
+
     /**
      * Range, km/L and the refuel log. Everything runs on the odometer (so untracked km count and
      * can't skew km/L); away readings make the level unknown until the next full fill.

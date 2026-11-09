@@ -156,7 +156,7 @@ class GarageScreenTest {
         await("garage_refuel_dialog")
         // The odometer is prefilled with the estimate, the price with the fuel's default.
         assertEquals("12000", tag("garage_refuel_odo").fieldText())
-        assertEquals("15900", tag("garage_refuel_price").fieldText())
+        assertEquals("15950", tag("garage_refuel_price").fieldText())
         tag("garage_refuel_amount").performTextReplacement("50.000") // Rp, Indonesian thousands
         rule.waitUntil(5_000) { tag("garage_refuel_result").fetchText() == "= 3.1 L" }
         click("garage_refuel_save")
@@ -171,7 +171,7 @@ class GarageScreenTest {
         count("garage_cost").assertCountEquals(0)
         scrollClick("garage_cost_toggle")
         await("garage_cost")
-        rule.waitUntil(5_000) { tag("garage_refill_estimate").fetchText() == "Next refill ≈ 0.0 L × Rp 15.900 = Rp 0" }
+        rule.waitUntil(5_000) { tag("garage_refill_estimate").fetchText() == "Next refill ≈ 0.0 L × Rp 15.950 = Rp 0" }
 
         // Delete needs two taps.
         scrollClick("garage_refuel_delete")
@@ -179,6 +179,23 @@ class GarageScreenTest {
         scrollClick("garage_refuel_delete")
         rule.waitUntil(5_000) { count("garage_refuel_row").fetchSemanticsNodes().isEmpty() }
         rule.waitUntil(5_000) { tag("garage_range").fetchText() == "—" }
+    }
+
+    @Test fun aPriceEditedInTheGarageIsTheNextRefuelsPrice() {
+        runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        openGarage()
+        await("garage_bike_Gen 1")
+        rule.waitUntil(5_000) { tag("garage_price_value_PERTAMAX_GREEN").fetchText() == "Rp 19.150 / L" }
+        scrollClick("garage_price_PERTAMAX")
+        await("garage_price_dialog")
+        assertEquals("15950", tag("garage_price_input").fieldText())
+        tag("garage_price_input").performTextReplacement("16.200")
+        click("garage_price_save")
+        awaitGone("garage_price_dialog")
+        rule.waitUntil(5_000) { tag("garage_price_value_PERTAMAX").fetchText() == "Rp 16.200 / L" }
+        scrollClick("garage_refuel")
+        await("garage_refuel_dialog")
+        assertEquals("16200", tag("garage_refuel_price").fieldText())
     }
 
     @Test fun theGaugeSetsALevelBeforeTheFirstFullFill() {
@@ -306,7 +323,7 @@ class GarageScreenTest {
         await("garage_card_full")
         scrollClick("garage_value_ODOMETER")
         rule.waitUntil(5_000) { runBlocking { resetSettings.settings.garageValue.first() } == com.nativeauto.settings.GarageValue.ODOMETER }
-        // Refuelled from the card.
+        // Refuel from the card.
         click("garage_card_refuel")
         await("garage_refuel_dialog")
         tag("garage_refuel_amount").performTextReplacement("88.000")

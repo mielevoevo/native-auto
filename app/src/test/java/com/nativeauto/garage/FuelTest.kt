@@ -124,6 +124,8 @@ class FuelTest {
 
     @Test fun `prices fall back to the default`() {
         assertEquals(FuelType.PERTALITE.defaultPricePerL, priceOf(FuelType.PERTALITE, emptyList()), 0.0)
+        // 12c: the rates of 2026-11-09.
+        assertEquals(listOf(10_000.0, 15_950.0, 19_150.0, 19_600.0), FuelType.entries.map { it.defaultPricePerL })
         assertEquals(10_200.0, priceOf(FuelType.PERTALITE, listOf(FuelPrice("PERTALITE", 10_200.0, 1))), 0.0)
     }
 

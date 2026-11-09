@@ -1,5 +1,8 @@
 package com.nativeauto.ui.garage
 
+import com.nativeauto.garage.priceOf
+import com.nativeauto.garage.FuelPrice
+import com.nativeauto.garage.FuelType
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -74,6 +77,8 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
     var refuelling by rememberSaveable { mutableStateOf<String?>(null) }
     var addingUntracked by rememberSaveable { mutableStateOf<String?>(null) }
     var settingLevel by rememberSaveable { mutableStateOf<String?>(null) }
+    var editingPrice by rememberSaveable { mutableStateOf<FuelType?>(null) }
+    val prices by viewModel.prices.collectAsStateWithLifecycle()
     // 11c: the service editor (0 = a new item) and "Mark done", for the selected bike.
     var editingService by rememberSaveable { mutableStateOf<Long?>(null) }
     var doneService by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -116,6 +121,8 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                             onCorrect = { haptics.tap(); correcting = selected.id },
                             onUntracked = { haptics.tap(); addingUntracked = selected.id },
                             onSetLevel = { haptics.tap(); settingLevel = selected.id },
+                            prices = prices,
+                            onEditPrice = { haptics.tap(); editingPrice = it },
                             onRefuel = { haptics.tap(); refuelling = selected.id },
                             onAddService = { haptics.tap(); editingService = 0L },
                             onEditService = { haptics.tap(); editingService = it.id },
@@ -179,7 +186,6 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
             refuelling = null
         } else {
             val odo by remember(id) { viewModel.odometer(id) }.collectAsStateWithLifecycle(null)
-            val prices by viewModel.prices.collectAsStateWithLifecycle()
             // Wait for the estimate, so the odometer field is prefilled.
             if (odo != null) {
                 RefuelDialog(
@@ -227,6 +233,14 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                 )
             }
         }
+    }
+    editingPrice?.let { type ->
+        FuelPriceDialog(
+            fuel = type,
+            current = priceOf(type, prices),
+            onSave = { p -> haptics.confirm(); viewModel.setPrice(type, p); editingPrice = null },
+            onDismiss = { editingPrice = null },
+        )
     }
     settingLevel?.let { id ->
         val bike = list?.firstOrNull { it.id == id }
@@ -316,6 +330,8 @@ private fun BikeDetail(
     onCorrect: () -> Unit,
     onUntracked: () -> Unit,
     onSetLevel: () -> Unit,
+    prices: List<FuelPrice>,
+    onEditPrice: (FuelType) -> Unit,
     onRefuel: () -> Unit,
     onAddService: () -> Unit,
     onEditService: (ServiceItem) -> Unit,
@@ -382,6 +398,8 @@ private fun BikeDetail(
             refuelArmed = refuelArmed,
             onRefuel = onRefuel,
             onSetLevel = onSetLevel,
+            prices = prices,
+            onEditPrice = onEditPrice,
             onDeleteRefuel = { id -> if (viewModel.onDeleteRefuelTapped(id)) haptics.confirm() else haptics.tap() },
         )
         Spacer(Modifier.height(20.dp))

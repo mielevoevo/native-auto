@@ -576,6 +576,17 @@ Rider-Feedback "Revisions after the first look" R1 and R2.
 - Tests: `FuelLevel12bTest`, `PeriodTotalsTest`, a `GarageRepositoryTest` case; device:
   `GarageScreenTest.theGaugeSetsALevelBeforeTheFirstFullFill`, `TripSummaryDashTest` (stateless card).
 
+## Phase 12c: fuel prices (built 2026-11-09, v3.3, versionCode 18)
+
+- `FuelType`: Pertalite, Pertamax (92), **Pertamax Green**, Pertamax Turbo; defaults are the rates of
+  2026-11-09 (10.000 / 15.950 / 19.150 / 19.600), used only until the rider has a price. `brand` / `grade`
+  give the two-line button label (`FuelLabel`, via `Segments(label = ...)`).
+- **Fuel prices** in the bike detail (`garage_price_<TYPE>`, `garage_price_value_<TYPE>`) →
+  `FuelPriceDialog` (`garage_price_dialog`, `garage_price_input`, `garage_price_save`) →
+  `GarageRepository.setPrice` (the same `fuel_prices` store a fill-up updates). Past refuels keep their price.
+- "Refuelled" → "Refuel"; bike models "NMAX Gen 1" / "NMAX Gen 2". Custom fuel types: WIP (prices are
+  keyed by name, so no migration needed later).
+
 ## App font: Geist (applied 2026-11-09, after 11c)
 
 - **Geist** (Vercel, OFL; licence in `assets/licenses/geist-OFL.txt`), bundled as static TTFs from the `geist`

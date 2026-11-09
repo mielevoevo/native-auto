@@ -189,7 +189,7 @@ fun TankGauge(fraction: Double?, modifier: Modifier = Modifier) {
 /**
  * 11c: the Garage as a pane. Normal size: one tracked value, big (range by default, with the
  * tank). Maximized or fullscreen: the full set, the choice of that one value, the bike picker
- * and the Refuelled button (§6, decided 2026-11-08: Refuelled only on the expanded card). No
+ * and the Refuel button (§6, decided 2026-11-08: Refuel only on the expanded card). No
  * cost figures on the card.
  */
 @Composable
@@ -355,7 +355,7 @@ private fun ExpandedGarage(
             FilledTonalButton(onClick = { haptics.tap(); onRefuel() }, modifier = Modifier.heightIn(min = 64.dp).testTag("garage_card_refuel")) {
                 Icon(AppIcons.Fuel, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Refuelled")
+                Text("Refuel")
             }
         }
         FactRow(

@@ -125,6 +125,12 @@ class ReleaseSmokeTest {
         tap("garage_level_bar_3")
         tap("garage_level_save")
         gone("garage_level_dialog")
+        // 12c: a rate change.
+        scrollTap("garage_price_PERTAMAX")
+        find("garage_price_dialog")
+        type("garage_price_input", "16000")
+        tap("garage_price_save")
+        gone("garage_price_dialog")
         scrollTap("garage_refuel")
         find("garage_refuel_dialog")
         type("garage_refuel_amount", "50000")

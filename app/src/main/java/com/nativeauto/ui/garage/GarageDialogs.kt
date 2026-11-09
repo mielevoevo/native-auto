@@ -141,7 +141,7 @@ internal fun BikeEditor(
                     reserve = trimNumber(it.reserveLitres)
                 }
                 Text("Fuel", style = MaterialTheme.typography.titleMedium)
-                Segments(FuelType.entries, fuel, { it.label }, { "garage_fuel_${it.name}" }) { haptics.tick(); fuel = it }
+                Segments(FuelType.entries, fuel, { it.label }, { "garage_fuel_${it.name}" }, label = { FuelLabel(it) }) { haptics.tick(); fuel = it }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -175,7 +175,14 @@ internal fun BikeEditor(
 }
 
 @Composable
-internal fun <T> Segments(options: List<T>, selected: T, text: (T) -> String, tag: (T) -> String, onSelect: (T) -> Unit) {
+internal fun <T> Segments(
+    options: List<T>,
+    selected: T,
+    text: (T) -> String,
+    tag: (T) -> String,
+    label: (@Composable (T) -> Unit)? = null,
+    onSelect: (T) -> Unit,
+) {
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         options.forEachIndexed { i, option ->
             SegmentedButton(
@@ -184,7 +191,7 @@ internal fun <T> Segments(options: List<T>, selected: T, text: (T) -> String, ta
                 shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
                 colors = appSegmentedColors(),
                 modifier = Modifier.heightIn(min = 56.dp).testTag(tag(option)),
-            ) { Text(text(option), maxLines = 1) }
+            ) { if (label != null) label(option) else Text(text(option), maxLines = 1) }
         }
     }
 }
@@ -289,5 +296,14 @@ fun GaragePrompts(viewModel: GarageViewModel = hiltViewModel()) {
                 }
             }
         }
+    }
+}
+
+/** 12c: the fuel's button label: brand small on top, grade below ("Pertamax" / "Turbo"); Pertalite on one line. */
+@Composable
+internal fun FuelLabel(fuel: FuelType) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        fuel.brand?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) }
+        Text(fuel.grade, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
     }
 }

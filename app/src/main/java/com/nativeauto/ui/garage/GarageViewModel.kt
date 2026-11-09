@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.nativeauto.garage.BikeDraft
 import com.nativeauto.garage.BikeRecord
 import com.nativeauto.garage.FuelPrice
+import com.nativeauto.garage.FuelType
 import com.nativeauto.garage.FuelState
 import com.nativeauto.garage.RefuelDraft
 import com.nativeauto.garage.ServiceDraft
@@ -61,6 +62,8 @@ class GarageViewModel @Inject constructor(private val garage: GarageRepository) 
     fun logRefuel(bikeId: String, draft: RefuelDraft) = viewModelScope.launch { garage.logRefuel(bikeId, draft) }
 
     fun addUntrackedKm(bikeId: String, km: Double) = viewModelScope.launch { garage.addUntrackedKm(bikeId, km) }
+
+    fun setPrice(fuel: FuelType, pricePerL: Double) = viewModelScope.launch { garage.setPrice(fuel, pricePerL) }
 
     fun setFuelLevel(bikeId: String, bars: Int, ofBars: Int, odometerKm: Double) =
         viewModelScope.launch { garage.setFuelLevel(bikeId, bars, ofBars, odometerKm) }

@@ -21,13 +21,15 @@ enum class BikeType(val label: String) {
 }
 
 /**
- * Indonesian pump fuels. [defaultPricePerL] (Rp) is only a starting point: the refuel log
- * stores the price seen at the pump ([FuelPrice]), which is used from then on.
+ * Indonesian pump fuels. [defaultPricePerL] (Rp, rates of 2026-11-09) is only a starting point:
+ * the price the rider sets in the Garage (12c) or pays at the pump is stored ([FuelPrice], keyed
+ * by name) and used from then on. [brand] / [grade] are the two-line button label (12c).
  */
-enum class FuelType(val label: String, val defaultPricePerL: Double) {
-    PERTALITE("Pertalite", 10_000.0),
-    PERTAMAX("Pertamax", 15_900.0),
-    PERTAMAX_TURBO("Pertamax Turbo", 19_600.0),
+enum class FuelType(val label: String, val brand: String?, val grade: String, val defaultPricePerL: Double) {
+    PERTALITE("Pertalite", null, "Pertalite", 10_000.0),
+    PERTAMAX("Pertamax", "Pertamax", "92", 15_950.0),
+    PERTAMAX_GREEN("Pertamax Green", "Pertamax", "Green", 19_150.0),
+    PERTAMAX_TURBO("Pertamax Turbo", "Pertamax", "Turbo", 19_600.0),
 }
 
 /**
@@ -36,8 +38,8 @@ enum class FuelType(val label: String, val defaultPricePerL: Double) {
  * editable; [OTHER] starts from the gen-2 numbers.
  */
 enum class BikeModel(val label: String, val shortLabel: String, val tankLitres: Double, val reserveLitres: Double) {
-    NMAX_GEN1("NMAX 2015–2019", "NMAX ’15–’19", 6.6, 1.3),
-    NMAX_GEN2("NMAX 2020+", "NMAX ’20+", 7.1, 1.4),
+    NMAX_GEN1("NMAX Gen 1", "NMAX Gen 1", 6.6, 1.3),
+    NMAX_GEN2("NMAX Gen 2", "NMAX Gen 2", 7.1, 1.4),
     OTHER("Other scooter", "Other", 7.1, 1.4),
 }
 
