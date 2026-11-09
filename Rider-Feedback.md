@@ -545,3 +545,65 @@ built in 11b (v3.1), trip recovery included.
   - the big digits (1, 4, 7) at clock and speed sizes, up to 180 sp fullscreen;
   - nothing that fits today wraps or clips (pane titles, compact media, settings columns in landscape).
 - Optional later: a soft serif (Instrument Serif) for pane titles only, if Geist alone still feels plain.
+
+## Revisions after the first look (v3.2.1, 2026-11-09)
+
+The rider has looked at v3.2.1 on the phone, not yet on a ride: "overall it already looks like what I
+envisioned", and it feels much snappier. Four revisions, planned as one phase (12) after this note.
+
+### R1 · Fuel range card
+- **Asked:** a card for the fuel range left, with its values taken from the Garage (no second calculation
+  anywhere), and a way to handle consumption changing from ride to ride.
+- **Plan:** the 11c Garage pane already reads `GarageRepository.activeCard` (the same `fuelLevel` the Garage
+  screen uses) and can show range as its one value. R1 turns that into a proper range card: range big,
+  litres left and the 5-segment tank under it, and "≈ km/L" with where that figure comes from.
+- **Changing consumption:** today `learnConsumption` gives one smoothed km/L from full-to-full fills. Proposed:
+  1. a **recent** figure (the last 2–3 full-to-full spans) next to the long-run one; range uses the recent one;
+  2. a **range band** ("120–150 km") when the spans disagree by more than ~10%, so the card doesn't promise
+     the optimistic end;
+  3. later, with the 9c full track: km/L by riding style (city stop-go vs. steady cruise) from average speed
+     and stops, used to adjust the estimate for the current trip.
+  - **Open:** a band, or one number that leans to the cautious end? Should the card replace the Garage pane,
+    or be a second pane (Garage = overview, Range = fuel only)?
+
+### R2 · Speed card: period totals instead of recent rides
+- **Asked:** replace "Recent rides" on the log face (cut off when the card isn't maximized) with a one-line
+  "timed odometer": km ridden today / this week / this month. The choice is a setting.
+- **Plan:** sums of saved trips (plus the live trip) from the trip history, so it matches the history screen.
+  One line fits Compact, e.g. "Today 42 km". Setting (speed card): Day / Week / Month, maybe "all three" when
+  Expanded. Week starts Monday (Indonesian calendar), month = calendar month.
+  - **Open:** "units as options in the settings": does that mean the period (day / week / month), or km vs.
+    miles (the speed unit setting already exists)? Assumed: the period.
+
+### R3 · Card template: true black, drag to rearrange
+- **Asked:**
+  - Every card's background is pure black #000000 (today #0A0C10), same outline as now, so only text lights
+    the OLED. Light mode stays as it is.
+  - Cards can be dragged after a long hold (3–5 s) and dropped on the card they should replace. Both cards
+    slide to their new places; e.g. in Quad, dragging the lower-right card onto the upper-left swaps the two
+    with a slide.
+- **Plan:** `OledDark.surface` → #000000 (outline #262A33 stays; check that the sheets and dialogs still stand
+  apart from the dashboard). Drag: after the hold (see Conflict), a lifted card follows the finger, the
+  card under it highlights, drop = swap through the existing assignment model, which already animates every
+  pane to its new rect (`animateRectAsState`), so the slide comes for free. Rule #3 holds: panes are moved,
+  never recomposed or reparented (the map isn't recreated).
+- **Conflict:** today a long-press on a card's header opens the pane picker and a long-press on the card
+  toggles fullscreen. The hold for dragging must not fight them. Proposed: drag starts from a **long hold on
+  the header (≈ 1.5 s)**, the picker stays on a normal long-press (0.5 s) and opens if the finger lifts before
+  the drag starts. 3–5 s, as suggested, is long with gloves on a stopped bike; it can be a setting.
+  - **Open:** hold time, and which part of the card starts the drag (header only, or anywhere).
+
+### R4 · Adaptive refresh rate (LTPO-like)
+- **Asked:** like LTPO: low power when the screen barely changes (media only), balanced normally, smooth
+  (120 Hz) when things move (map rotation, layout animation), to save battery and heat.
+- **Plan:** 8d already asks for the fastest mode while a pane moves, then hands back to the system. R4 makes
+  it a three-level policy chosen from what's on screen and moving:
+  - **Low:** no map visible or the map asleep, nothing animating → ask for the lowest mode the display
+    offers (on the Redmi Note 11 Pro 5G: 60 Hz; it has no LTPO panel, so 1 Hz isn't possible there) and keep
+    our own redraws to the clock tick.
+  - **Balanced:** map visible but not moving (stopped, not following) → 60 Hz.
+  - **Smooth:** map following / rotating, a layout animation, a drag (R3) → the fastest mode (120 Hz).
+  - Through `Window.preferredDisplayModeId` today; on Android 15+ also `View.setRequestedFrameRate` per view.
+    Also: lower the map's own render rate when it's static (MapLibre redraws for every 1 Hz fix).
+  - **Open:** a setting (Auto / Battery saver / Always smooth), or automatic only?
+- **Measure:** frame stats and battery on the phone (release build), before and after.
