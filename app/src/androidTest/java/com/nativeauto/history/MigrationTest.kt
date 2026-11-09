@@ -20,6 +20,7 @@ import org.junit.runner.RunWith
  * version with its trips intact, stopped time backfilled, and the full-track table working.
  * 11a: through v2 → v3, the Garage's tables are created and match Room's schema (Room checks).
  * 11b: through v3 → v4, the refuel log, fuel prices and the trip-recovery checkpoint.
+ * 11c: through v4 → v5, service items and their history.
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationTest {
@@ -55,7 +56,7 @@ class MigrationTest {
             db.version = 1
         }
 
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
         try {
             val dao = room.trips()
             val old = dao.observeAll().first().single()
@@ -102,6 +103,23 @@ class MigrationTest {
             assertEquals(13_000.0, garage.observePrices().first().single().pricePerL, 0.0)
             garage.deleteBike("b1")
             assertTrue(garage.observeRefuels("b1").first().isEmpty())
+            // v5: a service item, marked done; deleting its bike takes it and its history.
+            val itemId = garage.insertService(
+                com.nativeauto.garage.ServiceItem(
+                    bikeId = "b2", name = "Engine oil", kind = "DISTANCE", intervalKm = 2_000.0, lastDoneMs = 0,
+                    lastDoneKm = 12_000.0, createdAtMs = 0,
+                ),
+            )
+            val item = garage.service(itemId)!!
+            garage.markDone(
+                item.copy(lastDoneKm = 14_000.0),
+                com.nativeauto.garage.ServiceRecord(itemId = itemId, bikeId = "b2", itemName = "Engine oil", timeMs = 5, odometerKm = 14_000.0),
+            )
+            assertEquals(14_000.0, garage.service(itemId)!!.lastDoneKm!!, 0.0)
+            assertEquals(1, garage.observeServiceRecords("b2").first().size)
+            garage.deleteBike("b2")
+            assertTrue(garage.allServices().isEmpty())
+            assertTrue(garage.allServiceRecords().isEmpty())
             val live = room.liveTrip()
             val row = LiveTripRecord(
                 savedAtMs = 1, savedAtNanos = 2, startedAtNanos = 0, distanceM = 10.0, maxSpeedMps = 5f, movingNanos = 1,

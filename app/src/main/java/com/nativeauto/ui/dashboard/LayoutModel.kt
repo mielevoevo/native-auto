@@ -4,7 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Rect
 
 /** Everything that can fill a slot. Each pane exists once; a layout shows some of them. */
-enum class Pane { MAP, MEDIA, SPEED, NAV, CLOCK }
+enum class Pane { MAP, MEDIA, SPEED, NAV, CLOCK, GARAGE }
 
 /**
  * How a card draws itself, chosen from the slot it's in, never from its measured size (rule #6).
@@ -92,7 +92,10 @@ internal fun computeRects(view: LayoutView, bigOnLeft: Boolean, split: Float): M
     return out
 }
 
-/** The default panes per layout. Quad matches the brainstorm's everyday set, with the clock until the Garage card exists. */
+/**
+ * The default panes per layout. Quad keeps the clock: the Garage card (11c) is shown on demand
+ * (Rider-Feedback §6), picked for a slot with a header long-press.
+ */
 internal val DefaultAssignments: Map<LayoutPreset, List<Pane>> = mapOf(
     LayoutPreset.DUO to listOf(Pane.MAP, Pane.MEDIA, Pane.SPEED),
     LayoutPreset.SIDE_BY_SIDE to listOf(Pane.SPEED, Pane.MEDIA),

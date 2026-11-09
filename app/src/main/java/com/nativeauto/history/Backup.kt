@@ -8,6 +8,9 @@ import java.util.zip.ZipOutputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import com.nativeauto.garage.GarageBackup
+import com.nativeauto.garage.GarageData
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
@@ -27,20 +30,24 @@ import kotlinx.serialization.json.putJsonArray
 /**
  * The ZIP backup (Rider-Feedback "Decided", 9d): `backup.json` holds everything needed to restore
  * (every trip with all its figures and its full track), and `gpx/` holds one GPX per trip for other
- * apps. Import reads only `backup.json`. The Garage joins the JSON in 11c ([FORMAT] goes up then).
+ * apps. Import reads only `backup.json`. Format 2 (11c) adds the Garage (`garage`, see
+ * [GarageBackup]); format 1 files still import (no Garage in them).
  *
  * Plain JVM code (java.util.zip + the kotlinx JSON tree), so it's unit-tested without a device.
  */
 object Backup {
-    const val FORMAT = 1
+    const val FORMAT = 2
     const val JSON_ENTRY = "backup.json"
 
     class TripWithTrack(val trip: TripRecord, val points: List<TrackPointRecord>)
 
-    fun write(trips: List<TripWithTrack>, out: OutputStream) {
+    /** A backup's contents: the trips and (format 2) the Garage. */
+    class Contents(val trips: List<TripWithTrack>, val garage: GarageData?)
+
+    fun write(trips: List<TripWithTrack>, out: OutputStream, garage: GarageData? = null) {
         ZipOutputStream(out).use { zip ->
             zip.putNextEntry(ZipEntry(JSON_ENTRY))
-            zip.write(encode(trips).toByteArray())
+            zip.write(encode(trips, garage).toByteArray())
             zip.closeEntry()
             trips.forEach { t ->
                 zip.putNextEntry(ZipEntry("gpx/" + gpxFileName(t.trip)))
@@ -51,19 +58,23 @@ object Backup {
     }
 
     /** The trips in a backup, or an exception (not a backup, or a newer format) with a reason. */
-    fun read(input: InputStream): List<TripWithTrack> {
+    fun read(input: InputStream): List<TripWithTrack> = readAll(input).trips
+
+    /** Trips and Garage; an exception (not a backup, or a newer format) with a reason. */
+    fun readAll(input: InputStream): Contents {
         ZipInputStream(input).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                if (entry.name == JSON_ENTRY) return decode(zip.readBytes().decodeToString())
+                if (entry.name == JSON_ENTRY) return decodeAll(zip.readBytes().decodeToString())
             }
         }
         throw IllegalArgumentException("Not a Native Auto backup (no $JSON_ENTRY)")
     }
 
-    internal fun encode(trips: List<TripWithTrack>): String = buildJsonObject {
+    internal fun encode(trips: List<TripWithTrack>, garage: GarageData? = null): String = buildJsonObject {
         put("format", FORMAT)
         put("app", "Native Auto")
+        if (garage != null) put("garage", GarageBackup.encode(garage))
         putJsonArray("trips") {
             trips.forEach { t ->
                 val r = t.trip
@@ -102,10 +113,17 @@ object Backup {
         }
     }.toString()
 
-    internal fun decode(text: String): List<TripWithTrack> {
+    internal fun decode(text: String): List<TripWithTrack> = decodeAll(text).trips
+
+    internal fun decodeAll(text: String): Contents {
         val root = Json.parseToJsonElement(text).jsonObject
         val format = root["format"]?.jsonPrimitive?.long ?: 0
         require(format in 1..FORMAT) { "Backup format $format isn't supported by this version" }
+        val garage = (root["garage"] as? JsonObject)?.let(GarageBackup::decode)
+        return Contents(decodeTrips(root), garage)
+    }
+
+    private fun decodeTrips(root: JsonObject): List<TripWithTrack> {
         return root.getValue("trips").jsonArray.map { e ->
             val o = e.jsonObject
             fun long(k: String) = o.getValue(k).jsonPrimitive.long

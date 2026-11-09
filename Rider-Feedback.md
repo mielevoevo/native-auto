@@ -533,3 +533,15 @@ built in 11b (v3.1), trip recovery included.
 - **Trip recovery (separate small step):** save the trip in progress to the DB about once a minute. On
   relaunch after a kill: last save under 10 min old → resume the same trip (straight-line join);
   otherwise save it as ended at the last saved point.
+
+## Decided (2026-11-09): app font, to apply later
+
+- **Geist** (Vercel, SIL Open Font License, free for a public release) replaces the default system font,
+  so the app feels less industrial and less "default Android". Picked by the user over Switzer / Satoshi.
+- **Not applied yet** (the user's call: after the phase work). When it is: bundle the font files in
+  `app/src/main/res/font/`, set it in the theme's `Typography` (every Material text style, plus `PaneTitle`),
+  and check:
+  - tabular figures still work (`fontFeatureSettings = "tnum"` on speed, clock, odometer);
+  - the big digits (1, 4, 7) at clock and speed sizes, up to 180 sp fullscreen;
+  - nothing that fits today wraps or clips (pane titles, compact media, settings columns in landscape).
+- Optional later: a soft serif (Instrument Serif) for pane titles only, if Geist alone still feels plain.

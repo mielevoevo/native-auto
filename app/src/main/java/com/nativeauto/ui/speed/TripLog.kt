@@ -45,6 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nativeauto.R
 import com.nativeauto.history.TripOutcome
+import com.nativeauto.garage.ServiceDue
+import com.nativeauto.ui.garage.ServiceBadge
 import com.nativeauto.history.TripRecord
 import com.nativeauto.trip.TripState
 import com.nativeauto.settings.TelemetryStat
@@ -66,6 +68,8 @@ data class TripLogUi(
     val endArmed: Boolean = false,
     /** The figures shown on the log face and the summary (9c). */
     val visible: Set<TelemetryStat> = TelemetryStat.entries.toSet() - TelemetryStat.DEFAULT_HIDDEN,
+    /** 11c: a service due soon or overdue on the active bike (shown at trip start and end, never as a pop-up). */
+    val reminder: ServiceDue? = null,
 )
 
 /** The log face's buttons and the summary's dismiss. */
@@ -107,6 +111,7 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
                 softWrap = false,
                 modifier = Modifier.testTag("log_line"),
             )
+            log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) }
         }
         CardMode.Wide -> Row(
             Modifier.requiredHeightIn(min = 112.dp).fillMaxSize().padding(horizontal = 24.dp),
@@ -123,6 +128,7 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
             Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                 LogControls(ui.tripState, log.endArmed, actions)
             }
+            log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp)) }
             StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 3, tileHeight = 76.dp)
             Spacer(Modifier.height(12.dp))
             RecentRides(log.recent, ui, Modifier.weight(1f))
@@ -133,6 +139,7 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
                     LogControls(ui.tripState, log.endArmed, actions)
                 }
                 StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 3, tileHeight = 88.dp)
+                log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) }
             }
             Spacer(Modifier.width(24.dp))
             RecentRides(log.recent, ui, Modifier.weight(1f).fillMaxHeight())
@@ -271,6 +278,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                     softWrap = false,
                 )
                 if (outcome == TripOutcome.TooShort) SummaryNote(R.string.summary_too_short)
+                log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 6.dp)) }
             }
             CardMode.Wide -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1.4f)) {
@@ -287,6 +295,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                 StatGrid(figures, columns = if (mode == CardMode.Fullscreen) 4 else 3, tileHeight = 76.dp)
                 Spacer(Modifier.height(12.dp))
                 SummaryRoute(saved, outcome, Modifier.weight(1f).fillMaxWidth())
+                log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 6.dp)) }
                 SummaryNote(R.string.summary_close)
             }
         }

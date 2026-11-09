@@ -55,7 +55,7 @@ import java.util.Locale
 import kotlin.math.roundToLong
 
 /** The last segment of the tank (Rider-Feedback §6): range and number turn red at or below it. */
-private const val LOW_FUEL_FRACTION = 0.2
+internal const val LOW_FUEL_FRACTION = 0.2
 
 /**
  * 11b: the bike's fuel in the Garage: range, the Refuelled button, km since the last fill-up,

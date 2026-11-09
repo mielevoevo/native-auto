@@ -155,7 +155,11 @@ class TripHistoryViewModel @Inject constructor(
     fun import(source: Uri) = viewModelScope.launch {
         _message.value = "Importing…"
         _message.value = runCatching { files.import(source) }.fold(
-            onSuccess = { n -> if (n == 0) "No new trips in that backup" else "Imported $n ${if (n == 1) "trip" else "trips"}" },
+            onSuccess = { r ->
+                val trips = if (r.trips == 0) null else "${r.trips} ${if (r.trips == 1) "trip" else "trips"}"
+                val garage = if (r.garageEntries == 0) null else "Garage data"
+                listOfNotNull(trips, garage).takeIf { it.isNotEmpty() }?.joinToString(" and ", prefix = "Imported ") ?: "Nothing new in that backup"
+            },
             onFailure = { "Import failed: ${it.message}" },
         )
     }

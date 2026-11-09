@@ -16,3 +16,15 @@ enum class ClockFace(val label: String) {
 /** Reads a stored enum name, falling back when it's missing or from a removed entry. */
 internal inline fun <reified E : Enum<E>> enumOrDefault(name: String?, default: E): E =
     name?.let { n -> enumValues<E>().firstOrNull { it.name == n } } ?: default
+
+/**
+ * 11c: the one value a normal-size Garage card shows big (Rider-Feedback §6 "Where it lives"),
+ * chosen in the maximized card. Range by default.
+ */
+enum class GarageValue(val label: String) {
+    RANGE("Range"),
+    SINCE_REFUEL("Since fill-up"),
+    ODOMETER("Odometer"),
+    NEXT_SERVICE("Next service"),
+    KM_PER_L("km/L"),
+}

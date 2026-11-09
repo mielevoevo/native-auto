@@ -58,10 +58,10 @@ class TripFilesTest {
         val uri = files.backupShareIntent().sharedUri()
 
         // Same file again: everything is already there.
-        assertEquals(0, files.import(uri))
+        assertEquals(0, files.import(uri).trips)
         // Remove the trip, then restore it from the backup.
         dao.observeAll().first().filter { it.startedAtMs == start }.forEach { dao.delete(it.id) }
-        assertEquals(1, files.import(uri))
+        assertEquals(1, files.import(uri).trips)
         assertEquals(900.0, dao.observeAll().first().single { it.startedAtMs == start }.distanceM, 0.0)
     }
 }

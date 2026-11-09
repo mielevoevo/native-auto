@@ -7,6 +7,8 @@ import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.time.LocalDate
+import com.nativeauto.garage.GarageBackup
+import com.nativeauto.garage.GarageDao
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +24,7 @@ import kotlinx.coroutines.withContext
 class TripFiles @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: TripDao,
+    private val garage: GarageDao,
 ) {
     private val dir get() = File(context.cacheDir, "exports").apply { mkdirs() }
 
@@ -36,15 +39,19 @@ class TripFiles @Inject constructor(
     suspend fun backupShareIntent(): Intent = withContext(Dispatchers.IO) {
         val file = fresh("native-auto-backup-${LocalDate.now()}.zip")
         val trips = dao.observeAll().first().map { Backup.TripWithTrack(it, dao.points(it.id)) }
-        file.outputStream().use { Backup.write(trips, it) }
+        // 11c: the Garage goes in the same file (bikes, odometer, fuel, services).
+        val garageData = GarageBackup.collect(garage)
+        file.outputStream().use { Backup.write(trips, it, garageData) }
         share(uri(file), "application/zip", file.name)
     }
 
     /** Restores a picked backup; returns how many trips were new. Throws with a reason on a bad file. */
-    suspend fun import(source: Uri): Int = withContext(Dispatchers.IO) {
-        val trips = context.contentResolver.openInputStream(source)?.use(Backup::read)
+    suspend fun import(source: Uri): ImportResult = withContext(Dispatchers.IO) {
+        val contents = context.contentResolver.openInputStream(source)?.use(Backup::readAll)
             ?: throw IllegalArgumentException("Couldn't open the file")
-        Backup.restore(dao, trips)
+        // The Garage first, so restored trips find their bikes.
+        val garageAdded = contents.garage?.let { GarageBackup.restore(garage, it) } ?: 0
+        ImportResult(trips = Backup.restore(dao, contents.trips), garageEntries = garageAdded)
     }
 
     private fun fresh(name: String): File {
@@ -63,3 +70,6 @@ class TripFiles @Inject constructor(
         return Intent.createChooser(send, title).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 }
+
+/** What an import added: trips, and Garage entries (bikes, readings, fill-ups, services). */
+data class ImportResult(val trips: Int, val garageEntries: Int)

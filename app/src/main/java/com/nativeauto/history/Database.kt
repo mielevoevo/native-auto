@@ -18,6 +18,8 @@ import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.GarageDao
 import com.nativeauto.garage.OdometerReading
 import com.nativeauto.garage.RefuelRecord
+import com.nativeauto.garage.ServiceItem
+import com.nativeauto.garage.ServiceRecord
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -142,8 +144,9 @@ interface RecentPlaceDao {
     entities = [
         TripRecord::class, RecentPlaceRecord::class, TrackPointRecord::class, BikeRecord::class, OdometerReading::class,
         RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
+        ServiceItem::class, ServiceRecord::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -224,5 +227,25 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
                 "latitude REAL NOT NULL, longitude REAL NOT NULL, speedMps REAL NOT NULL, speedAccuracyMps REAL, " +
                 "accuracyM REAL NOT NULL, bearingDeg REAL)",
         )
+    }
+}
+
+/** v4 → v5 (11c): service items (km / months, or a due date) and their history. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS service_items (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bikeId TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, " +
+                "intervalKm REAL, intervalMonths INTEGER, dueDateMs INTEGER, lastDoneMs INTEGER NOT NULL, lastDoneKm REAL, " +
+                "createdAtMs INTEGER NOT NULL)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_service_items_bikeId ON service_items (bikeId)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS service_records (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, itemId INTEGER NOT NULL, bikeId TEXT NOT NULL, " +
+                "itemName TEXT NOT NULL, timeMs INTEGER NOT NULL, odometerKm REAL, costRp REAL, note TEXT)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_service_records_bikeId ON service_records (bikeId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_service_records_itemId ON service_records (itemId)")
     }
 }

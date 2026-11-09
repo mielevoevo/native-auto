@@ -41,6 +41,7 @@ import com.nativeauto.ui.components.LocalPanePicker
 import com.nativeauto.ui.components.LocalStatusCorner
 import com.nativeauto.ui.components.StatusCorner
 import com.nativeauto.ui.history.TripHistoryScreen
+import com.nativeauto.ui.garage.GarageCard
 import com.nativeauto.ui.garage.GarageScreen
 import com.nativeauto.ui.garage.GaragePrompts
 import com.nativeauto.ui.map.MapPane
@@ -129,13 +130,17 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
     val motion = remember(layout) { { pane: Pane -> rects[pane.ordinal].value != layout.rectOf(pane) } }
 
     HighRefreshWhileMoving(motion)
+    // 11c: the Garage card's "Open Garage". Remembered, so the panes don't recompose for a new lambda.
+    val openGarage = remember { { garageOpen = true } }
 
     CompositionLocalProvider(LocalStatusCorner provides corner, LocalPanePicker provides picker, LocalPaneMotion provides motion) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Layout(
                 content = {
                     Pane.entries.forEach { pane ->
-                        PaneSlot(Modifier.testTag(SlotTag.of(pane))) { PaneContent(pane, layout) { historyOpen || garageOpen } }
+                        PaneSlot(Modifier.testTag(SlotTag.of(pane))) {
+                            PaneContent(pane, layout, covered = { historyOpen || garageOpen }, openGarage = openGarage)
+                        }
                     }
                 },
                 measurePolicy = paneMeasurePolicy(rects),
@@ -173,7 +178,7 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
 }
 
 @Composable
-private fun PaneContent(pane: Pane, layout: DashboardLayoutState, covered: () -> Boolean) {
+private fun PaneContent(pane: Pane, layout: DashboardLayoutState, covered: () -> Boolean, openGarage: () -> Unit) {
     when (pane) {
         // Off screen (or under the history / Garage) for a while, the map sleeps.
         Pane.MAP -> MapPane(layout, onScreen = layout.isOnScreen(Pane.MAP) && !covered())
@@ -181,6 +186,7 @@ private fun PaneContent(pane: Pane, layout: DashboardLayoutState, covered: () ->
         Pane.SPEED -> SpeedCard(layout.modeOf(Pane.SPEED), layout)
         Pane.NAV -> NextTurnCard(layout.modeOf(Pane.NAV), layout)
         Pane.CLOCK -> ClockCard(layout.modeOf(Pane.CLOCK), layout)
+        Pane.GARAGE -> GarageCard(layout.modeOf(Pane.GARAGE), layout, onOpenGarage = openGarage)
     }
 }
 

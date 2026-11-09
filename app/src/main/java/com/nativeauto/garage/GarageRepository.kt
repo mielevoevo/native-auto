@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.ZoneId
 import java.util.UUID
 import kotlin.math.abs
 import javax.inject.Inject
@@ -81,8 +82,34 @@ data class FuelState(
     val pricePerL: Double,
 )
 
+/** What the rider types when adding or editing a service item (11c). */
+data class ServiceDraft(
+    val name: String,
+    val kind: ServiceKind,
+    val intervalKm: Double?,
+    val intervalMonths: Int?,
+    /** DATE: the next due date. */
+    val dueDateMs: Long?,
+    /** DISTANCE, when adding: the odometer it was last done at (null: now). */
+    val lastDoneKm: Double?,
+)
+
+/** Everything the Garage card shows for the active bike (11c). */
+data class GarageCardState(
+    val bike: BikeRecord,
+    val odometer: OdometerState,
+    val fuel: FuelState,
+    /** Most urgent first. */
+    val services: List<ServiceDue>,
+) {
+    /** The item with an interval that comes due first (the card's "Next service"). */
+    val nextService: ServiceDue? get() = services.firstOrNull { it.level != DueLevel.NO_INTERVAL }
+    /** Shown at trip start and end, only when something is due soon or overdue. */
+    val reminder: ServiceDue? get() = reminderOf(services)
+}
+
 /**
- * The Garage's bikes and odometers (11a), fuel (11b). Only the active bike collects the live trip, so the
+ * The Garage's bikes and odometers (11a), fuel (11b), services and the card's state (11c). Only the active bike collects the live trip, so the
  * Garage card (11c) can show its odometer moving during a ride.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -213,6 +240,96 @@ class GarageRepository @Inject constructor(
         val estimate = estimateOdometerKm(prev, bike.odoFactor, gpsSince(bike, prev)) ?: return@withLock false
         insertReading(bike, estimate + km, ReadingKind.UNTRACKED, km)
         true
+    }
+
+    // ---- 11c: services ----
+
+    /** The bike's service items with their state now, most urgent first. */
+    fun services(bikeId: String): Flow<List<ServiceDue>> =
+        combine(dao.observeServices(bikeId), odometer(bikeId).map { it.estimateKm }.distinctUntilChanged()) { items, odo ->
+            val now = wall.nowMs()
+            val zone = ZoneId.systemDefault()
+            byUrgency(items.map { serviceDue(it, odo, now, zone) })
+        }
+
+    fun serviceHistory(bikeId: String): Flow<List<ServiceRecord>> = dao.observeServiceRecords(bikeId)
+
+    /** The active bike's card: odometer, fuel and services; null with no bike. */
+    val activeCard: Flow<GarageCardState?> = dao.observeActive()
+        .map { it?.id }
+        .distinctUntilChanged()
+        .flatMapLatest { id ->
+            if (id == null) {
+                flowOf(null)
+            } else {
+                combine(dao.observeActive(), odometer(id), fuel(id), services(id)) { bike, odo, fuel, services ->
+                    bike?.takeIf { it.id == id }?.let { GarageCardState(it, odo, fuel, services) }
+                }
+            }
+        }
+        .distinctUntilChanged()
+
+    /** A new item starts from now (or from the odometer it was last done at, if given). */
+    suspend fun addService(bikeId: String, draft: ServiceDraft): Long {
+        val now = wall.nowMs()
+        val odo = draft.lastDoneKm ?: estimateNow(bikeId)
+        return lock.withLock {
+            dao.insertService(
+                ServiceItem(
+                    bikeId = bikeId, name = draft.name.trim(), kind = draft.kind.name, intervalKm = draft.intervalKm,
+                    intervalMonths = draft.intervalMonths, dueDateMs = draft.dueDateMs, lastDoneMs = now, lastDoneKm = odo,
+                    createdAtMs = now,
+                ),
+            )
+        }
+    }
+
+    /** Name and intervals change; when it was last done stays (that's "Mark done"). */
+    suspend fun updateService(id: Long, draft: ServiceDraft) = lock.withLock {
+        val item = dao.service(id) ?: return@withLock
+        dao.updateService(
+            item.copy(
+                name = draft.name.trim(), intervalKm = draft.intervalKm, intervalMonths = draft.intervalMonths,
+                dueDateMs = if (item.serviceKind == ServiceKind.DATE) draft.dueDateMs else item.dueDateMs,
+                lastDoneKm = draft.lastDoneKm ?: item.lastDoneKm,
+            ),
+        )
+    }
+
+    /** The item goes; its history stays (it carries the name). */
+    suspend fun deleteService(id: Long) = lock.withLock { dao.deleteService(id) }
+
+    /**
+     * "Mark done" (§6): logs the date, the odometer (the estimate unless the rider typed the real
+     * reading, which is then stored as a reading too, like at the pump) and an optional cost and
+     * note. A km/months item restarts from here; a date item's due date moves on by its interval
+     * (past today, if it was paid late).
+     */
+    suspend fun markServiceDone(itemId: Long, odometerKm: Double?, costRp: Double?, note: String?) {
+        val item = dao.service(itemId) ?: return
+        val estimate = estimateNow(item.bikeId)
+        val odo = when {
+            odometerKm == null -> estimate
+            estimate != null && abs(odometerKm - estimate) < REFUEL_SAME_KM -> estimate
+            else -> {
+                enterReading(item.bikeId, odometerKm)
+                odometerKm
+            }
+        }
+        lock.withLock {
+            val now = wall.nowMs()
+            val updated = when (item.serviceKind) {
+                ServiceKind.DISTANCE -> item.copy(lastDoneMs = now, lastDoneKm = odo)
+                ServiceKind.DATE -> item.copy(lastDoneMs = now, dueDateMs = nextDueDate(item.dueDateMs, item.intervalMonths ?: 12, now, ZoneId.systemDefault()))
+            }
+            dao.markDone(
+                updated,
+                ServiceRecord(
+                    itemId = item.id, bikeId = item.bikeId, itemName = item.name, timeMs = now, odometerKm = odo,
+                    costRp = costRp, note = note?.trim()?.takeIf { it.isNotEmpty() },
+                ),
+            )
+        }
     }
 
     /** The estimate right now (one-shot). */

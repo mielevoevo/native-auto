@@ -209,6 +209,21 @@ Format: **sub-phase · decision** — why, and how to change it.
   summary for it). Known edge: if the app is swiped away and the process dies before the save finishes, the
   next launch within 10 min resumes that trip; End then saves it.
 
+## 11c · Garage card, services, backup
+
+- **Quad's default keeps the clock;** the Garage pane is added from the pane picker. Changing a default
+  layout under a rider who already arranged it felt worse than one long-press.
+- **Tank gauge:** 5 segments, the last one red (matches the 20% reserve from 11b), 2% hysteresis so a
+  reading near a boundary doesn't flicker. Unknown fuel draws empty outlines.
+- **Service thresholds:** amber at 10% of the km interval (min 100 km) or 14 days left; date items
+  (tax, insurance, licence) amber 30 days ahead. Overdue is red.
+- **Date input** is typed as d/m/yyyy (Indonesian order), no date picker: one field, fits landscape, big keys.
+- **Reminders stay in the app** (badge on the log face and summary, the Garage card's value) — no Android
+  notification, which would buzz in a pocket while riding.
+- **Marking a service done** at an odometer within 1 km of the estimate uses the estimate; anything further
+  is stored as a reading (same rule as refuels, tighter).
+- **Backup format 2** carries the Garage; import merges rather than replaces, so importing twice adds nothing.
+
 ## Concerns to check at the phone test (noted after 11b)
 
 Things the emulator can't settle, or that I'm not sure of. None blocks 11c.
@@ -230,3 +245,9 @@ Things the emulator can't settle, or that I'm not sure of. None blocks 11c.
 9. **Reboot path of trip recovery is unit-tested only** (the emulator check covered a kill, same boot).
 10. **HyperOS kills:** the app's checkpoint survives a kill, but whether HyperOS lets the trip service be
     restarted on reopen without the app's battery setting on "No restrictions" needs the real phone.
+11. **Garage card readability at a glance:** the 5-segment tank and the single value are sized for Quad;
+    check they read in sunlight on the mount, and whether "range" is the right default value.
+12. **Service intervals are the rider's to enter;** no factory schedule is assumed for the Gen 1.
+
+- **Flaky under load (11c run):** `DashboardScreenTest.pauseResumeAndEndShowTheSummaryUntilDismissed` hit
+  `AppNotIdleException` once late in the full emulator suite; it passed twice on its own. Watch it.

@@ -61,6 +61,10 @@ interface SettingsRepository {
     val clockFace: Flow<ClockFace>
     suspend fun setClockFace(face: ClockFace)
 
+    /** 11c: what the normal-size Garage card shows. */
+    val garageValue: Flow<GarageValue>
+    suspend fun setGarageValue(value: GarageValue)
+
     /** The analog face's second hand. Off by default: it redraws every second. */
     val clockSeconds: Flow<Boolean>
     suspend fun setClockSeconds(enabled: Boolean)
@@ -193,6 +197,13 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[CLOCK_FACE] = face.name }
     }
 
+    override val garageValue: Flow<GarageValue> =
+        prefs.map { enumOrDefault(it[GARAGE_VALUE], GarageValue.RANGE) }.distinctUntilChanged()
+
+    override suspend fun setGarageValue(value: GarageValue) {
+        store.edit { it[GARAGE_VALUE] = value.name }
+    }
+
     override val clockSeconds: Flow<Boolean> = prefs.map { it[CLOCK_SECONDS] ?: false }.distinctUntilChanged()
 
     override suspend fun setClockSeconds(enabled: Boolean) {
@@ -241,6 +252,7 @@ class DataStoreSettingsRepository @Inject constructor(
         val AUTO_LAYOUT = booleanPreferencesKey("auto_layout")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CLOCK_FACE = stringPreferencesKey("clock_face")
+        val GARAGE_VALUE = stringPreferencesKey("garage_value")
         val CLOCK_SECONDS = booleanPreferencesKey("clock_seconds")
     }
 }

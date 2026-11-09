@@ -25,6 +25,8 @@ class FakeSettingsRepository : SettingsRepository {
     override suspend fun setThemeMode(mode: ThemeMode) { themeMode.value = mode }
     override val clockFace = MutableStateFlow(ClockFace.DIGITAL)
     override suspend fun setClockFace(face: ClockFace) { clockFace.value = face }
+    override val garageValue = MutableStateFlow(com.nativeauto.settings.GarageValue.RANGE)
+    override suspend fun setGarageValue(value: com.nativeauto.settings.GarageValue) { garageValue.value = value }
     override val clockSeconds = MutableStateFlow(false)
     override suspend fun setClockSeconds(enabled: Boolean) { clockSeconds.value = enabled }
     override val autoPauseMinutes = MutableStateFlow(5)

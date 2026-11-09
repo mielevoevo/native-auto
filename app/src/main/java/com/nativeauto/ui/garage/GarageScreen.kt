@@ -45,6 +45,7 @@ import com.nativeauto.garage.BikeRecord
 import com.nativeauto.garage.OdometerReading
 import com.nativeauto.garage.OdometerState
 import com.nativeauto.garage.ReadingKind
+import com.nativeauto.garage.ServiceItem
 import com.nativeauto.garage.formatOdometer
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
@@ -72,6 +73,9 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
     var correcting by rememberSaveable { mutableStateOf<String?>(null) }
     var refuelling by rememberSaveable { mutableStateOf<String?>(null) }
     var addingUntracked by rememberSaveable { mutableStateOf<String?>(null) }
+    // 11c: the service editor (0 = a new item) and "Mark done", for the selected bike.
+    var editingService by rememberSaveable { mutableStateOf<Long?>(null) }
+    var doneService by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val list = bikes
     val selected = list?.firstOrNull { it.id == selectedId } ?: list?.firstOrNull { it.active } ?: list?.firstOrNull()
@@ -111,6 +115,9 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                             onCorrect = { haptics.tap(); correcting = selected.id },
                             onUntracked = { haptics.tap(); addingUntracked = selected.id },
                             onRefuel = { haptics.tap(); refuelling = selected.id },
+                            onAddService = { haptics.tap(); editingService = 0L },
+                            onEditService = { haptics.tap(); editingService = it.id },
+                            onServiceDone = { haptics.tap(); doneService = it.id },
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
@@ -179,6 +186,42 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                     prices = prices,
                     onSave = { draft -> haptics.confirm(); viewModel.logRefuel(id, draft); refuelling = null },
                     onDismiss = { refuelling = null },
+                )
+            }
+        }
+    }
+    if (selected != null && (editingService != null || doneService != null)) {
+        val services by remember(selected.id) { viewModel.services(selected.id) }.collectAsStateWithLifecycle(null)
+        val odo by remember(selected.id) { viewModel.odometer(selected.id) }.collectAsStateWithLifecycle(null)
+        val items = services?.map { it.item }
+        editingService?.let { id ->
+            val item = items?.firstOrNull { it.id == id }
+            when {
+                items == null -> Unit
+                id != 0L && item == null -> editingService = null
+                else -> ServiceEditor(
+                    item = item,
+                    estimateKm = odo?.estimateKm,
+                    onSave = { draft ->
+                        haptics.confirm()
+                        if (item == null) viewModel.addService(selected.id, draft) else viewModel.updateService(item.id, draft)
+                        editingService = null
+                    },
+                    onDelete = item?.let { { haptics.confirm(); viewModel.deleteService(it.id); editingService = null } },
+                    onDismiss = { editingService = null },
+                )
+            }
+        }
+        doneService?.let { id ->
+            val item = items?.firstOrNull { it.id == id }
+            if (items != null && item == null) {
+                doneService = null
+            } else if (item != null && odo != null) {
+                ServiceDoneDialog(
+                    item = item,
+                    estimateKm = odo?.estimateKm,
+                    onSave = { km, cost, note -> haptics.confirm(); viewModel.markServiceDone(item.id, km, cost, note); doneService = null },
+                    onDismiss = { doneService = null },
                 )
             }
         }
@@ -257,8 +300,13 @@ private fun BikeDetail(
     onCorrect: () -> Unit,
     onUntracked: () -> Unit,
     onRefuel: () -> Unit,
+    onAddService: () -> Unit,
+    onEditService: (ServiceItem) -> Unit,
+    onServiceDone: (ServiceItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val services by remember(bike.id) { viewModel.services(bike.id) }.collectAsStateWithLifecycle(emptyList())
+    val serviceHistory by remember(bike.id) { viewModel.serviceHistory(bike.id) }.collectAsStateWithLifecycle(emptyList())
     val odo by remember(bike.id) { viewModel.odometer(bike.id) }.collectAsStateWithLifecycle(null)
     val readings by remember(bike.id) { viewModel.readings(bike.id) }.collectAsStateWithLifecycle(emptyList())
     val fuel by remember(bike.id) { viewModel.fuel(bike.id) }.collectAsStateWithLifecycle(null)
@@ -318,6 +366,8 @@ private fun BikeDetail(
             onRefuel = onRefuel,
             onDeleteRefuel = { id -> if (viewModel.onDeleteRefuelTapped(id)) haptics.confirm() else haptics.tap() },
         )
+        Spacer(Modifier.height(20.dp))
+        ServicesSection(services, serviceHistory, onAdd = onAddService, onEdit = onEditService, onDone = onServiceDone)
         if (readings.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
             Text("Odometer log", style = MaterialTheme.typography.titleMedium)

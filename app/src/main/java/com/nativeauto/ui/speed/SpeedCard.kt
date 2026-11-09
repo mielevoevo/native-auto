@@ -5,6 +5,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import com.nativeauto.ui.garage.GarageCardViewModel
+import com.nativeauto.ui.garage.LowFuelIcon
 import com.nativeauto.ui.components.rememberHaptics
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -72,8 +74,10 @@ fun SpeedCard(
     layout: DashboardLayoutState,
     viewModel: SpeedometerViewModel = hiltViewModel(),
     logViewModel: TripLogViewModel = hiltViewModel(),
+    garageViewModel: GarageCardViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val garage by garageViewModel.ui.collectAsStateWithLifecycle()
     val recent by logViewModel.recent.collectAsStateWithLifecycle()
     val outcome by logViewModel.outcome.collectAsStateWithLifecycle()
     val endArmed by logViewModel.endArmed.collectAsStateWithLifecycle()
@@ -89,7 +93,11 @@ fun SpeedCard(
             dismissSummary = { haptics.tap(); logViewModel.dismissSummary() },
         )
     }
-    SpeedCardContent(mode, layout, ui, TripLogUi(recent, outcome, endArmed, visible), actions)
+    SpeedCardContent(
+        mode, layout, ui, TripLogUi(recent, outcome, endArmed, visible, garage.reminder), actions,
+        // 11c (§6): a small red tank when fuel is low and no Garage card shows it already.
+        lowFuel = garage.lowFuel && !layout.isOnScreen(Pane.GARAGE),
+    )
 }
 
 /**
@@ -104,6 +112,7 @@ fun SpeedCardContent(
     ui: SpeedometerUiState,
     log: TripLogUi = TripLogUi(),
     actions: TripLogActions = TripLogActions.None,
+    lowFuel: Boolean = false,
 ) {
     DashboardCard(title = "Speed", pane = Pane.SPEED, mode = mode, layout = layout) {
         val pager = rememberPagerState { FACES }
@@ -130,6 +139,7 @@ fun SpeedCardContent(
                 }
             }
             FaceDots(pager.currentPage, FACES, Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp))
+            if (lowFuel) LowFuelIcon(modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp))
             if (ui.tripState == TripState.Ended) TripSummary(mode, ui, log, actions.dismissSummary)
         }
     }

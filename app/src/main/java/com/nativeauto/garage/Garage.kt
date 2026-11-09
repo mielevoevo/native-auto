@@ -160,6 +160,12 @@ interface GarageDao {
     @Query("DELETE FROM refuels WHERE bikeId = :id")
     suspend fun deleteRefuels(id: String)
 
+    @Query("DELETE FROM service_items WHERE bikeId = :id")
+    suspend fun deleteServices(id: String)
+
+    @Query("DELETE FROM service_records WHERE bikeId = :id")
+    suspend fun deleteServiceRecords(id: String)
+
     @Query("DELETE FROM odometer_readings WHERE bikeId = :id")
     suspend fun deleteReadings(id: String)
 
@@ -170,11 +176,13 @@ interface GarageDao {
     @Query("UPDATE trips SET bikeId = :id WHERE bikeId IS NULL")
     suspend fun tagUntaggedTrips(id: String)
 
-    /** The bike, its readings and fill-ups go; its trips stay in the history, untagged. */
+    /** The bike, its readings, fill-ups and services go; its trips stay in the history, untagged. */
     @Transaction
     suspend fun deleteBike(id: String) {
         deleteReadings(id)
         deleteRefuels(id)
+        deleteServices(id)
+        deleteServiceRecords(id)
         untagTrips(id)
         deleteBikeRow(id)
     }
@@ -228,6 +236,62 @@ interface GarageDao {
     @Upsert
     suspend fun upsertPrice(price: FuelPrice)
 
+    // ---- 11c: services ----
+
+    @Query("SELECT * FROM service_items WHERE bikeId = :bikeId ORDER BY createdAtMs, id")
+    fun observeServices(bikeId: String): Flow<List<ServiceItem>>
+
+    @Query("SELECT * FROM service_items WHERE id = :id")
+    suspend fun service(id: Long): ServiceItem?
+
+    @Insert
+    suspend fun insertService(item: ServiceItem): Long
+
+    @Update
+    suspend fun updateService(item: ServiceItem)
+
+    @Query("DELETE FROM service_items WHERE id = :id")
+    suspend fun deleteService(id: Long)
+
+    @Query("SELECT * FROM service_records WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC")
+    fun observeServiceRecords(bikeId: String): Flow<List<ServiceRecord>>
+
+    @Insert
+    suspend fun insertServiceRecord(record: ServiceRecord): Long
+
+    /** "Mark done": the history entry and the item's new starting point, together. */
+    @Transaction
+    suspend fun markDone(item: ServiceItem, record: ServiceRecord) {
+        updateService(item)
+        insertServiceRecord(record)
+    }
+
+    // ---- 11c: the whole Garage, for the backup ----
+
+    @Query("SELECT * FROM bikes ORDER BY createdAtMs")
+    suspend fun allBikes(): List<BikeRecord>
+
+    @Query("SELECT * FROM odometer_readings ORDER BY timeMs, id")
+    suspend fun allReadings(): List<OdometerReading>
+
+    @Query("SELECT * FROM refuels ORDER BY timeMs, id")
+    suspend fun allRefuels(): List<RefuelRecord>
+
+    @Query("SELECT * FROM fuel_prices")
+    suspend fun allPrices(): List<FuelPrice>
+
+    @Query("SELECT * FROM service_items ORDER BY createdAtMs, id")
+    suspend fun allServices(): List<ServiceItem>
+
+    @Query("SELECT * FROM service_records ORDER BY timeMs, id")
+    suspend fun allServiceRecords(): List<ServiceRecord>
+
+    @Query("DELETE FROM service_items")
+    suspend fun deleteAllServices()
+
+    @Query("DELETE FROM service_records")
+    suspend fun deleteAllServiceRecords()
+
     @Query("DELETE FROM refuels")
     suspend fun deleteAllRefuels()
 
@@ -243,6 +307,8 @@ interface GarageDao {
     /** Device tests start from an empty garage. */
     @Transaction
     suspend fun clear() {
+        deleteAllServiceRecords()
+        deleteAllServices()
         deleteAllRefuels()
         deleteAllPrices()
         deleteAllReadings()

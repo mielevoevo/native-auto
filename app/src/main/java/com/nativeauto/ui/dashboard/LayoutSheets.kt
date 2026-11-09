@@ -55,6 +55,7 @@ internal val Pane.label: String
         Pane.SPEED -> "Speed"
         Pane.NAV -> "Next turn"
         Pane.CLOCK -> "Clock"
+        Pane.GARAGE -> "Garage"
     }
 
 internal val Pane.icon: ImageVector
@@ -64,6 +65,7 @@ internal val Pane.icon: ImageVector
         Pane.SPEED -> AppIcons.Speed
         Pane.NAV -> AppIcons.Directions
         Pane.CLOCK -> AppIcons.Clock
+        Pane.GARAGE -> AppIcons.Fuel
     }
 
 private val ThumbShape = RoundedCornerShape(12.dp)

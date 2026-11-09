@@ -7,6 +7,9 @@ import com.nativeauto.garage.BikeRecord
 import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.FuelState
 import com.nativeauto.garage.RefuelDraft
+import com.nativeauto.garage.ServiceDraft
+import com.nativeauto.garage.ServiceDue
+import com.nativeauto.garage.ServiceRecord
 import com.nativeauto.garage.GaragePrompt
 import com.nativeauto.garage.GarageRepository
 import com.nativeauto.garage.OdometerReading
@@ -58,6 +61,21 @@ class GarageViewModel @Inject constructor(private val garage: GarageRepository) 
     fun logRefuel(bikeId: String, draft: RefuelDraft) = viewModelScope.launch { garage.logRefuel(bikeId, draft) }
 
     fun addUntrackedKm(bikeId: String, km: Double) = viewModelScope.launch { garage.addUntrackedKm(bikeId, km) }
+
+    // ---- 11c ----
+
+    fun services(bikeId: String): Flow<List<ServiceDue>> = garage.services(bikeId)
+
+    fun serviceHistory(bikeId: String): Flow<List<ServiceRecord>> = garage.serviceHistory(bikeId)
+
+    fun addService(bikeId: String, draft: ServiceDraft) = viewModelScope.launch { garage.addService(bikeId, draft) }
+
+    fun updateService(id: Long, draft: ServiceDraft) = viewModelScope.launch { garage.updateService(id, draft) }
+
+    fun deleteService(id: Long) = viewModelScope.launch { garage.deleteService(id) }
+
+    fun markServiceDone(id: Long, odometerKm: Double?, costRp: Double?, note: String?) =
+        viewModelScope.launch { garage.markServiceDone(id, odometerKm, costRp, note) }
 
     private val _refuelArmed = MutableStateFlow<Long?>(null)
 

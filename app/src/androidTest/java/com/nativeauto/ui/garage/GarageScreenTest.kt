@@ -10,6 +10,11 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -197,6 +202,97 @@ class GarageScreenTest {
         awaitGone("garage_untracked_dialog")
         rule.waitUntil(5_000) { tag("garage_odometer").fetchText() == "12,042 km" }
         awaitText("Untracked +42 km")
+    }
+
+    // ---- 11c ----
+
+    /** A saved trip of [km] on [bikeId], ending just now (so it counts after any reading). */
+    private fun seedTrip(bikeId: String, km: Double) = runBlocking {
+        Thread.sleep(20)
+        val now = System.currentTimeMillis()
+        seededTrips += entry.tripDao().insertWithTrack(
+            TripRecord(
+                startedAtMs = now - 3_600_000, endedAtMs = now, durationMs = 3_600_000, movingMs = 3_600_000,
+                distanceM = km * 1000, maxSpeedMps = 20f, startLat = -7.8, startLon = 110.37, endLat = -7.79, endLon = 110.37,
+                track = "", bikeId = bikeId,
+            ),
+            emptyList(),
+        )
+    }
+
+    @Test fun aServiceItemIsAddedComesDueAndIsMarkedDone() {
+        val gen1 = runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        openGarage()
+        await("garage_bike_Gen 1")
+        scrollClick("garage_service_add")
+        await("garage_service_editor")
+        tag("garage_service_name").performTextReplacement("Engine oil")
+        tag("garage_service_km").performTextReplacement("2000")
+        click("garage_service_save")
+        awaitGone("garage_service_editor")
+        await("garage_service_Engine oil")
+        awaitText("due in 2,000 km")
+
+        seedTrip(gen1, 1_950.0)
+        awaitText("due in 50 km")
+
+        scrollClick("garage_service_done_Engine oil")
+        await("garage_service_done_dialog")
+        assertEquals("13950", tag("garage_service_done_odo").fieldText())
+        tag("garage_service_done_cost").performTextReplacement("55.000")
+        click("garage_service_done_save")
+        awaitGone("garage_service_done_dialog")
+        awaitText("due in 2,000 km")
+        await("garage_service_record")
+        awaitText("Rp 55.000")
+    }
+
+    @Test fun aDueServiceShowsOnTheLogFace() {
+        runBlocking {
+            val gen1 = entry.garage().addBike(nmax, odometerKm = 12_000.0)
+            entry.garage().addService(gen1, com.nativeauto.garage.ServiceDraft("Engine oil", com.nativeauto.garage.ServiceKind.DISTANCE, 2_000.0, null, null, null))
+            gen1
+        }.let { seedTrip(it, 1_950.0) }
+        tag("speed_faces").performTouchInput { swipeLeft() }
+        rule.waitUntil(5_000) { count("service_reminder").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("Engine oil due in 50 km", tag("service_reminder").fetchText())
+    }
+
+    @Test fun theGarageCardShowsRangeAndTheSpeedCardWarnsOfLowFuel() {
+        runBlocking {
+            val gen1 = entry.garage().addBike(nmax, odometerKm = 12_000.0)
+            entry.garage().logRefuel(gen1, com.nativeauto.garage.RefuelDraft(true, 5.0, 15_900.0, 79_500.0, FuelType.PERTAMAX, 12_000.0))
+            gen1
+        }.let { seedTrip(it, 200.0) } // 6.6 L − 200 km ÷ 36 km/L = 1.04 L: the last segment
+        // Duo shows no Garage card: the speed card carries the small red tank.
+        rule.waitUntil(5_000) { count("low_fuel").fetchSemanticsNodes().isNotEmpty() }
+
+        // Put the Garage card in Media's slot.
+        tag("header_MEDIA").performTouchInput { longClick(Offset(width * 0.1f, height / 2f)) }
+        await("picker_sheet")
+        click("pick_GARAGE")
+        awaitGone("picker_sheet")
+        rule.waitUntil(5_000) { count("garage_card_value").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("38 km", tag("garage_card_value").fetchText())
+        awaitText("Garage · Gen 1")
+        await("garage_tank")
+        // The card shows it now, so the speed card doesn't.
+        awaitGone("low_fuel")
+
+        // Maximized: the full set, and the choice of what the small card shows.
+        click("maximize_GARAGE")
+        await("garage_card_full")
+        scrollClick("garage_value_ODOMETER")
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.garageValue.first() } == com.nativeauto.settings.GarageValue.ODOMETER }
+        // Refuelled from the card.
+        click("garage_card_refuel")
+        await("garage_refuel_dialog")
+        tag("garage_refuel_amount").performTextReplacement("88.000")
+        click("garage_refuel_save")
+        awaitGone("garage_refuel_dialog")
+        click("maximize_GARAGE")
+        rule.waitUntil(5_000) { count("garage_card_value").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(5_000) { tag("garage_card_value").fetchText() == "12,200 km" }
     }
 
     @Test fun historyFiltersByBike() {

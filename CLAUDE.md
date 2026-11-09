@@ -463,6 +463,36 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
 - Device tests: `GarageScreenTest` (fill-up → range, hidden costs, two-tap delete; untracked km). Buttons low in
   the scrolling bike detail need `performScrollTo()` before the click.
 
+## Phase 11c: Garage card, services, Garage backup (built 2026-11-09, beyond the handoff)
+
+- **Room v5** (`MIGRATION_4_5`): `service_items` (`ServiceItem`: bike, name, `ServiceKind` DISTANCE / DATE,
+  km and month intervals, last done km / time, due date) and `service_records` (`ServiceRecord`: item, bike,
+  item name copied, time, odometer, cost, note). `GarageDao.markDone` is one `@Transaction`; deleting a bike
+  deletes its services and records. `MigrationTest` opens v1 under v5.
+- **`garage/Service.kt` (pure, `ServiceTest`):** `serviceDue` → `ServiceDue` (`DueLevel` OK / SOON / OVERDUE /
+  NO_INTERVAL); amber within 10% of the km interval (at least 100 km) or 14 days, date items 30 days.
+  `byUrgency`, `reminderOf`, `nextDueDate` (rolls a yearly date forward past today), `parseDate` (d/m/yyyy).
+- **`GarageRepository`:** `services`, `serviceHistory`, `add/update/deleteService`, `markServiceDone`
+  (odometer within 1 km of the estimate = the estimate, else stored as a reading), `activeCard` →
+  `GarageCardState` (bike, odometer, fuel, services; `nextService`, `reminder`).
+- **Garage pane (`Pane.GARAGE`, `ui/garage/GarageCard.kt`):** on demand from the pane picker (Quad's default
+  keeps the clock). Small: 5-segment `TankGauge` (`garage_tank`, `tankSegments` with 2% hysteresis, red last
+  segment) + one value (`garage_card_value`) chosen by `SettingsRepository.garageValue` (`GarageValue`: range,
+  since refuel, odometer, next service, km/L). Expanded / Fullscreen (`garage_card_full`): Refuelled, Service
+  done, bike chips, the value picker, Open Garage. No bike → Open Garage only.
+- **Warnings elsewhere:** `LowFuelIcon` (`low_fuel`) on the speed card when the tank is in its last segment and
+  the Garage pane isn't on screen; `ServiceBadge` (`service_reminder`) on the log face and trip summary when
+  a service is due soon or overdue. No Android notification.
+- **Services UI (`ui/garage/ServiceUi.kt`):** `ServicesSection` in the bike detail, `ServiceEditor` (name chips,
+  km or date kind, two-tap delete), `ServiceDoneDialog` (odometer, cost, note) and the history list.
+- **Backup format 2 (`garage/GarageBackup.kt`):** `backup.json` gains `garage` (bikes, readings, refuels,
+  prices, services, records). Import merges: bikes by id (an imported bike stays inactive if one is already
+  active), readings / refuels by (bike, time), prices only if newer, services by (bike, name, created), records
+  by (bike, time, name). `TripFiles.import` → `ImportResult` (trips, Garage entries). Format-1 files still
+  import. Tests: `GarageBackupTest`, `TankSegmentsTest`, service cases in `GarageRepositoryTest`
+  (`FakeGarageDao`); device: `GarageScreenTest` (service add / due / done, log-face badge, Garage card +
+  low-fuel icon).
+
 ## Known issues (deferred)
 
 - **TomTom key pending (WIP, 10a):** add `TOMTOM_API_KEY` to `local.properties`, rebuild, compare on the

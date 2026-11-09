@@ -50,6 +50,7 @@ class ResetSettingsRule : ExternalResource() {
         settings.setThemeMode(ThemeMode.DARK)
         settings.setClockFace(ClockFace.DIGITAL)
         settings.setClockSeconds(false)
+        settings.setGarageValue(com.nativeauto.settings.GarageValue.RANGE)
         settings.setAutoPauseMinutes(com.nativeauto.settings.DEFAULT_AUTO_PAUSE_MIN)
         settings.setAutoEndMinutes(com.nativeauto.settings.DEFAULT_AUTO_END_MIN)
         com.nativeauto.settings.TelemetryStat.entries.forEach {
