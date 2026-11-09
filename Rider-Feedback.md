@@ -662,16 +662,20 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
   `fuel_prices` store (a fill-up at a new price still updates it). Past refuels keep their own price.
 - **Defaults (rates as of 2026-11-09):** Pertalite Rp 10.000/L, Pertamax (92) Rp 15.950/L, Pertamax Green
   Rp 19.150/L, Pertamax Turbo Rp 19.600/L. Only used until the rider has a price of their own for that fuel.
-- **Buttons:** Pertalite / Pertamax / Pertamax Turbo, labels stacked on two lines ("Pertamax" / "Turbo") to
-  fit the segment width.
+- **Fuel types (rider, 2026-11-09):** four fixed types: Pertalite, Pertamax, Pertamax Green, Pertamax Turbo
+  (Green added as a built-in type; no "add fuel type" UI yet). Cleaner labels: two lines in each segment,
+  brand small on top, grade big below ("Pertamax" / "Turbo"; Pertalite as one word).
+- **Text:** "Refuelled" → **"Refuel"** (button and card). Bike models: "NMAX Gen 1" / "NMAX Gen 2" instead of
+  the year ranges.
+- **Prices persist:** an edited price is stored on the phone (`fuel_prices`) and kept until changed again.
 - **WIP, after 12c:** fuel types typed in by the rider. 12c keeps prices keyed by name (any string) so a
   custom type needs no migration later.
-- Still v3.3; versionCode 18 (Phase 13 then 19 / 20, unless the rider says otherwise). Effort: medium.
+- Still v3.3, versionCode **18** (rider confirmed; Phase 13 moves to 19 / 20). Effort: medium.
 - Tests: editing a price changes the refuel prefill and the refill estimate; defaults; release smoke edits a price.
 
 ## Phase 13 (WIP, planned 2026-11-09, not started): call controls + portrait
 
-**Versions (rider):** 13a ships as **3.4.1**, 13b as **3.4.2** (versionCode +1 each: 18, 19).
+**Versions (rider):** 13a ships as **3.4.1**, 13b as **3.4.2** (versionCode 19, 20; 12c took 18).
 
 ### 13a · Call controls (modular, any Android skin)
 - **Goal:** works on HyperOS, near-stock (Motorola, Pixel), One UI and others: not tied to one dialer.
