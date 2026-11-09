@@ -224,6 +224,19 @@ Format: **sub-phase · decision** — why, and how to change it.
   is stored as a reading (same rule as refuels, tighter).
 - **Backup format 2** carries the Garage; import merges rather than replaces, so importing twice adds nothing.
 
+## 3.2.1 · Release crash fix
+
+- **Cause:** the v3.2 release APK crashed at start on every Android version (reproduced on the emulator),
+  not because of Android 13: `minSdk` is 26 (Android 8) and lint finds no unguarded newer API. R8's
+  `packageScope` optimization repackaged `kotlin.text.StringsKt__StringBuilderKt` to a top-level class
+  while its package-private superclass stayed in `kotlin.text`.
+- **Fix:** `-keeppackagenames kotlin.**,kotlinx.**,androidx.**` (keeps the optimization and shrinking;
+  only stops moving library classes between packages). Not `optimization` off: 8d chose it for smoothness.
+- **Version:** a fix, not a sub-phase, so 3.2.1 (versionCode 15); the next sub-phase stays +0.1 from 3.2.
+- **Guard:** `ReleaseSmokeTest` (baselineprofile module) drives the minified build through every screen
+  and fails on any crash; it failed on the broken build with the same `IllegalAccessError` and passes
+  with the fix. Run it before every APK handed out.
+
 ## Concerns to check at the phone test (noted after 11b)
 
 Things the emulator can't settle, or that I'm not sure of. None blocks 11c.

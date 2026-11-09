@@ -290,6 +290,17 @@ bike the week of 2026-11-02 (speed, map, media, saved trips all fine; search too
 
 ## Phase 8d: smoothness (built 2026-11-09, beyond the handoff)
 
+- **Release check before any APK goes to the user (added v3.2.1):** the v3.2 release APK crashed at
+  start on every phone (R8, `optimization { packageScope }`, moved Kotlin's multifile-class parts out of
+  their package: `IllegalAccessError` in `DataModule.provideDatabase`) while every device test passed,
+  because those run on debug. Fixed by `-keeppackagenames kotlin.**,kotlinx.**,androidx.**` in
+  `app/src/main/keepRules/rules.keep`. Before handing out an APK, run the black-box
+  `baselineprofile/.../ReleaseSmokeTest` (UiAutomator on the minified `benchmarkRelease` build, every
+  screen, fails on any entry in the crash log):
+  `./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nativeauto.baselineprofile.ReleaseSmokeTest`.
+  Running the in-process device tests against release doesn't work (the test APK needs library code R8
+  removed from the app, e.g. `androidx.tracing`).
+
 - **Release build** is signed with the debug key (`app/build.gradle.kts`), so it installs over the
   debug build. R8 optimizes only `androidx.**`, `kotlin.**`, `kotlinx.**` (`packageScope`); the app's
   own code and Ferrostar's uniffi/JNA bindings are left as they are. Use the release APK for the phone

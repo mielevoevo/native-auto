@@ -10,3 +10,9 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
+# Release crash fix (2026-11-09, v3.2.1): with `optimization { packageScope }` R8 repackaged Kotlin's
+# multifile-class parts (e.g. kotlin.text.StringsKt__StringBuilderKt -> top-level `m32`) away from
+# their package-private superclasses, so the release app died at start with IllegalAccessError
+# ("Class kotlin.text.l extended by class m32 is inaccessible"). Keep the optimized libraries'
+# classes in their own packages; they are still shrunk, optimized and renamed.
+-keeppackagenames kotlin.**,kotlinx.**,androidx.**
