@@ -72,3 +72,20 @@ Format: **sub-phase · decision** — why, and how to change it.
 - **Save prompt:** a dialog with Save / Discard / Cancel when closing with a trip running or paused;
   closing uses `finishAndRemoveTask` so the app really goes (Android 12+ would otherwise only send a
   root activity to the background).
+
+## 9c · Full track, migration, telemetry
+
+- **Full track = every fix the reducer accepted**, unsimplified (rejected spikes and poor fixes left out,
+  so it agrees with the distance). About 10 000 points for a 3-hour ride, held in memory until the trip
+  is saved, then written with the trip in one transaction. Times are wall clock, derived at save time.
+- **No foreign key** from `track_points` to `trips` (a simpler, safer migration); deleting a trip deletes
+  its points in the same transaction.
+- **Stopped time = trip time − moving time** (pauses already excluded), so it includes GPS gaps. Old trips
+  are backfilled the same way by the migration. It adds no GPS use.
+- **Bike tag:** `trips.bikeId`, nullable, always null until the Garage (11a) exists.
+- **Telemetry show/hide:** seven figures; **moving time and stopped time hidden by default** (they're
+  new), the rest shown as before. Applies to the log face, the summary and the history detail; the speed
+  face keeps its fixed grid. The compact log line and the compact summary always show time and distance.
+- **Settings layout fix:** since 9a the Trip column ran off a landscape screen (auto-end was cut off).
+  Auto-pause, auto-end and the figure toggles now sit in one **"Trip options" dialog** (two columns, Done
+  beside the title), so the sheet fits again in a release build.

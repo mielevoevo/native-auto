@@ -62,6 +62,8 @@ class TripRecorder @Inject constructor(
 
     private class Recording(val startedAtNanos: Long) {
         val points = ArrayList<GeoPoint>()
+        /** Every accepted fix, unsimplified: the full track (9c). ~10 k per 3 h ride. */
+        val fixes = ArrayList<SpeedSample>()
         var stats: TripStats? = null
         var lastSample: SpeedSample? = null
         var saved = false
@@ -90,6 +92,7 @@ class TripRecorder @Inject constructor(
                 val sample = stats.lastSample
                 if (sample != null && sample !== r.lastSample) {
                     r.lastSample = sample
+                    r.fixes += sample
                     val p = GeoPoint(sample.latitude, sample.longitude)
                     val prev = r.points.lastOrNull()
                     if (prev == null || haversineMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) >= MIN_STEP_M) {
@@ -135,8 +138,20 @@ class TripRecorder @Inject constructor(
                 endLat = end.latitude,
                 endLon = end.longitude,
                 track = Polyline.encode(track),
+                stoppedMs = (s.elapsedNanos(endNanos) - s.movingNanos).coerceAtLeast(0) / 1_000_000,
             )
-        val id = dao.insert(record)
+        val full = r.fixes.map {
+            TrackPointRecord(
+                tripId = 0,
+                timeMs = wallMs(it.timestampNanos),
+                latitude = it.latitude,
+                longitude = it.longitude,
+                speedMps = it.speedMps,
+                bearingDeg = it.bearingDeg,
+                accuracyM = it.horizontalAccuracyM,
+            )
+        }
+        val id = dao.insertWithTrack(record, full)
         _lastOutcome.value = TripOutcome.Saved(record.copy(id = id))
         scope.launch { resolve(id, start, end, knownStart = null, knownEnd = null) }
     }

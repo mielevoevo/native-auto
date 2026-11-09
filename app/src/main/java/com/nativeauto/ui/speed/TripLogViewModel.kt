@@ -7,6 +7,8 @@ import com.nativeauto.history.TripOutcome
 import com.nativeauto.history.TripRecord
 import com.nativeauto.history.TripRecorder
 import com.nativeauto.trip.TripState
+import com.nativeauto.settings.SettingsRepository
+import com.nativeauto.settings.TelemetryStat
 import com.nativeauto.trip.TripTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -33,7 +35,13 @@ class TripLogViewModel @Inject constructor(
     private val tracker: TripTracker,
     recorder: TripRecorder,
     dao: TripDao,
+    settings: SettingsRepository,
 ) : ViewModel() {
+
+    /** The figures to show (9c): everything not hidden in settings. */
+    val visible: StateFlow<Set<TelemetryStat>> = settings.hiddenStats
+        .map { TelemetryStat.entries.toSet() - it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TelemetryStat.entries.toSet() - TelemetryStat.DEFAULT_HIDDEN)
 
     /** The last few saved rides, newest first. */
     val recent: StateFlow<List<TripRecord>> = dao.observeAll()

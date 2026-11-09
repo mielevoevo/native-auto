@@ -18,6 +18,9 @@ data class SpeedometerUiState(
     val tripState: TripState,
     /** Paused by auto-pause (no movement for a while), not by hand (9a). */
     val autoPaused: Boolean = false,
+    /** Time above walking pace, and the rest of the trip time (9c). */
+    val movingTime: Duration = Duration.ZERO,
+    val stoppedTime: Duration = Duration.ZERO,
 ) {
     /** The handoff's `isTracking`, derived so it can never disagree with [tripState]. */
     val isTracking: Boolean get() = tripState == TripState.Running

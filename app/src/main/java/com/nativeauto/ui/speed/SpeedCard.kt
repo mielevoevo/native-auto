@@ -55,6 +55,10 @@ import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
 import com.nativeauto.ui.permissions.LocalLocationAccess
 import java.util.Locale
+import com.nativeauto.settings.TelemetryStat
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration
 
 /**
@@ -73,6 +77,7 @@ fun SpeedCard(
     val recent by logViewModel.recent.collectAsStateWithLifecycle()
     val outcome by logViewModel.outcome.collectAsStateWithLifecycle()
     val endArmed by logViewModel.endArmed.collectAsStateWithLifecycle()
+    val visible by logViewModel.visible.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val actions = remember(logViewModel) {
@@ -84,7 +89,7 @@ fun SpeedCard(
             dismissSummary = { haptics.tap(); logViewModel.dismissSummary() },
         )
     }
-    SpeedCardContent(mode, layout, ui, TripLogUi(recent, outcome, endArmed), actions)
+    SpeedCardContent(mode, layout, ui, TripLogUi(recent, outcome, endArmed, visible), actions)
 }
 
 /**
@@ -125,7 +130,7 @@ fun SpeedCardContent(
                 }
             }
             FaceDots(pager.currentPage, FACES, Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp))
-            if (ui.tripState == TripState.Ended) TripSummary(mode, ui, log.outcome, actions.dismissSummary)
+            if (ui.tripState == TripState.Ended) TripSummary(mode, ui, log, actions.dismissSummary)
         }
     }
 }
@@ -330,13 +335,39 @@ internal fun SpeedometerUiState.telemetry(): List<Stat> = listOf(
 )
 
 @Composable
-internal fun TelemetryGrid(ui: SpeedometerUiState, columns: Int, tileHeight: Dp, tagPrefix: String = "") {
+internal fun TelemetryGrid(ui: SpeedometerUiState, columns: Int, tileHeight: Dp) = StatGrid(ui.telemetry(), columns, tileHeight)
+
+/** Tiles in rows of [columns]; a short last row keeps the tile width. */
+@Composable
+internal fun StatGrid(stats: List<Stat>, columns: Int, tileHeight: Dp) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ui.telemetry().chunked(columns).forEach { row ->
+        stats.chunked(columns).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { StatTile(it.copy(tag = tagPrefix + it.tag), Modifier.weight(1f).height(tileHeight)) }
+                row.forEach { StatTile(it, Modifier.weight(1f).height(tileHeight)) }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+/**
+ * The trip's figures the rider chose to see (9c), for the log face and the summary, tagged
+ * `<prefix>stat_<key>`. [progress] scales the numbers for the summary's count-up.
+ */
+internal fun SpeedometerUiState.tripStats(visible: Set<TelemetryStat>, prefix: String, progress: Float = 1f): List<Stat> {
+    fun speed(v: Int) = (v * progress).roundToInt().toString()
+    fun time(d: Duration) = formatElapsed((d.inWholeMilliseconds * progress).roundToLong().milliseconds)
+    return TelemetryStat.entries.filter { it in visible }.map { s ->
+        val (value, unitLabel) = when (s) {
+            TelemetryStat.DISTANCE -> "%.1f".format(distance * progress) to unit.distanceLabel
+            TelemetryStat.TIME -> time(elapsed) to null
+            TelemetryStat.AVERAGE -> speed(avgSpeed) to unit.speedLabel
+            TelemetryStat.MAX -> speed(maxSpeed) to unit.speedLabel
+            TelemetryStat.MOVING_AVG -> speed(movingAvgSpeed) to unit.speedLabel
+            TelemetryStat.MOVING_TIME -> time(movingTime) to null
+            TelemetryStat.STOPPED_TIME -> time(stoppedTime) to null
+        }
+        Stat("${prefix}stat_${s.key}", s.label.uppercase(), value, unitLabel)
     }
 }
 

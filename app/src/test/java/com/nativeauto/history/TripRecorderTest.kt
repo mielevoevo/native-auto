@@ -42,9 +42,13 @@ class TripRecorderTest {
             trips.value = trips.value.map { if (it.id == id) it.copy(startAddress = start, endAddress = end) else it }
         }
         override suspend fun missingAddresses() = trips.value.filter { it.startAddress == null || it.endAddress == null }
-        override suspend fun delete(id: Long) {
+        val track = mutableListOf<TrackPointRecord>()
+        override suspend fun insertPoints(points: List<TrackPointRecord>) { track += points }
+        override suspend fun points(tripId: Long) = track.filter { it.tripId == tripId }
+        override suspend fun deleteTrip(id: Long) {
             trips.value = trips.value.filterNot { it.id == id }
         }
+        override suspend fun deletePoints(tripId: Long) { track.removeAll { it.tripId == tripId } }
     }
 
     /** Names a point by its rounded northing; [online] off answers null, like a failed lookup. */
@@ -168,6 +172,44 @@ class TripRecorderTest {
         rig.drive(121) // 2.42 km in 121 s
         rig.tracker.end(); runCurrent()
         assertEquals(2420.0, rig.dao.trips.value.single().distanceM, 1e-6)
+    }
+
+    @Test fun `the full track keeps every accepted fix with its time, speed and accuracy`() = runTest {
+        val rig = Rig(this)
+        advanceTimeBy(5_000)
+        rig.startTrip()
+        rig.drive(30) // a first fix + 30 more, straight north
+        rig.tracker.end(); runCurrent()
+
+        val t = rig.dao.trips.value.single()
+        val points = rig.dao.points(t.id)
+        assertEquals(31, points.size) // unsimplified, unlike t.track
+        assertEquals(WALL_BASE_MS + 5_000, points.first().timeMs)
+        assertEquals(WALL_BASE_MS + 35_000, points.last().timeMs)
+        assertTrue(points.all { it.speedMps == SPEED && it.accuracyM == 4f })
+        assertEquals(600.0, points.last().latitude * METERS_PER_DEGREE_LAT, 1e-6)
+        assertEquals(0L, t.stoppedMs)
+        assertNull(t.bikeId)
+
+        rig.dao.delete(t.id)
+        assertEquals(emptyList<TrackPointRecord>(), rig.dao.points(t.id))
+    }
+
+    @Test fun `stopped time is trip time below walking pace, pauses excluded`() = runTest {
+        val rig = Rig(this)
+        rig.startTrip()
+        rig.drive(10)
+        repeat(20) { // 20 s at a light
+            advanceTimeBy(1_000)
+            rig.emit(rig.fix(speed = 0f))
+        }
+        rig.tracker.pause(); runCurrent()
+        advanceTimeBy(60_000)
+        rig.tracker.end(); runCurrent()
+        val t = rig.dao.trips.value.single()
+        assertEquals(30_000L, t.durationMs)
+        assertEquals(10_000L, t.movingMs)
+        assertEquals(20_000L, t.stoppedMs)
     }
 
     @Test fun `the outcome says saved or too short, and clears on the next start`() = runTest {

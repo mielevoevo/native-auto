@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.swipeLeft
@@ -398,6 +399,25 @@ class DashboardScreenTest {
         tag("log_end").assertIsNotEnabled()
     }
 
+    @Test fun telemetrySettingsChooseTheLogFaceFigures() {
+        // Defaults (9c): moving and stopped time hidden, the rest shown.
+        openSettings()
+        click("settings_trip_options")
+        tag("settings_stat_moving_time").assertIsNotSelected()
+        click("settings_stat_moving_time")
+        click("settings_stat_max")
+        tag("settings_stat_moving_time").assertIsSelected()
+        tag("settings_stat_max").assertIsNotSelected()
+        click("settings_trip_options_done")
+        closeSettings()
+        click("maximize_SPEED")
+        assertMode(Pane.SPEED, CardMode.Expanded)
+        openLogFace()
+        rule.waitUntil(5_000) { count("log_stat_moving_time").fetchSemanticsNodes().isNotEmpty() }
+        count("log_stat_max").assertCountEquals(0)
+        tag("log_stat_distance").assertIsDisplayed()
+    }
+
     @Test fun backOnceShowsTheHint() {
         back()
         tag("back_hint").assertIsDisplayed()
@@ -419,10 +439,12 @@ class DashboardScreenTest {
 
     @Test fun autoPauseAndAutoEndAreSettings() {
         openSettings()
+        click("settings_trip_options")
         click("settings_auto_pause_10")
         click("settings_auto_end_0")
         tag("settings_auto_pause_10").assertIsSelected()
         tag("settings_auto_end_0").assertIsSelected()
+        click("settings_trip_options_done")
         closeSettings()
     }
 

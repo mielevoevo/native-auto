@@ -72,6 +72,8 @@ import com.nativeauto.history.TripRecord
 import com.nativeauto.history.TripRecorder
 import com.nativeauto.settings.SettingsRepository
 import com.nativeauto.settings.SpeedUnit
+import com.nativeauto.settings.TelemetryStat
+import kotlinx.coroutines.flow.map
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -103,6 +105,11 @@ class TripHistoryViewModel @Inject constructor(
     val trips: StateFlow<List<TripRecord>?> = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val unit: StateFlow<SpeedUnit> = settings.speedUnit.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SpeedUnit.KMH)
+
+    /** The figures the detail shows (9c's telemetry settings). */
+    val visible: StateFlow<Set<TelemetryStat>> = settings.hiddenStats
+        .map { TelemetryStat.entries.toSet() - it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TelemetryStat.entries.toSet() - TelemetryStat.DEFAULT_HIDDEN)
 
     private val _deleteArmed = MutableStateFlow<Long?>(null)
     val deleteArmed: StateFlow<Long?> = _deleteArmed.asStateFlow()
@@ -142,6 +149,7 @@ class TripHistoryViewModel @Inject constructor(
 fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hiltViewModel()) {
     val trips by viewModel.trips.collectAsStateWithLifecycle()
     val unit by viewModel.unit.collectAsStateWithLifecycle()
+    val visible by viewModel.visible.collectAsStateWithLifecycle()
     val armed by viewModel.deleteArmed.collectAsStateWithLifecycle()
     var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selected = trips?.firstOrNull { it.id == selectedId }
@@ -175,6 +183,7 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                     selected != null -> TripDetail(
                         trip = selected,
                         unit = unit,
+                        visible = visible,
                         maps = viewModel.maps,
                         deleteArmed = armed == selected.id,
                         onDelete = {
@@ -260,7 +269,14 @@ private fun TripCard(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, onClick:
 }
 
 @Composable
-private fun TripDetail(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, deleteArmed: Boolean, onDelete: () -> Unit) {
+private fun TripDetail(
+    trip: TripRecord,
+    unit: SpeedUnit,
+    visible: Set<TelemetryStat>,
+    maps: TripMaps,
+    deleteArmed: Boolean,
+    onDelete: () -> Unit,
+) {
     Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         TripMapImage(trip, maps, width = 520.dp, height = 300.dp, modifier = Modifier.weight(1.3f).fillMaxHeight())
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
@@ -272,14 +288,17 @@ private fun TripDetail(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, delete
             Spacer(Modifier.height(8.dp))
             Endpoints(trip, maxLines = 2, large = true)
             Spacer(Modifier.height(16.dp))
-            val stats = listOf(
-                "Distance" to formatDistance(trip.distanceM, unit),
-                "Trip time" to formatDuration(trip.durationMs),
-                "Avg speed" to formatSpeed(trip.averageSpeedMps, unit),
-                "Max speed" to formatSpeed(trip.maxSpeedMps, unit),
-                "Moving avg" to formatSpeed(trip.movingAverageMps, unit),
-                "Moving time" to formatDuration(trip.movingMs),
-            )
+            val stats = TelemetryStat.entries.filter { it in visible }.map { s ->
+                s.label to when (s) {
+                    TelemetryStat.DISTANCE -> formatDistance(trip.distanceM, unit)
+                    TelemetryStat.TIME -> formatDuration(trip.durationMs)
+                    TelemetryStat.AVERAGE -> formatSpeed(trip.averageSpeedMps, unit)
+                    TelemetryStat.MAX -> formatSpeed(trip.maxSpeedMps, unit)
+                    TelemetryStat.MOVING_AVG -> formatSpeed(trip.movingAverageMps, unit)
+                    TelemetryStat.MOVING_TIME -> formatDuration(trip.movingMs)
+                    TelemetryStat.STOPPED_TIME -> formatDuration(trip.stoppedMs)
+                }
+            }
             stats.chunked(2).forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                     row.forEach { (label, value) ->

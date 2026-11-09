@@ -349,6 +349,22 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
   when nothing else takes back. `CloseViewModel.onBack()` → hint (`back_hint`, 2 s) / close / ask
   (`save_prompt_save|discard|cancel`). Closing is `finishAndRemoveTask()`.
 
+## Phase 9c: full track, migration, telemetry (built 2026-11-09, beyond the handoff)
+
+- **Room v2** (`MIGRATION_1_2` in `history/Database.kt`, added in `DataModule`): `trips.stoppedMs`
+  (`@ColumnInfo(defaultValue = "0")`, backfilled as duration − moving) and `trips.bikeId` (null until
+  11a); new `track_points` table (`TrackPointRecord`: tripId, wall `timeMs`, lat/lon, speed, bearing,
+  accuracy; index on tripId, no foreign key). `TripDao.insertWithTrack` / `delete` are `@Transaction`
+  default methods. `MigrationTest` (device) builds a v1 file by hand and opens it under v2.
+- `TripRecorder` keeps every accepted fix (`Recording.fixes`) next to the simplified path; old trips have
+  only the polyline.
+- **Telemetry (`settings/TelemetryStat.kt`):** `SettingsRepository.hiddenStats` (string set, default
+  `DEFAULT_HIDDEN` = moving + stopped time). `SpeedometerUiState.tripStats(visible, prefix, progress)`
+  builds the log face (`log_stat_*`) and summary (`sum_stat_*`) tiles; `StatGrid` lays them out; the
+  history detail filters the same way. `SpeedometerUiState` gained `movingTime` / `stoppedTime`.
+- **Settings:** the Trip column has a "Trip options" row (`settings_trip_options`) opening a dialog with
+  auto-pause, auto-end and the figure chips (`settings_stat_<key>`, `settings_trip_options_done`).
+
 ## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);

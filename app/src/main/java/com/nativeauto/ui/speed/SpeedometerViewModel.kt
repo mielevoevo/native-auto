@@ -137,6 +137,8 @@ internal fun TripStats.toUiState(
         // Whole seconds, as displayed: ticks within the same second yield an equal state,
         // which StateFlow drops, so the card doesn't recompose for nothing.
         elapsed = (elapsedNanos(nowNanos).coerceAtLeast(0L) / 1_000_000_000L).seconds,
+        movingTime = (movingNanos / 1_000_000_000L).seconds,
+        stoppedTime = ((elapsedNanos(nowNanos) - movingNanos).coerceAtLeast(0L) / 1_000_000_000L).seconds,
         distance = distanceM / unit.metersPerDistanceUnit,
         unit = unit,
         gps = gps,

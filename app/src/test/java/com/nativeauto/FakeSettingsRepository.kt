@@ -31,6 +31,10 @@ class FakeSettingsRepository : SettingsRepository {
     override suspend fun setAutoPauseMinutes(minutes: Int) { autoPauseMinutes.value = minutes }
     override val autoEndMinutes = MutableStateFlow(30)
     override suspend fun setAutoEndMinutes(minutes: Int) { autoEndMinutes.value = minutes }
+    override val hiddenStats = MutableStateFlow(com.nativeauto.settings.TelemetryStat.DEFAULT_HIDDEN)
+    override suspend fun setStatShown(stat: com.nativeauto.settings.TelemetryStat, shown: Boolean) {
+        hiddenStats.value = if (shown) hiddenStats.value - stat else hiddenStats.value + stat
+    }
     override val autoLayout = MutableStateFlow(true)
     override suspend fun setAutoLayout(enabled: Boolean) { autoLayout.value = enabled }
     override val simulateNavigation = MutableStateFlow(false)

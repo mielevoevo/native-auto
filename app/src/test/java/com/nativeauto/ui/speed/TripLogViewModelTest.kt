@@ -46,7 +46,10 @@ class TripLogViewModelTest {
         }
         override suspend fun setAddresses(id: Long, start: String?, end: String?) = Unit
         override suspend fun missingAddresses() = emptyList<TripRecord>()
-        override suspend fun delete(id: Long) = Unit
+        override suspend fun insertPoints(points: List<com.nativeauto.history.TrackPointRecord>) = Unit
+        override suspend fun points(tripId: Long) = emptyList<com.nativeauto.history.TrackPointRecord>()
+        override suspend fun deleteTrip(id: Long) = Unit
+        override suspend fun deletePoints(tripId: Long) = Unit
     }
 
     private val main = StandardTestDispatcher()
@@ -60,7 +63,7 @@ class TripLogViewModelTest {
             override suspend fun addressOf(point: GeoPoint): String? = null
         }
         val recorder = TripRecorder(tracker, Dao(), resolver, clock, WallClock { 0L }, backgroundScope).also { it.start() }
-        return tracker to TripLogViewModel(tracker, recorder, Dao())
+        return tracker to TripLogViewModel(tracker, recorder, Dao(), com.nativeauto.FakeSettingsRepository())
     }
 
     @Test fun `end needs two taps within 3 s`() = runTest(main) {

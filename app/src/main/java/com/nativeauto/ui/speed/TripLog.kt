@@ -47,6 +47,7 @@ import com.nativeauto.R
 import com.nativeauto.history.TripOutcome
 import com.nativeauto.history.TripRecord
 import com.nativeauto.trip.TripState
+import com.nativeauto.settings.TelemetryStat
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.history.TrackSketch
@@ -63,6 +64,8 @@ data class TripLogUi(
     val recent: List<TripRecord> = emptyList(),
     val outcome: TripOutcome? = null,
     val endArmed: Boolean = false,
+    /** The figures shown on the log face and the summary (9c). */
+    val visible: Set<TelemetryStat> = TelemetryStat.entries.toSet() - TelemetryStat.DEFAULT_HIDDEN,
 )
 
 /** The log face's buttons and the summary's dismiss. */
@@ -112,15 +115,15 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { LogControls(ui.tripState, log.endArmed, actions) }
             Spacer(Modifier.width(24.dp))
             Row(Modifier.weight(1.4f), horizontalArrangement = Arrangement.SpaceBetween) {
-                // Own tags: the pager keeps both faces composed side by side.
-                ui.inlineStats().forEach { InlineStat(it.copy(tag = "log_" + it.tag)) }
+                // Own tags: the pager keeps both faces composed side by side. A strip fits four.
+                ui.tripStats(log.visible, prefix = "log_").take(4).forEach { InlineStat(it) }
             }
         }
         CardMode.Expanded -> Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
             Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                 LogControls(ui.tripState, log.endArmed, actions)
             }
-            TelemetryGrid(ui, columns = 3, tileHeight = 76.dp, tagPrefix = "log_")
+            StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 3, tileHeight = 76.dp)
             Spacer(Modifier.height(12.dp))
             RecentRides(log.recent, ui, Modifier.weight(1f))
         }
@@ -129,7 +132,7 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
                 Box(Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
                     LogControls(ui.tripState, log.endArmed, actions)
                 }
-                TelemetryGrid(ui, columns = 3, tileHeight = 88.dp, tagPrefix = "log_")
+                StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 3, tileHeight = 88.dp)
             }
             Spacer(Modifier.width(24.dp))
             RecentRides(log.recent, ui, Modifier.weight(1f).fillMaxHeight())
@@ -228,17 +231,15 @@ private fun RecentRides(recent: List<TripRecord>, ui: SpeedometerUiState, modifi
  * which zeroes the trip until the next Start.
  */
 @Composable
-internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, outcome: TripOutcome?, onDismiss: () -> Unit) {
+internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, onDismiss: () -> Unit) {
+    val outcome = log.outcome
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) { progress.animateTo(1f, tween(COUNT_UP_MS, easing = FastOutSlowInEasing)) }
     val p = progress.value
-    val figures = listOf(
-        Stat("sum_distance", "DISTANCE", "%.1f".format(ui.distance * p), ui.unit.distanceLabel),
-        Stat("sum_time", "TIME", formatElapsed((ui.elapsed.inWholeMilliseconds * p).roundToLong().milliseconds), null),
-        Stat("sum_avg", "AVERAGE", (ui.avgSpeed * p).roundToInt().toString(), ui.unit.speedLabel),
-        Stat("sum_max", "MAX", (ui.maxSpeed * p).roundToInt().toString(), ui.unit.speedLabel),
-        Stat("sum_moving_avg", "MOVING AVG", (ui.movingAvgSpeed * p).roundToInt().toString(), ui.unit.speedLabel),
-    )
+    val figures = ui.tripStats(log.visible, prefix = "sum_", progress = p)
+    // The compact line always shows distance and time, whatever is hidden.
+    val distanceText = "%.1f".format(ui.distance * p)
+    val timeText = formatElapsed((ui.elapsed.inWholeMilliseconds * p).roundToLong().milliseconds)
     val saved = (outcome as? TripOutcome.Saved)?.trip
     val dragged = remember { floatArrayOf(0f) }
     Box(
@@ -264,7 +265,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, outcome: TripOu
                 SummaryTitle()
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "${figures[0].value} ${ui.unit.distanceLabel} · ${figures[1].value}",
+                    "$distanceText ${ui.unit.distanceLabel} · $timeText",
                     style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"),
                     maxLines = 1,
                     softWrap = false,
@@ -283,13 +284,8 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, outcome: TripOu
             CardMode.Expanded, CardMode.Fullscreen -> Column(Modifier.fillMaxSize().padding(16.dp)) {
                 SummaryTitle()
                 Spacer(Modifier.height(12.dp))
-                figures.chunked(if (mode == CardMode.Fullscreen) 5 else 3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                        row.forEach { StatTile(it, Modifier.weight(1f).height(76.dp)) }
-                        // Keep tiles the same width on a short last row.
-                        repeat((if (mode == CardMode.Fullscreen) 5 else 3) - row.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
+                StatGrid(figures, columns = if (mode == CardMode.Fullscreen) 4 else 3, tileHeight = 76.dp)
+                Spacer(Modifier.height(12.dp))
                 SummaryRoute(saved, outcome, Modifier.weight(1f).fillMaxWidth())
                 SummaryNote(R.string.summary_close)
             }

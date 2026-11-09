@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
@@ -71,6 +72,10 @@ interface SettingsRepository {
     /** Auto-end (and save) after this many minutes paused; 0 = off (9a, default 30). */
     val autoEndMinutes: Flow<Int>
     suspend fun setAutoEndMinutes(minutes: Int)
+
+    /** Figures hidden from the log face, summary and history detail (9c). Recording is unaffected. */
+    val hiddenStats: Flow<Set<TelemetryStat>>
+    suspend fun setStatShown(stat: TelemetryStat, shown: Boolean)
 }
 
 const val DEFAULT_AUTO_PAUSE_MIN = 5
@@ -208,7 +213,18 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[AUTO_END_MIN] = minutes.coerceAtLeast(0) }
     }
 
+    override val hiddenStats: Flow<Set<TelemetryStat>> =
+        prefs.map { p -> p[HIDDEN_STATS]?.let(TelemetryStat::fromKeys) ?: TelemetryStat.DEFAULT_HIDDEN }.distinctUntilChanged()
+
+    override suspend fun setStatShown(stat: TelemetryStat, shown: Boolean) {
+        store.edit { p ->
+            val hidden = p[HIDDEN_STATS]?.let(TelemetryStat::fromKeys) ?: TelemetryStat.DEFAULT_HIDDEN
+            p[HIDDEN_STATS] = (if (shown) hidden - stat else hidden + stat).mapTo(mutableSetOf()) { it.key }
+        }
+    }
+
     private companion object {
+        val HIDDEN_STATS = stringSetPreferencesKey("hidden_stats")
         val AUTO_PAUSE_MIN = intPreferencesKey("auto_pause_min")
         val AUTO_END_MIN = intPreferencesKey("auto_end_min")
         val SPEED_UNIT = stringPreferencesKey("speed_unit")

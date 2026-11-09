@@ -7,6 +7,7 @@ import com.nativeauto.core.SystemWallClock
 import com.nativeauto.core.WallClock
 import com.nativeauto.history.AddressResolver
 import com.nativeauto.history.AppDatabase
+import com.nativeauto.history.MIGRATION_1_2
 import com.nativeauto.history.GeocoderAddressResolver
 import com.nativeauto.history.RecentPlaceDao
 import com.nativeauto.history.SnapshotTripMaps
@@ -34,7 +35,9 @@ object DataModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "native-auto.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "native-auto.db")
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides fun provideTripDao(db: AppDatabase): TripDao = db.trips()
     @Provides fun provideRecentPlaceDao(db: AppDatabase): RecentPlaceDao = db.recentPlaces()

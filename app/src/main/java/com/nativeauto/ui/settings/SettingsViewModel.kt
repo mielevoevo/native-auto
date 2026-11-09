@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import com.nativeauto.settings.DEFAULT_AUTO_END_MIN
 import com.nativeauto.settings.DEFAULT_AUTO_PAUSE_MIN
+import com.nativeauto.settings.TelemetryStat
 import kotlinx.coroutines.launch
 
 /** Backs the settings sheet. (Map width is layout state, set straight on DashboardLayoutState.) */
@@ -51,6 +52,13 @@ class SettingsViewModel @Inject constructor(
         settings.autoPauseMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_AUTO_PAUSE_MIN)
     val autoEndMinutes: StateFlow<Int> =
         settings.autoEndMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_AUTO_END_MIN)
+
+    val hiddenStats: StateFlow<Set<TelemetryStat>> =
+        settings.hiddenStats.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TelemetryStat.DEFAULT_HIDDEN)
+
+    fun setStatShown(stat: TelemetryStat, shown: Boolean) {
+        viewModelScope.launch { settings.setStatShown(stat, shown) }
+    }
 
     fun setAutoPauseMinutes(minutes: Int) {
         viewModelScope.launch { settings.setAutoPauseMinutes(minutes) }

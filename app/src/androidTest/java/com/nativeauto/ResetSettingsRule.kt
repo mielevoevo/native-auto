@@ -38,5 +38,8 @@ class ResetSettingsRule : ExternalResource() {
         settings.setClockSeconds(false)
         settings.setAutoPauseMinutes(com.nativeauto.settings.DEFAULT_AUTO_PAUSE_MIN)
         settings.setAutoEndMinutes(com.nativeauto.settings.DEFAULT_AUTO_END_MIN)
+        com.nativeauto.settings.TelemetryStat.entries.forEach {
+            settings.setStatShown(it, it !in com.nativeauto.settings.TelemetryStat.DEFAULT_HIDDEN)
+        }
     }
 }

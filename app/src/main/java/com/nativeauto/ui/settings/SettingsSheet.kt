@@ -5,6 +5,21 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Surface
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.FilterChipDefaults
+import com.nativeauto.settings.TelemetryStat
+import com.nativeauto.ui.theme.AppTheme
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,9 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -70,10 +83,75 @@ fun SettingsSheet(
     val voice by viewModel.voiceGuidance.collectAsStateWithLifecycle()
     val autoPause by viewModel.autoPauseMinutes.collectAsStateWithLifecycle()
     val autoEnd by viewModel.autoEndMinutes.collectAsStateWithLifecycle()
+    val hiddenStats by viewModel.hiddenStats.collectAsStateWithLifecycle()
+    var optionsOpen by rememberSaveable { mutableStateOf(false) }
     val simulate by viewModel.simulateNavigation.collectAsStateWithLifecycle()
     val autoLayout by viewModel.autoLayout.collectAsStateWithLifecycle()
     val theme by viewModel.themeMode.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
+    if (optionsOpen) {
+        Dialog(onDismissRequest = { optionsOpen = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = AppTheme.colors.surface,
+                modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 1000.dp).sheetTag("trip_options"),
+            ) {
+                Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Done beside the title: the dialog fits a landscape phone without scrolling.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.settings_trip_options), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                        FilledTonalButton(
+                            onClick = { optionsOpen = false },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("settings_trip_options_done"),
+                        ) { Text(stringResource(R.string.settings_done)) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // 9a: "forgot to close the app". 0 = off.
+                    val off = stringResource(R.string.settings_off)
+                    val minutes = { m: Int -> if (m == 0) off else "$m min" }
+                    ChoiceRow(
+                        label = R.string.settings_auto_pause,
+                        options = AUTO_PAUSE_CHOICES,
+                        selected = autoPause,
+                        text = { minutes(it) },
+                        tag = { "settings_auto_pause_$it" },
+                        stacked = true,
+                    ) { haptics.tick(); viewModel.setAutoPauseMinutes(it) }
+                    ChoiceRow(
+                        label = R.string.settings_auto_end,
+                        options = AUTO_END_CHOICES,
+                        selected = autoEnd,
+                        text = { minutes(it) },
+                        tag = { "settings_auto_end_$it" },
+                        stacked = true,
+                    ) { haptics.tick(); viewModel.setAutoEndMinutes(it) }
+
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(stringResource(R.string.settings_telemetry), style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.settings_telemetry_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TelemetryStat.entries.forEach { stat ->
+                            val shown = stat !in hiddenStats
+                            FilterChip(
+                                selected = shown,
+                                onClick = { haptics.toggle(!shown); viewModel.setStatShown(stat, !shown) },
+                                label = { Text(stat.label) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AppTheme.colors.navy,
+                                    selectedLabelColor = AppTheme.colors.onNavy,
+                                ),
+                                modifier = Modifier.heightIn(min = 56.dp).testTag("settings_stat_${stat.key}"),
+                            )
+                        }
+                    }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -193,25 +271,23 @@ fun SettingsSheet(
                         }
                     }
 
-                    // 9a: "forgot to close the app". 0 = off.
-                    val off = stringResource(R.string.settings_off)
-                    val minutes = { m: Int -> if (m == 0) off else "$m min" }
-                    ChoiceRow(
-                        label = R.string.settings_auto_pause,
-                        options = AUTO_PAUSE_CHOICES,
-                        selected = autoPause,
-                        text = { minutes(it) },
-                        tag = { "settings_auto_pause_$it" },
-                        stacked = stacked,
-                    ) { haptics.tick(); viewModel.setAutoPauseMinutes(it) }
-                    ChoiceRow(
-                        label = R.string.settings_auto_end,
-                        options = AUTO_END_CHOICES,
-                        selected = autoEnd,
-                        text = { minutes(it) },
-                        tag = { "settings_auto_end_$it" },
-                        stacked = stacked,
-                    ) { haptics.tick(); viewModel.setAutoEndMinutes(it) }
+                    // 9a/9c: auto-pause, auto-end and the trip figures live in one dialog, so the
+                    // sheet still fits a landscape phone without scrolling.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_trip_options), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                stringResource(R.string.settings_trip_options_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        FilledTonalButton(
+                            onClick = { haptics.tap(); optionsOpen = true },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("settings_trip_options"),
+                        ) { Text(stringResource(R.string.settings_telemetry_choose)) }
+                    }
 
                     if (BuildConfig.DEBUG) {
                         HorizontalDivider()
