@@ -607,3 +607,28 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
     Also: lower the map's own render rate when it's static (MapLibre redraws for every 1 Hz fix).
   - **Open:** a setting (Auto / Battery saver / Always smooth), or automatic only?
 - **Measure:** frame stats and battery on the phone (release build), before and after.
+
+### Decided (2026-11-09, rider's answers)
+- **R1 range:** one **cautious** number, no band (bike ranges are short; a 30 km spread says nothing).
+  - At the end of a ride, an **optional** prompt asks for the bike's own trip average (km/L from its
+    dash); answers train the consumption estimate alongside full-to-full fills.
+  - Later (**WIP, logic to be discussed**): average speed, climbs and spirited riding lower the range.
+  - Focus now: the range card concept with the single cautious number.
+- **R2 period totals:** "units" = the period: **Day / Week / Month**, a setting; the speed card shows that
+  period's total. All distances in the app follow the existing km / mi setting.
+- **R3 drag:** from **anywhere on the card**. It replaces long-press = fullscreen (fullscreen keeps its
+  button). Proposal, open to the rider's call:
+  - hold **~1 s** with a filling ring and a haptic tick, then the card lifts;
+  - drag onto another card → both slide to swap;
+  - lift and release without moving → the pane picker (replaces today's header long-press, so there is one
+    hold gesture, not two);
+  - hold time as a setting (1 / 2 / 3 s), default 1 s with gloves in mind (3 s suggested by the rider is the
+    longest option).
+- **R4 refresh rate:** a setting **Auto / Power saver / Smooth**.
+  - Power saver: the lowest display mode, redraws only on real changes (clock tick, new fix), map at
+    reduced frame rate.
+  - Smooth: the fastest mode while anything moves.
+  - Auto (default): LTPO-style, per scene: low when static (media, map asleep), balanced (60 Hz) for a
+    still map, fastest only while the map follows / rotates or cards animate / drag.
+  - In every mode: no needless redraws (nothing drawn when nothing changed); smooth only raises the rate
+    while there is motion.
