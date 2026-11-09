@@ -40,6 +40,10 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import com.nativeauto.di.SettingsEntryPoint
+import com.nativeauto.history.TripRecord
+import dagger.hilt.android.EntryPointAccessors
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.abs
@@ -416,6 +420,34 @@ class DashboardScreenTest {
         rule.waitUntil(5_000) { count("log_stat_moving_time").fetchSemanticsNodes().isNotEmpty() }
         count("log_stat_max").assertCountEquals(0)
         tag("log_stat_distance").assertIsDisplayed()
+    }
+
+    @Test fun historyGroupsTripsByDayAndOffersBackupAndExport() {
+        val entry = EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            SettingsEntryPoint::class.java,
+        )
+        val dao = entry.tripDao()
+        val now = System.currentTimeMillis()
+        val id = runBlocking {
+            dao.insertWithTrack(
+                TripRecord(
+                    startedAtMs = now - 60_000, endedAtMs = now, durationMs = 60_000, movingMs = 60_000, distanceM = 1_234.0,
+                    maxSpeedMps = 15f, startLat = -7.8, startLon = 110.37, endLat = -7.79, endLon = 110.37, track = "",
+                ),
+                emptyList(),
+            )
+        }
+        try {
+            openSettings()
+            click("settings_history")
+            rule.waitUntil(5_000) { count("history_day_${java.time.LocalDate.now()}").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("Today", useUnmergedTree = true).assertIsDisplayed()
+            tag("history_backup").assertIsEnabled()
+            tag("history_import").assertIsEnabled()
+        } finally {
+            runBlocking { dao.delete(id) }
+        }
     }
 
     @Test fun backOnceShowsTheHint() {

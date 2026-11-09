@@ -27,4 +27,7 @@ interface SettingsEntryPoint {
     fun settings(): SettingsRepository
     /** Device tests start each test with no trip (9a: nothing starts on its own). */
     fun tripTracker(): com.nativeauto.trip.TripTracker
+    /** Device tests seed and clean trip history, and check the shared files (9d). */
+    fun tripDao(): com.nativeauto.history.TripDao
+    fun tripFiles(): com.nativeauto.history.TripFiles
 }

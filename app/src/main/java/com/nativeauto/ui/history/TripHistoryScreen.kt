@@ -73,6 +73,17 @@ import com.nativeauto.history.TripRecorder
 import com.nativeauto.settings.SettingsRepository
 import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.settings.TelemetryStat
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import com.nativeauto.history.TripFiles
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
@@ -99,7 +110,37 @@ class TripHistoryViewModel @Inject constructor(
     val maps: TripMaps,
     recorder: TripRecorder,
     settings: SettingsRepository,
+    private val files: TripFiles,
 ) : ViewModel() {
+
+    /** Share sheets to open (GPX export, backup); the screen starts them. */
+    private val _share = MutableSharedFlow<Intent>(extraBufferCapacity = 1)
+    val share: SharedFlow<Intent> = _share.asSharedFlow()
+
+    /** The last export / import result, shown under the title. */
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    fun exportGpx(trip: TripRecord) = viewModelScope.launch {
+        runCatching { files.gpxShareIntent(trip) }
+            .onSuccess { _share.emit(it) }
+            .onFailure { _message.value = "Export failed: ${it.message}" }
+    }
+
+    fun backup() = viewModelScope.launch {
+        _message.value = "Preparing backup…"
+        runCatching { files.backupShareIntent() }
+            .onSuccess { _message.value = null; _share.emit(it) }
+            .onFailure { _message.value = "Backup failed: ${it.message}" }
+    }
+
+    fun import(source: Uri) = viewModelScope.launch {
+        _message.value = "Importing…"
+        _message.value = runCatching { files.import(source) }.fold(
+            onSuccess = { n -> if (n == 0) "No new trips in that backup" else "Imported $n ${if (n == 1) "trip" else "trips"}" },
+            onFailure = { "Import failed: ${it.message}" },
+        )
+    }
 
     /** Null while loading, so the empty state doesn't flash before the first read. */
     val trips: StateFlow<List<TripRecord>?> = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -151,6 +192,12 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
     val unit by viewModel.unit.collectAsStateWithLifecycle()
     val visible by viewModel.visible.collectAsStateWithLifecycle()
     val armed by viewModel.deleteArmed.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    LaunchedEffect(viewModel) { viewModel.share.collect { context.startActivity(it) } }
+    val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::import)
+    }
     var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selected = trips?.firstOrNull { it.id == selectedId }
     val haptics = rememberHaptics()
@@ -171,10 +218,26 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f),
                 )
+                message?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.testTag("history_message"))
+                    Spacer(Modifier.width(16.dp))
+                }
                 if (selected == null) {
                     trips?.let {
                         Text("${it.size} ${if (it.size == 1) "trip" else "trips"}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    Spacer(Modifier.width(16.dp))
+                    // 9d: ZIP backup (share sheet: save to Drive / Files) and import from one.
+                    FilledTonalButton(
+                        onClick = { haptics.tap(); pickBackup.launch(arrayOf("application/zip", "application/octet-stream")) },
+                        modifier = Modifier.heightIn(min = 56.dp).testTag("history_import"),
+                    ) { Text("Import") }
+                    Spacer(Modifier.width(8.dp))
+                    FilledTonalButton(
+                        onClick = { haptics.tap(); viewModel.backup() },
+                        enabled = !trips.isNullOrEmpty(),
+                        modifier = Modifier.heightIn(min = 56.dp).testTag("history_backup"),
+                    ) { Text("Back up") }
                 }
                 Spacer(Modifier.width(16.dp))
             }
@@ -186,6 +249,7 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                         visible = visible,
                         maps = viewModel.maps,
                         deleteArmed = armed == selected.id,
+                        onExport = { haptics.tap(); viewModel.exportGpx(selected) },
                         onDelete = {
                             if (viewModel.onDeleteTapped(selected.id)) {
                                 haptics.confirm()
@@ -204,10 +268,16 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize().testTag("history_list"),
                     ) {
-                        items(trips!!, key = { it.id }) { trip ->
-                            TripCard(trip, unit, viewModel.maps) {
-                                haptics.tap()
-                                selectedId = trip.id
+                        // 9d: grouped by day, newest first, each with its total distance.
+                        groupByDay(trips!!, System.currentTimeMillis()).forEach { group ->
+                            item(key = "day_${group.day}", span = { GridItemSpan(maxLineSpan) }) {
+                                DayHeader(group, unit)
+                            }
+                            items(group.trips, key = { it.id }) { trip ->
+                                TripCard(trip, unit, viewModel.maps) {
+                                    haptics.tap()
+                                    selectedId = trip.id
+                                }
                             }
                         }
                     }
@@ -221,6 +291,18 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                 modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
             )
         }
+    }
+}
+
+/** "Today · 42.3 km": the day, and how far the day's rides went. */
+@Composable
+private fun DayHeader(group: DayGroup, unit: SpeedUnit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp).testTag("history_day_${group.day}"),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(group.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text(formatDistance(group.totalDistanceM, unit), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -275,6 +357,7 @@ private fun TripDetail(
     visible: Set<TelemetryStat>,
     maps: TripMaps,
     deleteArmed: Boolean,
+    onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -310,6 +393,11 @@ private fun TripDetail(
                 }
             }
             Spacer(Modifier.height(4.dp))
+            FilledTonalButton(
+                onClick = onExport,
+                modifier = Modifier.heightIn(min = 56.dp).testTag("history_export"),
+            ) { Text("Export GPX") }
+            Spacer(Modifier.height(12.dp))
             FilledTonalButton(
                 onClick = onDelete,
                 modifier = Modifier.heightIn(min = 56.dp).testTag("history_delete"),

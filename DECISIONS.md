@@ -89,3 +89,22 @@ Format: **sub-phase · decision** — why, and how to change it.
 - **Settings layout fix:** since 9a the Trip column ran off a landscape screen (auto-end was cut off).
   Auto-pause, auto-end and the figure toggles now sit in one **"Trip options" dialog** (two columns, Done
   beside the title), so the sheet fits again in a release build.
+
+## 9d · History by day, GPX, backup
+
+- **Day headers:** "Today", "Yesterday", then "Tue 3 Nov" (year added when it isn't this year), each with
+  the day's total distance, grouped by the phone's local day of the start. English labels, like the rest
+  of the UI.
+- **GPX only** (the default the spec names); KML and CSV left out (they were "optional"). GPX 1.1 with
+  `<time>` per point and speed (m/s) and course (°) as plain `<extensions>` elements, which OsmAnd and
+  most importers read. Trips from before 9c export their path without times.
+- **Export goes through the share sheet** (Drive, Files, chat apps), from a cache file served by a
+  FileProvider; each export clears the old cache files.
+- **Backup ZIP = `backup.json` + `gpx/` (one per trip).** Import reads only the JSON (every figure and the
+  full track, compact arrays), so a restore loses nothing; the GPX files are for other apps. No GPX
+  parser needed.
+- **Import skips trips already in the history** (same start time), so importing twice is harmless. A
+  newer backup format is refused with a message. Settings (layout, units...) aren't in the backup; the
+  Garage joins it in 11c.
+- **Back up / Import buttons** sit in the history's top bar (56 dp); results show as a line next to the
+  title.

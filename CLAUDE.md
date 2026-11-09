@@ -365,6 +365,22 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
 - **Settings:** the Trip column has a "Trip options" row (`settings_trip_options`) opening a dialog with
   auto-pause, auto-end and the figure chips (`settings_stat_<key>`, `settings_trip_options_done`).
 
+## Phase 9d: history by day, GPX, backup (built 2026-11-09, beyond the handoff)
+
+- **Day groups (`ui/history/DayGroups.kt`):** `groupByDay(trips, nowMs, zone)` → `DayGroup` (label,
+  total distance); the history grid puts a full-span `DayHeader` (`history_day_<date>`) before each day.
+- **GPX (`history/Gpx.kt`):** `buildGpx(trip, points)`, GPX 1.1, time + `<extensions><speed>/<course>`
+  per point; v1 trips fall back to the polyline without times. `gpxFileName` sorts by UTC date.
+- **Backup (`history/Backup.kt`, plain JVM):** ZIP with `backup.json` (`FORMAT` 1: trips + full track,
+  points as `[timeMs, lat, lon, speed, bearing|null, accuracy]`) and `gpx/*.gpx`. `Backup.read` uses the
+  JSON only; `Backup.restore` skips start times already present.
+- **`history/TripFiles.kt`:** writes `cache/exports/` (cleared per export) and returns share-sheet
+  intents through the FileProvider (`${applicationId}.files`, `res/xml/file_paths.xml`); `import(uri)`
+  reads a picked ZIP. History UI: `history_backup`, `history_import` (OpenDocument), `history_export`
+  in the detail, `history_message`.
+- `SettingsEntryPoint` also exposes `tripDao()` / `tripFiles()` for device tests (`TripFilesTest`,
+  the history test in `DashboardScreenTest`), which seed and delete their own trips.
+
 ## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);
