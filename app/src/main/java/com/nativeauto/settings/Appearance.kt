@@ -18,6 +18,24 @@ internal inline fun <reified E : Enum<E>> enumOrDefault(name: String?, default: 
     name?.let { n -> enumValues<E>().firstOrNull { it.name == n } } ?: default
 
 /**
+ * 12a (Rider-Feedback R4): how the display's refresh rate follows what's on screen. In every mode
+ * a move (cards sliding, a drag, the map's camera) gets the fastest rate at once; they differ in
+ * what happens when nothing moves. Nothing is ever redrawn just because the rate is high.
+ */
+enum class RefreshMode(val label: String) {
+    /** Idle: the system's own choice (it saves power and still speeds up touch scrolling). */
+    AUTO("Auto"),
+    /** Idle: the lowest rate the display offers, quickly. */
+    POWER_SAVER("Power saver"),
+    /** The fastest rate the whole time the app is open. */
+    SMOOTH("Smooth"),
+}
+
+/** 12a: how long a card is held before it lifts to be dragged (R3). */
+val DRAG_HOLD_CHOICES_MS = listOf(1_000L, 2_000L, 3_000L)
+const val DEFAULT_DRAG_HOLD_MS = 1_000L
+
+/**
  * 11c: the one value a normal-size Garage card shows big (Rider-Feedback §6 "Where it lives"),
  * chosen in the maximized card. Range by default.
  */

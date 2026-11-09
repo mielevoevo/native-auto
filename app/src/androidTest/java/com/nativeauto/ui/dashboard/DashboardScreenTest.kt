@@ -15,7 +15,6 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -39,6 +38,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import com.nativeauto.ui.map.MapDiagnostics
 import org.junit.Rule
 import com.nativeauto.di.SettingsEntryPoint
 import com.nativeauto.history.TripRecord
@@ -127,10 +127,29 @@ class DashboardScreenTest {
         pickFromSheet("preset_${preset.name}", "layouts_sheet")
     }
 
+    /** 12a: hold past the lift time and let go without moving: the pane picker. */
     private fun openPicker(pane: Pane) {
-        // On the title side: the header's centre can be one of its buttons (the status corner).
-        tag("header_${pane.name}").performTouchInput { longClick(Offset(width * 0.1f, height / 2f)) }
+        tag("header_${pane.name}").performTouchInput {
+            down(Offset(width * 0.1f, height / 2f))
+            advanceEventTime(HOLD_MS)
+            up()
+        }
         awaitSheet("picker_sheet")
+    }
+
+    /** 12a: hold [from]'s slot, drag the finger to the centre of [to]'s slot, let go. */
+    private fun drag(from: Pane, to: Pane) {
+        val start = slot(from).fetchSemanticsNode().boundsInRoot
+        val end = slot(to).fetchSemanticsNode().boundsInRoot
+        slot(from).performTouchInput {
+            val p = Offset(width * 0.15f, height * 0.8f)
+            down(p)
+            advanceEventTime(HOLD_MS)
+            val target = end.center - start.topLeft
+            repeat(10) { i -> moveTo(p + (target - p) * ((i + 1) / 10f)) }
+            up()
+        }
+        rule.waitForIdle()
     }
 
     private val telemetryTags =
@@ -335,15 +354,24 @@ class DashboardScreenTest {
     @Test fun batteryIndicatorCanBeHiddenAndShownAgain() {
         tag("battery_indicator").assertIsDisplayed()
         openSettings()
-        click("settings_battery")
+        toggleBatteryInScreenOptions()
         closeSettings()
         count("battery_indicator").assertCountEquals(0)
         tag("settings_open").assertIsDisplayed() // the way back into settings stays
 
         openSettings()
-        click("settings_battery")
+        toggleBatteryInScreenOptions()
         closeSettings()
         rule.waitUntil(5_000) { count("battery_indicator").fetchSemanticsNodes().size == 1 }
+    }
+
+    /** 12a: the battery switch moved into Screen options (the sheet's columns stay one screen). */
+    private fun toggleBatteryInScreenOptions() {
+        click("settings_screen_options")
+        awaitSheet("screen_options")
+        click("settings_battery")
+        click("settings_screen_options_done")
+        rule.waitUntil(5_000) { count("screen_options").fetchSemanticsNodes().isEmpty() }
     }
 
     @Test fun speedUnitSwitchesTheSpeedCard() {
@@ -527,14 +555,53 @@ class DashboardScreenTest {
         assertMode(Pane.SPEED, CardMode.Compact)
     }
 
-    @Test fun longPressTogglesFullscreen() {
-        rule.onNodeWithTag("pane_MEDIA").performTouchInput { longClick() }; rule.waitForIdle()
+    @Test fun fullscreenIsTheButtonAndATapThereDoesNothing() {
+        click("fullscreen_MEDIA")
         assertMode(Pane.MEDIA, CardMode.Fullscreen)
         // A tap while fullscreen is deliberately a no-op.
         rule.onNodeWithTag("pane_MEDIA").performClick(); rule.waitForIdle()
         assertMode(Pane.MEDIA, CardMode.Fullscreen)
-        rule.onNodeWithTag("pane_MEDIA").performTouchInput { longClick() }; rule.waitForIdle()
+        click("fullscreen_MEDIA")
         assertMode(Pane.MEDIA, CardMode.Compact)
+    }
+
+    // ---------------------------------------------------------------- Phase 12a: hold and drag
+
+    @Test fun holdingACardAndLettingGoOpensThePickerWithoutZooming() {
+        // On the body this time (the old long-press = fullscreen is gone).
+        rule.onNodeWithTag("pane_SPEED").performTouchInput {
+            down(percentOffset(0.1f, 0.85f))
+            advanceEventTime(HOLD_MS)
+            up()
+        }
+        awaitSheet("picker_sheet")
+        assertMode(Pane.SPEED, CardMode.Compact)
+        back()
+        // A short press is still a tap: maximize.
+        tapSpeedCardEdge()
+        assertMode(Pane.SPEED, CardMode.Expanded)
+    }
+
+    @Test fun draggingACardOntoAnotherSwapsThemAndKeepsTheMap() {
+        val maps = MapDiagnostics.instances(rule.activity)
+        val tallTop = slot(Pane.MAP).getBoundsInRoot()
+        drag(Pane.SPEED, Pane.MAP)
+        rule.waitUntil(5_000) { count("picker_sheet").fetchSemanticsNodes().isEmpty() }
+        // Speed took the tall slot, the map went to speed's corner.
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.waitForIdle()
+        assertNear("speed now tall", rootHeight(), slot(Pane.SPEED).height())
+        assertNear("speed where the map was", tallTop.left, slot(Pane.SPEED).getBoundsInRoot().left)
+        assertNear("map now stacked", rootHeight() / 2, slot(Pane.MAP).height())
+        assertMode(Pane.SPEED, CardMode.Expanded)
+        assertEquals("the map wasn't recreated", maps, MapDiagnostics.instances(rule.activity))
+    }
+
+    @Test fun aSwipeBeforeTheHoldIsTheCardsOwn() {
+        // The speed card's pager still turns: moving early cancels the hold.
+        tag("speed_faces").performTouchInput { swipeLeft() }
+        rule.waitUntil(5_000) { count("log_start").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(count("picker_sheet").fetchSemanticsNodes().isEmpty())
     }
 
     // ---------------------------------------------------------------- Phase 8b: layouts
@@ -588,9 +655,9 @@ class DashboardScreenTest {
         assertMode(Pane.SPEED, CardMode.Wide)
     }
 
-    @Test fun headerLongPressPicksWhatAPaneShows() {
+    @Test fun holdingTheHeaderPicksWhatAPaneShows() {
         openPicker(Pane.MEDIA)
-        assertMode(Pane.MEDIA, CardMode.Compact) // the long-press didn't zoom anything
+        assertMode(Pane.MEDIA, CardMode.Compact) // the hold didn't zoom anything
         pickFromSheet("pick_CLOCK", "picker_sheet")
         assertCollapsed("replaced", Pane.MEDIA)
         assertNear("clock took media's place", rootHeight() / 2, slot(Pane.CLOCK).height())
@@ -664,3 +731,6 @@ class DashboardScreenTest {
         tag("corner_clock").assertIsDisplayed()
     }
 }
+
+/** Past the default 1 s hold (12a), with room for the test clock. */
+private const val HOLD_MS = 1_300L

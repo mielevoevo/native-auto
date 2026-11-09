@@ -35,7 +35,24 @@ import com.nativeauto.ui.clock.ClockCard
 import com.nativeauto.ui.clock.ClockViewModel
 import com.nativeauto.ui.clock.formatClockTime
 import java.time.ZoneId
-import com.nativeauto.ui.components.HighRefreshWhileMoving
+import com.nativeauto.ui.components.AdaptiveRefreshRate
+import com.nativeauto.ui.components.LocalMotionDemand
+import com.nativeauto.ui.components.MotionDemand
+import com.nativeauto.ui.components.rememberHaptics
+import com.nativeauto.ui.theme.AppTheme
+import com.nativeauto.settings.RefreshMode
+import com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import com.nativeauto.ui.components.LocalPaneMotion
 import com.nativeauto.ui.components.LocalPanePicker
 import com.nativeauto.ui.components.LocalStatusCorner
@@ -87,7 +104,9 @@ fun DashboardRoute(viewModel: DashboardViewModel = hiltViewModel()) {
     }
 
     val battery by viewModel.battery.collectAsStateWithLifecycle()
-    DashboardScreen(layout, battery)
+    val refresh by viewModel.refreshMode.collectAsStateWithLifecycle()
+    val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
+    DashboardScreen(layout, battery, refresh, dragHold)
 }
 
 /**
@@ -101,7 +120,12 @@ fun DashboardRoute(viewModel: DashboardViewModel = hiltViewModel()) {
  * (rule #5), so a collapsed slot takes its gutter with it.
  */
 @Composable
-fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(), battery: BatteryStatus? = null) {
+fun DashboardScreen(
+    layout: DashboardLayoutState = rememberDashboardLayoutState(),
+    battery: BatteryStatus? = null,
+    refresh: RefreshMode = RefreshMode.AUTO,
+    dragHoldMs: Long = DEFAULT_DRAG_HOLD_MS,
+) {
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
     var garageOpen by rememberSaveable { mutableStateOf(false) }
@@ -129,23 +153,72 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
     // The State objects are the same on every recomposition, so the first ones captured stay right.
     val motion = remember(layout) { { pane: Pane -> rects[pane.ordinal].value != layout.rectOf(pane) } }
 
-    HighRefreshWhileMoving(motion)
+    // 12a: hold a card to lift it, drop it on another to swap (R3).
+    val dragScope = rememberCoroutineScope()
+    val drag = remember { PaneDragState(dragScope) }
+    val hold by rememberUpdatedState(dragHoldMs)
+    val haptics = rememberHaptics()
+    val density = LocalDensity.current
+    val mapHeaderPx = with(density) { MAP_DRAG_HEADER.toPx() }
+
+    // 12a (R4): the fastest rate while panes slide, a card is held or dragged, or the map's camera moves.
+    val demand = remember { MotionDemand() }
+    AdaptiveRefreshRate(refresh, demand) { drag.active || Pane.entries.any(motion) }
     // 11c: the Garage card's "Open Garage". Remembered, so the panes don't recompose for a new lambda.
     val openGarage = remember { { garageOpen = true } }
 
-    CompositionLocalProvider(LocalStatusCorner provides corner, LocalPanePicker provides picker, LocalPaneMotion provides motion) {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    CompositionLocalProvider(
+        LocalStatusCorner provides corner,
+        LocalPanePicker provides picker,
+        LocalPaneMotion provides motion,
+        LocalMotionDemand provides demand,
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .onSizeChanged { drag.screen = Size(it.width.toFloat(), it.height.toFloat()) },
+        ) {
             Layout(
                 content = {
                     Pane.entries.forEach { pane ->
-                        PaneSlot(Modifier.testTag(SlotTag.of(pane))) {
+                        PaneSlot(
+                            Modifier
+                                .testTag(SlotTag.of(pane))
+                                // Before the layer: the gesture measures the finger in the slot's own,
+                                // unmoved coordinates while the card follows it.
+                                .paneDrag(
+                                    pane = pane,
+                                    state = drag,
+                                    layout = layout,
+                                    holdMs = { hold },
+                                    // The map's body keeps its long-press (a destination): it lifts from its header.
+                                    allowAt = { pane != Pane.MAP || it.y <= mapHeaderPx },
+                                    onLift = { haptics.lift() },
+                                    onPick = { pickerFor = it },
+                                    onSwap = { haptics.tap() },
+                                )
+                                .graphicsLayer {
+                                    val moving = drag.lifted == pane || drag.settling == pane
+                                    val o = if (moving) drag.offset.value else Offset.Zero
+                                    translationX = o.x
+                                    translationY = o.y
+                                    val s = if (drag.lifted == pane) LIFT_SCALE else 1f
+                                    scaleX = s
+                                    scaleY = s
+                                },
+                        ) {
                             PaneContent(pane, layout, covered = { historyOpen || garageOpen }, openGarage = openGarage)
                         }
                     }
                 },
-                measurePolicy = paneMeasurePolicy(rects),
+                measurePolicy = paneMeasurePolicy(rects) { i ->
+                    val p = Pane.entries[i]
+                    if (drag.lifted == p || drag.settling == p) 1f else 0f
+                },
                 modifier = Modifier.fillMaxSize(),
             )
+            DragOverlay(drag, layout)
             // Over the panes, never instead of them: the map stays composed underneath (rule #3).
             if (historyOpen) TripHistoryScreen(onClose = { historyOpen = false })
             if (garageOpen) GarageScreen(onClose = { garageOpen = false })
@@ -190,8 +263,11 @@ private fun PaneContent(pane: Pane, layout: DashboardLayoutState, covered: () ->
     }
 }
 
-/** Places child `i` (in [Pane.entries] order) in `rects[i]`, given as fractions of the screen. */
-private fun paneMeasurePolicy(rects: List<State<Rect>>) = MeasurePolicy { measurables, constraints ->
+/**
+ * Places child `i` (in [Pane.entries] order) in `rects[i]`, given as fractions of the screen.
+ * [zOf] is read here, in the layout pass, so a lifted card comes to the front without recomposing.
+ */
+private fun paneMeasurePolicy(rects: List<State<Rect>>, zOf: (Int) -> Float) = MeasurePolicy { measurables, constraints ->
     val w = constraints.maxWidth
     val h = constraints.maxHeight
     // Rounding the edges, not the sizes, so neighbours share an edge exactly (no 1 px seams).
@@ -203,7 +279,44 @@ private fun paneMeasurePolicy(rects: List<State<Rect>>) = MeasurePolicy { measur
         val bottom = (r.bottom * h).roundToInt().coerceIn(top, h)
         Triple(m.measure(Constraints.fixed(right - left, bottom - top)), left, top)
     }
-    layout(w, h) { placed.forEach { (p, x, y) -> p.place(x, y) } }
+    layout(w, h) { placed.forEachIndexed { i, (p, x, y) -> p.place(x, y, zIndex = zOf(i)) } }
+}
+
+/** The lifted card is drawn a little bigger. */
+private const val LIFT_SCALE = 1.03f
+
+/** The map lifts from its header strip (gutter + header row). */
+private val MAP_DRAG_HEADER = 64.dp
+
+/**
+ * The hold ring around the finger and the outline of the card a drop would swap with. Everything
+ * is read in the draw pass, so a drag redraws this layer only.
+ */
+@Composable
+private fun DragOverlay(drag: PaneDragState, layout: DashboardLayoutState) {
+    val colors = AppTheme.colors
+    Canvas(Modifier.fillMaxSize().testTag("drag_overlay")) {
+        drag.target?.let { t ->
+            val r = layout.rectOf(t)
+            val inset = 4.dp.toPx()
+            val stroke = 3.dp.toPx()
+            drawRoundRect(
+                color = colors.cyan,
+                topLeft = Offset(r.left * size.width + inset + stroke / 2, r.top * size.height + inset + stroke / 2),
+                size = Size(r.width * size.width - 2 * inset - stroke, r.height * size.height - 2 * inset - stroke),
+                cornerRadius = CornerRadius(20.dp.toPx()),
+                style = Stroke(stroke),
+            )
+        }
+        val progress = drag.holdProgress.value
+        if (drag.holding != null && progress > 0f) {
+            val radius = 36.dp.toPx()
+            val stroke = 5.dp.toPx()
+            val topLeft = drag.finger - Offset(radius, radius)
+            drawCircle(colors.outline, radius, drag.finger, style = Stroke(stroke))
+            drawArc(colors.cyan, -90f, 360f * progress, false, topLeft, Size(radius * 2, radius * 2), style = Stroke(stroke, cap = StrokeCap.Round))
+        }
+    }
 }
 
 internal object SlotTag {

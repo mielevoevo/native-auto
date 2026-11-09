@@ -58,6 +58,8 @@ import com.nativeauto.BuildConfig
 import com.nativeauto.R
 import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.settings.ThemeMode
+import com.nativeauto.settings.RefreshMode
+import com.nativeauto.settings.DRAG_HOLD_CHOICES_MS
 import com.nativeauto.ui.theme.appSegmentedColors
 import com.nativeauto.ui.theme.appSwitchColors
 import com.nativeauto.ui.components.AppIcons
@@ -93,8 +95,65 @@ fun SettingsSheet(
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
     val simulate by viewModel.simulateNavigation.collectAsStateWithLifecycle()
     val autoLayout by viewModel.autoLayout.collectAsStateWithLifecycle()
+    val refresh by viewModel.refreshMode.collectAsStateWithLifecycle()
+    val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
     val theme by viewModel.themeMode.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
+    // 12a: battery, refresh rate and hold time share one dialog, so the sheet's three columns
+    // still fit a landscape phone without scrolling.
+    var screenOpen by rememberSaveable { mutableStateOf(false) }
+    if (screenOpen) {
+        Dialog(onDismissRequest = { screenOpen = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = AppTheme.colors.surface,
+                modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 1000.dp).sheetTag("screen_options"),
+            ) {
+                Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.settings_screen_options), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                        FilledTonalButton(
+                            onClick = { screenOpen = false },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("settings_screen_options_done"),
+                        ) { Text(stringResource(R.string.settings_done)) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            ChoiceRow(
+                                label = R.string.settings_refresh,
+                                options = RefreshMode.entries,
+                                selected = refresh,
+                                text = { it.label },
+                                tag = { "settings_refresh_${it.name}" },
+                                stacked = true,
+                            ) { haptics.tick(); viewModel.setRefreshMode(it) }
+                            Text(
+                                stringResource(R.string.settings_refresh_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            ChoiceRow(
+                                label = R.string.settings_drag_hold,
+                                options = DRAG_HOLD_CHOICES_MS,
+                                selected = dragHold,
+                                text = { "${it / 1000} s" },
+                                tag = { "settings_drag_hold_${it / 1000}" },
+                                stacked = true,
+                            ) { haptics.tick(); viewModel.setDragHoldMs(it) }
+                            SwitchRow(
+                                label = R.string.settings_battery,
+                                hint = R.string.settings_battery_hint,
+                                checked = showBattery,
+                                tag = "settings_battery",
+                            ) { haptics.toggle(it); viewModel.setShowBattery(it) }
+                        }
+                    }
+                }
+            }
+        }
+    }
     if (optionsOpen) {
         Dialog(onDismissRequest = { optionsOpen = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(
@@ -210,12 +269,21 @@ fun SettingsSheet(
                         stacked = stacked,
                     ) { haptics.tick(); viewModel.setSpeedUnit(it) }
 
-                    SwitchRow(
-                        label = R.string.settings_battery,
-                        hint = R.string.settings_battery_hint,
-                        checked = showBattery,
-                        tag = "settings_battery",
-                    ) { haptics.toggle(it); viewModel.setShowBattery(it) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_screen_options), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                stringResource(R.string.settings_screen_options_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        FilledTonalButton(
+                            onClick = { haptics.tap(); screenOpen = true },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("settings_screen_options"),
+                        ) { Text(stringResource(R.string.settings_telemetry_choose)) }
+                    }
                 }
                 val layoutAndNav = @Composable {
                     ChoiceRow(

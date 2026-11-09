@@ -90,7 +90,7 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
         pane = Pane.MAP,
         mode = layout.modeOf(Pane.MAP),
         layout = layout,
-        color = MaterialTheme.colorScheme.surface,
+        color = AppTheme.colors.card,
         chromeOverContent = true,
     ) {
         val area = Modifier.weight(1f).fillMaxWidth()
@@ -377,3 +377,6 @@ internal val ROUTE_FRAME_PADDING = 40.dp
 
 /** Room under a framed route for the preview card and the map credit. */
 internal val ROUTE_PREVIEW_CLEARANCE = 150.dp
+
+/** The map's key in [com.nativeauto.ui.components.MotionDemand]. */
+internal const val MAP_MOTION = "map"

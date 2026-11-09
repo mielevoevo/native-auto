@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.snapshotFlow
+import com.nativeauto.ui.components.LocalMotionDemand
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -98,6 +100,16 @@ internal fun GoogleDashboardMap(
     // A gesture (pan, pinch, rotate, tilt) hands the camera to the user. Keyed on the move
     // reason, not isMoving: while following, a glide runs almost all the time, so isMoving
     // barely ever flips and a pan mid-glide would go unnoticed.
+    // 12a (R4): the camera moving asks for the fastest refresh rate. Read in a flow, not in
+    // composition, so the map doesn't recompose for every start and stop.
+    val motion = LocalMotionDemand.current
+    DisposableEffect(camera) {
+        onDispose { motion.set(MAP_MOTION, false) }
+    }
+    LaunchedEffect(camera) {
+        snapshotFlow { camera.isMoving }.collect { motion.set(MAP_MOTION, it) }
+    }
+
     LaunchedEffect(camera.cameraMoveStartedReason) {
         if (camera.cameraMoveStartedReason == CameraMoveStartedReason.GESTURE) userMoved()
     }

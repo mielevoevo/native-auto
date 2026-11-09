@@ -16,8 +16,10 @@ data class AppColors(
     val isDark: Boolean,
     /** Screen background. True black in the dark theme: OLED pixels off. */
     val bg: Color,
-    /** Cards, barely off the background. */
+    /** Sheets and dialogs, barely off the background. */
     val surface: Color,
+    /** Dashboard cards (12a): true black in the dark theme, so only text and lines light the OLED. */
+    val card: Color,
     /** Card borders, dividers. */
     val outline: Color,
     /** Main text and icons. */
@@ -49,6 +51,7 @@ val OledDark = AppColors(
     isDark = true,
     bg = Color(0xFF000000),
     surface = Color(0xFF0A0C10),
+    card = Color(0xFF000000),
     outline = Color(0xFF262A33),
     text = Color(0xFFE8EAED),
     textDim = Color(0xFF8A9099),
@@ -69,6 +72,7 @@ val Light = AppColors(
     isDark = false,
     bg = Color(0xFFF1F2F4),
     surface = Color(0xFFFFFFFF),
+    card = Color(0xFFFFFFFF),
     outline = Color(0xFFD3D7DE),
     text = Color(0xFF14171C),
     textDim = Color(0xFF5E6570),

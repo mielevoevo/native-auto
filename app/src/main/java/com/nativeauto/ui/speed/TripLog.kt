@@ -252,7 +252,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppTheme.colors.surface)
+            .background(AppTheme.colors.card)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
             .draggable(
                 state = rememberDraggableState { dragged[0] += it },

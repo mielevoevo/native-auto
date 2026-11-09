@@ -8,6 +8,8 @@ import com.nativeauto.nav.NavState
 import com.nativeauto.nav.Navigator
 import com.nativeauto.settings.SavedLayout
 import com.nativeauto.settings.SettingsRepository
+import com.nativeauto.settings.RefreshMode
+import com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -61,6 +63,12 @@ class DashboardViewModel @Inject constructor(
 
     val autoLayout: StateFlow<Boolean> =
         settings.autoLayout.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** 12a: refresh-rate policy and the hold before a card lifts. */
+    val refreshMode: StateFlow<RefreshMode> =
+        settings.refreshMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RefreshMode.AUTO)
+    val dragHoldMs: StateFlow<Long> =
+        settings.dragHoldMs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_DRAG_HOLD_MS)
 }
 
 /** A damaged or hand-edited preferences file must not produce an unusable layout. */

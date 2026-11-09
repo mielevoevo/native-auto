@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -64,6 +65,14 @@ interface SettingsRepository {
     /** 11c: what the normal-size Garage card shows. */
     val garageValue: Flow<GarageValue>
     suspend fun setGarageValue(value: GarageValue)
+
+    /** 12a: refresh-rate policy (R4). Auto by default. */
+    val refreshMode: Flow<RefreshMode>
+    suspend fun setRefreshMode(mode: RefreshMode)
+
+    /** 12a: hold time before a card lifts for dragging (R3), one of [DRAG_HOLD_CHOICES_MS]. */
+    val dragHoldMs: Flow<Long>
+    suspend fun setDragHoldMs(ms: Long)
 
     /** The analog face's second hand. Off by default: it redraws every second. */
     val clockSeconds: Flow<Boolean>
@@ -204,6 +213,20 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[GARAGE_VALUE] = value.name }
     }
 
+    override val refreshMode: Flow<RefreshMode> =
+        prefs.map { enumOrDefault(it[REFRESH_MODE], RefreshMode.AUTO) }.distinctUntilChanged()
+
+    override suspend fun setRefreshMode(mode: RefreshMode) {
+        store.edit { it[REFRESH_MODE] = mode.name }
+    }
+
+    override val dragHoldMs: Flow<Long> =
+        prefs.map { p -> p[DRAG_HOLD_MS]?.takeIf { it in DRAG_HOLD_CHOICES_MS } ?: DEFAULT_DRAG_HOLD_MS }.distinctUntilChanged()
+
+    override suspend fun setDragHoldMs(ms: Long) {
+        store.edit { it[DRAG_HOLD_MS] = ms }
+    }
+
     override val clockSeconds: Flow<Boolean> = prefs.map { it[CLOCK_SECONDS] ?: false }.distinctUntilChanged()
 
     override suspend fun setClockSeconds(enabled: Boolean) {
@@ -253,6 +276,8 @@ class DataStoreSettingsRepository @Inject constructor(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CLOCK_FACE = stringPreferencesKey("clock_face")
         val GARAGE_VALUE = stringPreferencesKey("garage_value")
+        val REFRESH_MODE = stringPreferencesKey("refresh_mode")
+        val DRAG_HOLD_MS = longPreferencesKey("drag_hold_ms")
         val CLOCK_SECONDS = booleanPreferencesKey("clock_seconds")
     }
 }

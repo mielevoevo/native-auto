@@ -237,6 +237,30 @@ Format: **sub-phase · decision** — why, and how to change it.
   and fails on any crash; it failed on the broken build with the same `IllegalAccessError` and passes
   with the fix. Run it before every APK handed out.
 
+## 12a · True black, drag to swap, adaptive refresh (v3.3)
+
+- **Card colour** is a new token (`card`), not `surface`: sheets and dialogs keep #0A0C10 so they still
+  stand out from an all-black dashboard.
+- **Hold 1 s by default** (1 / 2 / 3 s setting), from anywhere on the card except the map's body, which
+  keeps its long-press for picking a destination. The map lifts from its header strip.
+- **Lift and let go = the pane picker.** That replaces the header's long-press, so there is one hold
+  gesture. Long-press = fullscreen is gone; fullscreen is its button.
+- **Moving before the hold completes belongs to the card** (pager swipe, scrolling): the gesture only
+  watches until then.
+- **Refresh, Auto idle = the system's choice**, not a forced 60 Hz. Forcing the lowest mode would also
+  hold sheet and list scrolling at 60. Power saver does force it; Smooth keeps the fastest. Motion (a pane
+  sliding, a hold / drag, the map camera) is the fastest mode in every setting.
+- **Screen options dialog** for battery, refresh rate and hold time: three rows added straight to the
+  sheet pushed Battery and Voice guidance below the fold in landscape (caught by
+  `batteryIndicatorCanBeHiddenAndShownAgain`).
+
+**Bugs found in 12a testing**
+1. Settings overflowed in landscape (above). Fixed with the dialog.
+2. Not the app: the freshly booted emulator froze its own system UI, launcher and phone services
+   ("isn't responding"); their dialogs took focus and failed 23 tests with `RootViewWithoutFocusException`.
+   After the emulator settled, all of them passed. When many tests fail with that error, look at the
+   emulator first (`dumpsys window | grep mCurrentFocus`).
+
 ## Concerns to check at the phone test (noted after 11b)
 
 Things the emulator can't settle, or that I'm not sure of. None blocks 11c.
@@ -261,6 +285,11 @@ Things the emulator can't settle, or that I'm not sure of. None blocks 11c.
 11. **Garage card readability at a glance:** the 5-segment tank and the single value are sized for Quad;
     check they read in sunlight on the mount, and whether "range" is the right default value.
 12. **Service intervals are the rider's to enter;** no factory schedule is assumed for the Gen 1.
+13. **Drag with gloves (12a):** is a 1 s hold easy to start and hard to trigger by accident on the mount?
+    Does a bump mid-hold (road vibration) cancel it too often? Try 2 s if it lifts by accident.
+14. **Refresh rate on the Redmi (12a):** check with the developer option "Show refresh rate" that motion
+    goes to 120 Hz and drops back when still (Auto, Power saver), and whether Smooth costs noticeable battery.
+    The emulator has a single 60 Hz mode, so none of this could be seen there.
 
 - **Flaky under load (11c run):** `DashboardScreenTest.pauseResumeAndEndShowTheSummaryUntilDismissed` hit
   `AppNotIdleException` once late in the full emulator suite; it passed twice on its own. Watch it.

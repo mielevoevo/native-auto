@@ -506,6 +506,44 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
   (`FakeGarageDao`); device: `GarageScreenTest` (service add / due / done, log-face badge, Garage card +
   low-fuel icon).
 
+## Phase 12a: true black, drag to swap, adaptive refresh (built 2026-11-09, v3.3)
+
+Rider-Feedback "Revisions after the first look" R3 and R4.
+- **`AppColors.card`** (new token): dashboard cards. #000000 in `OledDark`, white in `Light`. `surface`
+  stays #0A0C10 for sheets and dialogs, so they still stand apart from the black dashboard. Things drawn
+  to match a card's fill use `card` (clock hand hub, trip summary, the map header's fade).
+- **Drag (`ui/dashboard/PaneDrag.kt`):** `Modifier.paneDrag` on each pane's slot, *before* the
+  `graphicsLayer` that moves the card (so the finger is measured in unmoved coordinates).
+  - It watches touches in `PointerEventPass.Initial` without consuming them until the hold
+    (`SettingsRepository.dragHoldMs`, 1/2/3 s, default 1) completes. A move past touch slop, a second
+    finger or a lift before then leaves the touch to the card (pager swipes, scrolling, buttons).
+  - After the lift it consumes everything. A drop on another card calls `layout.assign(source, target)`,
+    which swaps them, and the existing rect springs slide both. The lifted card's offset springs back to
+    zero with the same spring, so it glides from under the finger into place.
+  - Let go without moving = the pane picker. The map lifts from its header strip only (`MAP_DRAG_HEADER`,
+    64 dp): its body keeps its long-press for destinations.
+  - `PaneDragState`: holding / lifted / target / settling, `holdProgress` (ring, starts after 150 ms),
+    `offset`. The lifted card gets zIndex in the layout pass. `DragOverlay` draws the ring and the
+    target's cyan outline in its draw pass only.
+  - **Removed:** long-press = fullscreen on the body (fullscreen is its button) and the header's
+    long-press = picker. The header carries an accessibility custom action "Choose what this pane shows".
+- **Refresh (`ui/components/FrameRate.kt`):** `AdaptiveRefreshRate(setting, demand, moving)`.
+  - Pure policy: `refreshTargets` (fastest / slowest at the current resolution), `preferredModeId`
+    (motion → fastest in every mode; idle: Auto → 0 = system, Power saver → slowest, Smooth → fastest),
+    `lingerMs` (Auto 500, Power saver 200).
+  - Motion = a pane sliding, `PaneDragState.active`, or `MotionDemand` (`LocalMotionDemand`). The map
+    engines set `MAP_MOTION` from camera move-start/idle (MapLibre) or `isMoving` (Google, in a
+    snapshotFlow, not in composition).
+  - The display comes from `window.decorView.display`, so it works below API 30 too (the rider's phone is
+    API 33).
+  - Settings: **Screen options** dialog (`settings_screen_options` → `screen_options`, Done
+    `settings_screen_options_done`) in the Display column holds refresh rate (`settings_refresh_<MODE>`),
+    hold time (`settings_drag_hold_N`) and the battery switch (`settings_battery`, moved there). Rows added
+    straight to the sheet pushed Battery and Voice guidance below the fold in landscape.
+- Tests: `SmoothnessTest` (policy), `PaneDragTest` (drop target per layout). Device: hold-and-release
+  opens the picker without zooming, drag swaps with the map kept, an early swipe is the card's own,
+  fullscreen by its button. Tests hold with `down` / `advanceEventTime(1_300)` / `up`.
+
 ## App font: Geist (applied 2026-11-09, after 11c)
 
 - **Geist** (Vercel, OFL; licence in `assets/licenses/geist-OFL.txt`), bundled as static TTFs from the `geist`

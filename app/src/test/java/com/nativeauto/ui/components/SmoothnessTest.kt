@@ -5,9 +5,11 @@ import com.nativeauto.thermalName
 import com.nativeauto.ui.map.heldMapSize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import com.nativeauto.settings.RefreshMode
 import org.junit.Test
 
-/** Phase 8d: the map's held size during moves, the refresh-mode choice, thermal names. */
+/** Phase 8d: the map's held size during moves, the refresh-rate policy (12a), thermal names. */
 class SmoothnessTest {
 
     private val window = IntSize(2400, 1080)
@@ -32,16 +34,26 @@ class SmoothnessTest {
     private val hz120 = ModeSpec(3, 1080, 2400, 120f)
     private val lowRes120 = ModeSpec(4, 720, 1600, 144f)
 
-    @Test fun `picks the fastest mode at the current resolution`() {
-        assertEquals(hz120, highRefreshMode(listOf(hz60, hz90, hz120, lowRes120), current = hz60))
+    @Test fun `fast and low are taken at the current resolution only`() {
+        assertEquals(RefreshTargets(fast = 3, low = 1), refreshTargets(listOf(hz60, hz90, hz120, lowRes120), current = hz60))
+        // Already at the fastest rate (we asked for it): the same answer.
+        assertEquals(RefreshTargets(fast = 3, low = 1), refreshTargets(listOf(hz60, hz120), current = hz120))
     }
 
-    @Test fun `no hint when already at the fastest rate`() {
-        assertNull(highRefreshMode(listOf(hz60, hz120), current = hz120))
+    @Test fun `nothing to choose on a 60 Hz-only display (the emulator)`() {
+        assertNull(refreshTargets(listOf(hz60), current = hz60))
     }
 
-    @Test fun `no hint on a 60 Hz-only display (the emulator)`() {
-        assertNull(highRefreshMode(listOf(hz60), current = hz60))
+    @Test fun `motion is always the fastest rate, idle depends on the setting`() {
+        val t = RefreshTargets(fast = 3, low = 1)
+        for (mode in RefreshMode.entries) assertEquals(mode.name, 3, preferredModeId(mode, moving = true, targets = t))
+        assertEquals(0, preferredModeId(RefreshMode.AUTO, moving = false, targets = t)) // the system's choice
+        assertEquals(1, preferredModeId(RefreshMode.POWER_SAVER, moving = false, targets = t))
+        assertEquals(3, preferredModeId(RefreshMode.SMOOTH, moving = false, targets = t))
+    }
+
+    @Test fun `power saver drops back sooner than auto`() {
+        assertTrue(lingerMs(RefreshMode.POWER_SAVER) < lingerMs(RefreshMode.AUTO))
     }
 
     @Test fun `thermal status names`() {

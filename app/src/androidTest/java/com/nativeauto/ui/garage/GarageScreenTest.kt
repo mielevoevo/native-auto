@@ -11,7 +11,6 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.flow.first
@@ -268,7 +267,11 @@ class GarageScreenTest {
         rule.waitUntil(5_000) { count("low_fuel").fetchSemanticsNodes().isNotEmpty() }
 
         // Put the Garage card in Media's slot.
-        tag("header_MEDIA").performTouchInput { longClick(Offset(width * 0.1f, height / 2f)) }
+        tag("header_MEDIA").performTouchInput {
+            down(Offset(width * 0.1f, height / 2f))
+            advanceEventTime(1_300) // past the 12a hold: let go without moving = the picker
+            up()
+        }
         await("picker_sheet")
         click("pick_GARAGE")
         awaitGone("picker_sheet")

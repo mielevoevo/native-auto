@@ -8,7 +8,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -46,11 +48,11 @@ private val CardShape = RoundedCornerShape(20.dp)
 /**
  * The shared pane container: rounded surface, [CardChrome] header, then [content].
  *
- * Gestures on the body (every pane but the map, whose touches pan and zoom it): tap toggles
- * maximize where the pane can be maximized (it shares a column), long-press toggles
- * fullscreen. A tap on a fullscreen card does nothing; leave fullscreen with a long-press,
- * the header icon or Back. Long-pressing the **header** (any pane, the map included) opens
- * the pane picker instead; the header has its own gestures, so the two never both fire.
+ * Gestures on the body (every pane but the map, whose touches pan and zoom it): a tap toggles
+ * maximize where the pane can be maximized (it shares a column). A tap on a fullscreen card does
+ * nothing; leave fullscreen with the header icon or Back. Holding a card lifts it to be dragged
+ * or, let go without moving, opens the pane picker (12a, `paneDrag` on the dashboard's slots;
+ * it replaced long-press = fullscreen and the header's long-press = picker).
  */
 @Composable
 fun DashboardCard(
@@ -58,27 +60,23 @@ fun DashboardCard(
     pane: Pane,
     mode: CardMode,
     layout: DashboardLayoutState,
-    color: Color = AppTheme.colors.surface,
+    color: Color = AppTheme.colors.card,
     chromeOverContent: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val haptics = rememberHaptics()
-    // Long-press already gets the system's long-press buzz from combinedClickable.
-    val body = if (pane == Pane.MAP) Modifier else Modifier.combinedClickable(
+    val body = if (pane == Pane.MAP) Modifier else Modifier.clickable(
         onClickLabel = when {
             !layout.canMaximize(pane) -> null
             layout.maximized == pane -> "Restore $title"
             else -> "Maximize $title"
         },
-        onLongClickLabel = if (mode == CardMode.Fullscreen) "Exit fullscreen" else "Fullscreen $title",
-        onClick = {
-            if (mode != CardMode.Fullscreen && layout.canMaximize(pane)) {
-                layout.toggleMaximized(pane)
-                haptics.toggle(on = layout.maximized == pane)
-            }
-        },
-        onLongClick = { layout.toggleFullscreen(pane) },
-    )
+    ) {
+        if (mode != CardMode.Fullscreen && layout.canMaximize(pane)) {
+            layout.toggleMaximized(pane)
+            haptics.toggle(on = layout.maximized == pane)
+        }
+    }
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -88,7 +86,7 @@ fun DashboardCard(
         shape = CardShape,
         color = color,
         contentColor = AppTheme.colors.text,
-        // OLED: a near-black card on black, told apart by a faint outline, not a grey fill.
+        // OLED: a true-black card on black (12a), told apart by a faint outline, not a grey fill.
         border = BorderStroke(1.dp, AppTheme.colors.outline),
     ) {
         if (chromeOverContent) {
@@ -128,7 +126,7 @@ internal fun <S> AnimatedContentTransitionScope<S>.cardModeTransition(): Content
  * Card header: title plus maximize (where the pane shares a column), fullscreen and swap,
  * wired straight to [layout]. Swap trades places with the pane above or below, or moves the
  * whole column across when the pane is alone in it. A tap on the header acts like a tap on
- * the body; a long-press opens the pane picker ([LocalPanePicker]).
+ * the body; holding it lifts the card (12a), as anywhere else on the card.
  */
 @Composable
 fun CardChrome(
@@ -144,17 +142,14 @@ fun CardChrome(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClickLabel = null,
-                onLongClickLabel = "Choose what this pane shows",
-                onClick = {
-                    if (mode != CardMode.Fullscreen && canMaximize) {
-                        layout.toggleMaximized(pane)
-                        haptics.toggle(on = layout.maximized == pane)
-                    }
-                },
-                onLongClick = { picker?.invoke(pane) },
-            )
+            .clickable {
+                if (mode != CardMode.Fullscreen && canMaximize) {
+                    layout.toggleMaximized(pane)
+                    haptics.toggle(on = layout.maximized == pane)
+                }
+            }
+            // Screen readers can't hold-and-release: the picker as an action.
+            .semantics { customActions = listOf(CustomAccessibilityAction("Choose what this pane shows") { picker?.invoke(pane); true }) }
             .testTag("header_${pane.name}")
             .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

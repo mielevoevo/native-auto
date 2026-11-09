@@ -157,6 +157,20 @@ class ReleaseSmokeTest {
         tap("history_back")
         gone("history_screen")
 
+        // Refresh-rate choices (12a).
+        tap("settings_open")
+        tap("settings_screen_options")
+        find("screen_options")
+        tap("settings_refresh_POWER_SAVER")
+        tap("settings_refresh_SMOOTH")
+        tap("settings_refresh_AUTO")
+        tap("settings_drag_hold_2")
+        tap("settings_drag_hold_1")
+        tap("settings_screen_options_done")
+        gone("screen_options")
+        tap("settings_done")
+        gone("settings_sheet")
+
         // Every layout, then the Garage pane via the picker, maximized and back.
         listOf("QUAD", "ROWS", "SIDE_BY_SIDE", "DUO").forEach { preset ->
             tap("layouts_open")
@@ -165,7 +179,8 @@ class ReleaseSmokeTest {
         }
         find("header_MEDIA").let { header ->
             val b = header.visibleBounds
-            device.swipe(b.left + b.width() / 10, b.centerY(), b.left + b.width() / 10, b.centerY(), 200)
+            // A hold past 12a's 1 s lift (a swipe of ~5 ms per step), let go without moving: the picker.
+            device.swipe(b.left + b.width() / 10, b.centerY(), b.left + b.width() / 10, b.centerY(), 350)
         }
         tap("pick_GARAGE")
         gone("picker_sheet")

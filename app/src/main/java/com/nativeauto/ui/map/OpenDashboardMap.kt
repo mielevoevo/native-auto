@@ -18,6 +18,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.nativeauto.BuildConfig
+import com.nativeauto.ui.components.LocalMotionDemand
 import com.nativeauto.nav.GeoPoint
 import com.nativeauto.trip.SpeedSample
 import org.maplibre.android.geometry.LatLngBounds
@@ -62,6 +63,8 @@ internal fun OpenDashboardMap(
     val topPaddingPx = with(LocalDensity.current) { MAP_TOP_PADDING.toPx().toDouble() }
     val userMoved by rememberUpdatedState(onUserMovedCamera)
     val longPress by rememberUpdatedState(onLongPress)
+    // 12a (R4): the camera moving (a glide while following, a pan) asks for the fastest refresh rate.
+    val motion = LocalMotionDemand.current
     val framePaddingPx = with(LocalDensity.current) { ROUTE_FRAME_PADDING.toPx().toInt() }
     val previewClearancePx = with(LocalDensity.current) { ROUTE_PREVIEW_CLEARANCE.toPx().toInt() }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -92,6 +95,8 @@ internal fun OpenDashboardMap(
             m.addOnCameraMoveStartedListener { reason ->
                 if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) userMoved()
             }
+            m.addOnCameraMoveStartedListener { motion.set(MAP_MOTION, true) }
+            m.addOnCameraIdleListener { motion.set(MAP_MOTION, false) }
             m.addOnMapLongClickListener { latLng ->
                 longPress(GeoPoint(latLng.latitude, latLng.longitude))
                 true
@@ -100,7 +105,10 @@ internal fun OpenDashboardMap(
         }
         // Released (map sleep) or recreated: remember where the camera was. This runs before
         // MapViewLifecycle's onDispose, while the view is still alive.
-        onDispose { map?.cameraPosition?.let { camera.saved = it.toSaved() } }
+        onDispose {
+            map?.cameraPosition?.let { camera.saved = it.toSaved() }
+            motion.set(MAP_MOTION, false)
+        }
     }
 
     // The style, again on each theme change (the camera and the view stay). Effects keyed on

@@ -43,6 +43,11 @@
     <string name="settings_speed_unit">Speed unit</string>
     <string name="settings_map_width">Map width (Duo)</string>
     <string name="settings_theme">Theme</string>
+    <string name="settings_refresh">Refresh rate</string>
+    <string name="settings_drag_hold">Hold to move a card</string>
+    <string name="settings_refresh_hint">Moving things are always smooth. When nothing moves, Auto lets the phone decide, Power saver drops to the lowest rate, Smooth stays at the fastest.</string>
+    <string name="settings_screen_options">Screen options</string>
+    <string name="settings_screen_options_hint">Battery, refresh rate, hold to move</string>
     <string name="settings_battery">Battery indicator</string>
     <string name="settings_battery_hint">Top right, with the clock</string>
     <string name="settings_trip">Trip</string>

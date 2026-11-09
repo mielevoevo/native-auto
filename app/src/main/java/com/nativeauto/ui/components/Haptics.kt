@@ -23,6 +23,9 @@ class Haptics(private val feedback: HapticFeedback) {
     fun tick() = feedback.performHapticFeedback(HapticFeedbackType.SegmentTick)
 
     /** A deliberate, consequential action completed (trip reset). */
+    /** A card lifts to be dragged (12a). */
+    fun lift() = feedback.performHapticFeedback(HapticFeedbackType.LongPress)
+
     fun confirm() = feedback.performHapticFeedback(HapticFeedbackType.Confirm)
 }
 

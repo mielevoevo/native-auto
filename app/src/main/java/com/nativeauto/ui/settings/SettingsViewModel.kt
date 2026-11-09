@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.nativeauto.settings.SettingsRepository
 import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.settings.ThemeMode
+import com.nativeauto.settings.RefreshMode
+import com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS
 import com.nativeauto.trip.TripTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -46,6 +48,20 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settings.setThemeMode(mode) }
+    }
+
+    val refreshMode: StateFlow<RefreshMode> =
+        settings.refreshMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RefreshMode.AUTO)
+
+    fun setRefreshMode(mode: RefreshMode) {
+        viewModelScope.launch { settings.setRefreshMode(mode) }
+    }
+
+    val dragHoldMs: StateFlow<Long> =
+        settings.dragHoldMs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_DRAG_HOLD_MS)
+
+    fun setDragHoldMs(ms: Long) {
+        viewModelScope.launch { settings.setDragHoldMs(ms) }
     }
 
     val autoPauseMinutes: StateFlow<Int> =
