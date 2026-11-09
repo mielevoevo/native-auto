@@ -34,6 +34,8 @@ import com.nativeauto.ui.clock.ClockCard
 import com.nativeauto.ui.clock.ClockViewModel
 import com.nativeauto.ui.clock.formatClockTime
 import java.time.ZoneId
+import com.nativeauto.ui.components.HighRefreshWhileMoving
+import com.nativeauto.ui.components.LocalPaneMotion
 import com.nativeauto.ui.components.LocalPanePicker
 import com.nativeauto.ui.components.LocalStatusCorner
 import com.nativeauto.ui.components.StatusCorner
@@ -117,7 +119,12 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
         animateRectAsState(layout.rectOf(pane), spring(stiffness = Spring.StiffnessMediumLow), label = "rect_${pane.name}")
     }
 
-    CompositionLocalProvider(LocalStatusCorner provides corner, LocalPanePicker provides picker) {
+    // The State objects are the same on every recomposition, so the first ones captured stay right.
+    val motion = remember(layout) { { pane: Pane -> rects[pane.ordinal].value != layout.rectOf(pane) } }
+
+    HighRefreshWhileMoving(motion)
+
+    CompositionLocalProvider(LocalStatusCorner provides corner, LocalPanePicker provides picker, LocalPaneMotion provides motion) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Layout(
                 content = {

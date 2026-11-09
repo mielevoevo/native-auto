@@ -286,6 +286,28 @@ bike the week of 2026-11-02 (speed, map, media, saved trips all fine; search too
   frames too); after a cold boot there was none. A visible map still costs ~1 core there (see
   Known issues); with the map asleep the app idles at ~0%.
 
+## Phase 8d: smoothness (built 2026-11-09, beyond the handoff)
+
+- **Release build** is signed with the debug key (`app/build.gradle.kts`), so it installs over the
+  debug build. R8 optimizes only `androidx.**`, `kotlin.**`, `kotlinx.**` (`packageScope`); the app's
+  own code and Ferrostar's uniffi/JNA bindings are left as they are. Use the release APK for the phone
+  test (§12.1: the debug build was the first suspect).
+- **Map during a move (`ui/map/HoldSize.kt`):** while its pane is animating, the map view is laid out
+  at the window size, centred and clipped, then at its real size when the move ends. Two resizes per
+  move instead of one per frame. "Moving" comes from the dashboard through `LocalPaneMotion` (animated
+  rect ≠ target rect), read only in the layout pass.
+- **Refresh rate (`ui/components/FrameRate.kt`):** while any pane moves, the window asks for the
+  display's fastest mode at the current resolution (`preferredDisplayModeId`); 0.5 s after the last
+  move it goes back to 0 (system choice). The emulator has a single 60 Hz mode, so nothing happens there.
+- **Thermal:** `MainActivity` logs thermal status changes while started (`adb logcat -s NativeAuto/Thermal`).
+- **Baseline profile (`baselineprofile/` module, `com.android.test`, benchmark 1.5.0):** journeys in
+  `DashboardJourney.kt` (start in Duo, maximize, swap, settings, layout switch). Generate with
+  `./gradlew :app:generateBaselineProfile` (output in `app/src/release/generated/baselineProfiles/`,
+  committed); measure with `./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest`. The app
+  depends on `profileinstaller`. UiAutomator finds Compose tags because the root and every sheet set
+  `testTagsAsResourceId` (`Modifier.sheetTag` for sheets, which live in their own window).
+- Emulator numbers are relative only (SwiftShader, 60 Hz). Real frame times: phone, release build.
+
 ## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);

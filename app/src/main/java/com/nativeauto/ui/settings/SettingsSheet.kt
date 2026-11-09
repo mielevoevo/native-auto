@@ -1,5 +1,6 @@
 package com.nativeauto.ui.settings
 
+import com.nativeauto.ui.components.sheetTag
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -79,7 +80,7 @@ fun SettingsSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 1200.dp, // room for the three landscape columns
         dragHandle = null,
-        modifier = Modifier.testTag("settings_sheet"),
+        modifier = Modifier.sheetTag("settings_sheet"),
     ) {
         Column(
             modifier = Modifier

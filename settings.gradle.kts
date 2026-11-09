@@ -24,4 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Native Auto"
 include(":app")
+include(":baselineprofile")
  

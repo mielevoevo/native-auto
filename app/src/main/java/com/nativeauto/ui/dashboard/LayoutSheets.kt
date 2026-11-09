@@ -1,5 +1,6 @@
 package com.nativeauto.ui.dashboard
 
+import com.nativeauto.ui.components.sheetTag
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -80,7 +81,7 @@ internal fun LayoutSwitcherSheet(layout: DashboardLayoutState, onDismiss: () -> 
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 900.dp,
-        modifier = Modifier.testTag("layouts_sheet"),
+        modifier = Modifier.sheetTag("layouts_sheet"),
     ) {
         Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
             Text("Layout", style = MaterialTheme.typography.headlineSmall)
@@ -172,7 +173,7 @@ internal fun PanePickerSheet(layout: DashboardLayoutState, slotPane: Pane, onDis
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 900.dp,
-        modifier = Modifier.testTag("picker_sheet"),
+        modifier = Modifier.sheetTag("picker_sheet"),
     ) {
         Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
             Text("Show in this pane", style = MaterialTheme.typography.headlineSmall)

@@ -1,5 +1,6 @@
 package com.nativeauto.ui.nav
 
+import com.nativeauto.ui.components.sheetTag
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -154,7 +155,7 @@ internal fun DestinationSearchSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 720.dp,
-        modifier = Modifier.testTag("search_sheet"),
+        modifier = Modifier.sheetTag("search_sheet"),
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
             // The sheet is its own window, which the Compose keyboard controller doesn't reach;

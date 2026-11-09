@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -204,6 +205,12 @@ fun CardChrome(
 
 /** Opens the pane picker for a slot (by the pane in it). Provided by DashboardScreen; null in isolation. */
 val LocalPanePicker = compositionLocalOf<((Pane) -> Unit)?> { null }
+
+/**
+ * Whether a pane is still animating towards the rectangle its layout gives it (8d). Read it in a
+ * layout or draw pass, not in composition: it changes every frame of a move.
+ */
+val LocalPaneMotion = staticCompositionLocalOf<(Pane) -> Boolean> { { false } }
 
 @Composable
 internal fun ChromeButton(icon: ImageVector, description: String, tag: String, onClick: () -> Unit) {

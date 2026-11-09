@@ -1,5 +1,6 @@
 package com.nativeauto.ui.map
 
+import com.nativeauto.ui.components.LocalPaneMotion
 import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -210,7 +211,8 @@ private fun DashboardMap(
     val onLongPress: (GeoPoint) -> Unit = { p -> if (nav !is NavState.Navigating) actions.routeToPoint(p) }
 
     Box(modifier) {
-        val mapModifier = Modifier.fillMaxSize().testTag("map")
+        val motion = LocalPaneMotion.current
+        val mapModifier = Modifier.fillMaxSize().holdSizeWhile { motion(Pane.MAP) }.testTag("map")
         when (MapEngine.current) {
             MapEngine.Google -> GoogleDashboardMap(fix, locationGranted, showTraffic, following, stopFollowing, overlay, onLongPress, camera, look, mapModifier)
             MapEngine.OpenFreeMap -> OpenDashboardMap(fix, locationGranted, following, stopFollowing, overlay, onLongPress, camera, look, mapModifier)
