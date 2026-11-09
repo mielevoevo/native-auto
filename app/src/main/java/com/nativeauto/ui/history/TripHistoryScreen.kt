@@ -363,7 +363,7 @@ private fun TripMapImage(trip: TripRecord, maps: TripMaps, width: Dp, height: Dp
 }
 
 @Composable
-private fun TrackSketch(trip: TripRecord, modifier: Modifier) {
+internal fun TrackSketch(trip: TripRecord, modifier: Modifier) {
     val points = Polyline.decode(trip.track)
     val look = MapLook.of(AppTheme.colors.isDark)
     val route = Color(look.route.toColorInt())

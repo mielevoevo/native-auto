@@ -9,6 +9,9 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
@@ -66,7 +69,7 @@ class DashboardScreenTest {
     private fun tag(t: String) = rule.onNodeWithTag(t, useUnmergedTree = true)
     private fun count(t: String) = rule.onAllNodesWithTag(t, useUnmergedTree = true)
     private fun click(t: String) { tag(t).performClick(); rule.waitForIdle() }
-    /** Off-centre: since 9a the idle card's centre holds the Start trip button. */
+    /** Off-centre: the centre of the card can hold a button (Resume, the log face controls). */
     private fun tapSpeedCardEdge() {
         rule.onNodeWithTag("pane_SPEED").performTouchInput { click(percentOffset(0.1f, 0.85f)) }
         rule.waitForIdle()
@@ -347,16 +350,71 @@ class DashboardScreenTest {
         rule.onAllNodesWithText("km/h", useUnmergedTree = true).assertCountEquals(0)
     }
 
+    /** The speed card's second face (9b): swipe the pager left. */
+    private fun openLogFace() {
+        tag("speed_faces").performTouchInput { swipeLeft() }
+        rule.waitUntil(5_000) { count("log_start").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun waitEnabled(t: String, enabled: Boolean) = rule.waitUntil(5_000) {
+        count(t).fetchSemanticsNodes().any { SemanticsProperties.Disabled !in it.config == enabled }
+    }
+
     @Test fun aTripStartsOnlyOnStartAndResetDiscardsIt() {
-        // 9a: opening the app starts nothing.
-        rule.onNodeWithText("Start trip", useUnmergedTree = true).assertIsDisplayed()
-        click("hero_action")
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Start trip", useUnmergedTree = true).fetchSemanticsNodes().isEmpty() }
+        // 9a: opening the app starts nothing; 9b: Start is on the log face.
+        openLogFace()
+        tag("log_pause").assertIsNotEnabled()
+        tag("log_end").assertIsNotEnabled()
+        click("log_start")
+        waitEnabled("log_pause", true)
+        tag("log_start").assertIsNotEnabled()
         openSettings()
         click("settings_reset_trip")
         click("settings_reset_trip")
         closeSettings()
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Start trip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        waitEnabled("log_start", true)
+        tag("log_pause").assertIsNotEnabled()
+    }
+
+    @Test fun pauseResumeAndEndShowTheSummaryUntilDismissed() {
+        openLogFace()
+        click("log_start")
+        waitEnabled("log_pause", true)
+        click("log_pause")
+        waitEnabled("log_start", true) // ▶ is Resume now
+        tag("log_end").assertIsEnabled()
+        click("log_start")
+        waitEnabled("log_pause", true)
+        // End needs a second tap.
+        click("log_end")
+        count("trip_summary").assertCountEquals(0)
+        click("log_end")
+        rule.waitUntil(5_000) { count("trip_summary").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Trip complete", useUnmergedTree = true).assertIsDisplayed()
+        click("trip_summary")
+        rule.waitUntil(5_000) { count("trip_summary").fetchSemanticsNodes().isEmpty() }
+        // Back on the log face, zeroed and ready for the next Start.
+        tag("log_start").assertIsEnabled()
+        tag("log_end").assertIsNotEnabled()
+    }
+
+    @Test fun backOnceShowsTheHint() {
+        back()
+        tag("back_hint").assertIsDisplayed()
+        rule.waitUntil(5_000) { count("back_hint").fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test fun doubleBackDuringATripAsksToSave() {
+        openLogFace()
+        click("log_start")
+        waitEnabled("log_pause", true)
+        back()
+        back()
+        rule.onNodeWithText("Save this trip?", useUnmergedTree = true).assertIsDisplayed()
+        click("save_prompt_cancel")
+        count("save_prompt_cancel").assertCountEquals(0)
+        // Cancel keeps the trip and the app.
+        tag("log_pause").assertIsEnabled()
     }
 
     @Test fun autoPauseAndAutoEndAreSettings() {

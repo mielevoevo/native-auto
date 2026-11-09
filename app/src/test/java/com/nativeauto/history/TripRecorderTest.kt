@@ -170,6 +170,24 @@ class TripRecorderTest {
         assertEquals(2420.0, rig.dao.trips.value.single().distanceM, 1e-6)
     }
 
+    @Test fun `the outcome says saved or too short, and clears on the next start`() = runTest {
+        val rig = Rig(this).realLimits()
+        rig.startTrip()
+        rig.drive(10)
+        rig.tracker.end(); runCurrent()
+        assertEquals(TripOutcome.TooShort, rig.recorder.lastOutcome.value)
+
+        rig.tracker.discard(); runCurrent()
+        rig.startTrip()
+        advanceTimeBy(1_000); rig.north += SPEED
+        rig.emit(rig.fix())
+        assertNull(rig.recorder.lastOutcome.value)
+        rig.drive(130)
+        rig.tracker.end(); runCurrent()
+        val saved = rig.recorder.lastOutcome.value as TripOutcome.Saved
+        assertEquals(rig.dao.trips.value.single().id, saved.trip.id)
+    }
+
     @Test fun `a trip that never got a fix isn't kept`() = runTest {
         val rig = Rig(this)
         rig.startTrip()

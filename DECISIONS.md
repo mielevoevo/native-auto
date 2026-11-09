@@ -52,3 +52,23 @@ Format: **sub-phase · decision** — why, and how to change it.
   Coming back to the app cancels it. Ending inside the app never self-closes.
 - **Closing the app saves the trip**: swiping it away (`onTaskRemoved`) and the activity really finishing
   both end and save. The Save / Discard / Cancel prompt on double back comes with 9b's back hint.
+
+## 9b · Log face, summary, closing
+
+- **Faces switched by a pager** (swipe), with two small dots under the card. The speed face opens
+  first; with no trip it shows the live speed full-size and no prompt (9a's "Start trip" hero prompt
+  is gone). Paused keeps its Resume prompt on the speed face. After a trip ends, the card lands on the
+  log face.
+- **Log face controls:** ▶ / ⏸ / ⏹ as 64 dp icon buttons, never hidden, dimmed when they can't act.
+  ▶ is Start or Resume. ⏹ turns red on the first tap; a second within 3 s ends (same as Reset).
+- **Log face content per size:** compact = controls + time · distance; wide = controls + the inline
+  figures; expanded = controls + the six tiles + the last 3 rides; fullscreen = the same side by side.
+- **Summary:** covers the card while the trip is Ended (any end: log face, notification, auto-end,
+  save prompt). Cyan "Trip complete" title (the card's one cyan element), the figures counting up over
+  0.7 s, the route sketch when saved or "Too short to save". Tap or horizontal swipe dismisses it,
+  which zeroes the trip (Idle).
+- **Back hint:** an in-app pill "Press back again to close" for 2 s (not a system Toast, so it matches
+  the theme and tests can see it). Only when back has nothing else to do (no zoom, history or sheet).
+- **Save prompt:** a dialog with Save / Discard / Cancel when closing with a trip running or paused;
+  closing uses `finishAndRemoveTask` so the app really goes (Android 12+ would otherwise only send a
+  root activity to the background).

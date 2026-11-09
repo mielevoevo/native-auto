@@ -1,6 +1,11 @@
 package com.nativeauto.ui.speed
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import com.nativeauto.ui.components.rememberHaptics
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,32 +67,71 @@ fun SpeedCard(
     mode: CardMode,
     layout: DashboardLayoutState,
     viewModel: SpeedometerViewModel = hiltViewModel(),
+    logViewModel: TripLogViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    SpeedCardContent(mode, layout, ui)
+    val recent by logViewModel.recent.collectAsStateWithLifecycle()
+    val outcome by logViewModel.outcome.collectAsStateWithLifecycle()
+    val endArmed by logViewModel.endArmed.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val haptics = rememberHaptics()
+    val actions = remember(logViewModel) {
+        TripLogActions(
+            start = { haptics.tap(); TripService.start(context) },
+            pause = { haptics.tap(); logViewModel.pause() },
+            resume = { haptics.tap(); TripService.resume(context) },
+            end = { if (logViewModel.onEndTapped()) haptics.confirm() else haptics.tap() },
+            dismissSummary = { haptics.tap(); logViewModel.dismissSummary() },
+        )
+    }
+    SpeedCardContent(mode, layout, ui, TripLogUi(recent, outcome, endArmed), actions)
 }
 
-/** Stateless body, driven entirely by [ui]; previews and tests can call it directly. */
+/**
+ * Stateless body, driven entirely by [ui] and [log]; previews and tests can call it directly.
+ * Two faces, switched by a horizontal swipe (9b): the speed face (page 0) and the log face
+ * (page 1). While the trip is Ended, the summary covers both.
+ */
 @Composable
-fun SpeedCardContent(mode: CardMode, layout: DashboardLayoutState, ui: SpeedometerUiState) {
+fun SpeedCardContent(
+    mode: CardMode,
+    layout: DashboardLayoutState,
+    ui: SpeedometerUiState,
+    log: TripLogUi = TripLogUi(),
+    actions: TripLogActions = TripLogActions.None,
+) {
     DashboardCard(title = "Speed", pane = Pane.SPEED, mode = mode, layout = layout) {
-        AnimatedContent(
-            targetState = mode,
-            transitionSpec = { cardModeTransition() },
-            contentAlignment = Alignment.Center,
-            label = "speedMode",
-            // Clip so content overflowing a still-small card never draws over the header.
-            modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds(),
-        ) { m ->
-            when (m) {
-                CardMode.Compact -> SpeedCompact(ui)
-                CardMode.Wide -> SpeedWide(ui)
-                CardMode.Expanded -> SpeedExpanded(ui)
-                CardMode.Fullscreen -> SpeedFullscreen(ui)
+        val pager = rememberPagerState { FACES }
+        // After a trip ends, dismissing the summary lands on the log face, ready for the next Start.
+        LaunchedEffect(ui.tripState) { if (ui.tripState == TripState.Ended) pager.scrollToPage(LOG_FACE) }
+        // Clip so content overflowing a still-small card never draws over the header.
+        Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+            HorizontalPager(pager, Modifier.fillMaxSize().testTag("speed_faces")) { page ->
+                AnimatedContent(
+                    targetState = mode,
+                    transitionSpec = { cardModeTransition() },
+                    contentAlignment = Alignment.Center,
+                    label = "speedMode",
+                    modifier = Modifier.fillMaxSize(),
+                ) { m ->
+                    if (page == LOG_FACE) {
+                        LogFace(m, ui, log, actions)
+                    } else when (m) {
+                        CardMode.Compact -> SpeedCompact(ui)
+                        CardMode.Wide -> SpeedWide(ui)
+                        CardMode.Expanded -> SpeedExpanded(ui)
+                        CardMode.Fullscreen -> SpeedFullscreen(ui)
+                    }
+                }
             }
+            FaceDots(pager.currentPage, FACES, Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp))
+            if (ui.tripState == TripState.Ended) TripSummary(mode, ui, log.outcome, actions.dismissSummary)
         }
     }
 }
+
+private const val FACES = 2
+private const val LOG_FACE = 1
 
 @Composable
 private fun SpeedCompact(ui: SpeedometerUiState) {
@@ -127,7 +171,7 @@ internal fun SpeedometerUiState.inlineStats(): List<Stat> = telemetry().filter {
 }.sortedBy { listOf("stat_max", "stat_avg", "stat_distance", "stat_elapsed").indexOf(it.tag) }
 
 @Composable
-private fun InlineStat(stat: Stat) {
+internal fun InlineStat(stat: Stat) {
     Column(Modifier.testTag("inline_${stat.tag}")) {
         Text(
             text = stat.label,
@@ -188,7 +232,7 @@ private fun SpeedFullscreen(ui: SpeedometerUiState) {
 /**
  * The hero, or, when there can be no live speed, a smaller "--" with the way out:
  * access denied → permission dialog, location off → settings, paused → Resume,
- * ended → New trip, idle → Start trip.
+ * (9b: no prompt for idle or ended; the log face and the summary handle those).
  * [explain] adds a one-line reason where the card has room for it (not in Compact).
  */
 @Composable
@@ -204,11 +248,7 @@ private fun HeroArea(ui: SpeedometerUiState, size: TextUnit, explain: Boolean = 
             HeroPrompt(if (ui.autoPaused) R.string.trip_auto_paused else R.string.trip_paused, R.string.trip_resume) {
                 TripService.resume(context)
             }
-        ui.tripState == TripState.Ended ->
-            HeroPrompt(R.string.trip_ended, R.string.trip_new) { TripService.start(context) }
-        // 9a: no trip starts by itself. The log face (9b) takes over these controls.
-        ui.tripState == TripState.Idle ->
-            HeroPrompt(R.string.trip_none, R.string.trip_start) { TripService.start(context) }
+        // Idle and Ended have no prompt (9b): the log face holds Start, and the summary covers an end.
         else -> null
     }
     if (prompt == null) {
@@ -290,18 +330,18 @@ internal fun SpeedometerUiState.telemetry(): List<Stat> = listOf(
 )
 
 @Composable
-private fun TelemetryGrid(ui: SpeedometerUiState, columns: Int, tileHeight: Dp) {
+internal fun TelemetryGrid(ui: SpeedometerUiState, columns: Int, tileHeight: Dp, tagPrefix: String = "") {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ui.telemetry().chunked(columns).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { StatTile(it, Modifier.weight(1f).height(tileHeight)) }
+                row.forEach { StatTile(it.copy(tag = tagPrefix + it.tag), Modifier.weight(1f).height(tileHeight)) }
             }
         }
     }
 }
 
 @Composable
-private fun StatTile(stat: Stat, modifier: Modifier) {
+internal fun StatTile(stat: Stat, modifier: Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))

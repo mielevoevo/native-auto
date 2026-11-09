@@ -9,6 +9,23 @@
     <string name="trip_paused">Trip paused</string>
     <string name="trip_ended">Trip ended</string>
     <string name="trip_none">No trip running</string>
+    <string name="log_start">Start trip</string>
+    <string name="log_resume">Resume trip</string>
+    <string name="log_pause">Pause trip</string>
+    <string name="log_end">End trip</string>
+    <string name="log_end_confirm">Tap ⏹ again to end</string>
+    <string name="log_recent">Recent rides</string>
+    <string name="log_no_rides">No rides yet</string>
+    <string name="log_faces">Speed and trip log: swipe to switch</string>
+    <string name="summary_title">Trip complete</string>
+    <string name="summary_too_short">Too short to save</string>
+    <string name="summary_close">Tap to close</string>
+    <string name="back_hint">Press back again to close</string>
+    <string name="save_prompt_title">Save this trip?</string>
+    <string name="save_prompt_text">The app is closing. The trip in progress can be saved to your history or discarded.</string>
+    <string name="save_prompt_save">Save</string>
+    <string name="save_prompt_discard">Discard</string>
+    <string name="save_prompt_cancel">Cancel</string>
     <string name="trip_start">Start trip</string>
     <string name="trip_auto_paused">Auto-paused: no movement</string>
 

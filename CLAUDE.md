@@ -333,6 +333,22 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
   so each test starts Idle. Taps meant for the speed card itself go off-centre (the Start button sits
   in the middle).
 
+## Phase 9b: log face, summary, closing (built 2026-11-09, beyond the handoff)
+
+- **Two faces** in `SpeedCardContent`: a `HorizontalPager` (`speed_faces`), page 0 the speed face,
+  page 1 the log face (`ui/speed/TripLog.kt`), with `FaceDots`. The pager composes the neighbour page,
+  so log-face stat tags carry a `log_` prefix (`TelemetryGrid(tagPrefix)`); tests that need the log
+  face swipe `speed_faces` left.
+- **Controls:** `log_start` (Start / Resume), `log_pause`, `log_end` (two taps, `TripLogViewModel`
+  arm timer, 3 s). Start and Resume go through `TripService`; Pause, End and dismiss call the tracker.
+  The speed face has no Idle / Ended prompt any more; Paused keeps Resume.
+- **Summary (`TripSummary`, `trip_summary`):** shown while `TripState.Ended`; figures count up; route
+  from `TripRecorder.lastOutcome` (`TripOutcome.Saved` / `TooShort`, null while a trip runs). Dismiss
+  (tap / swipe) = `tracker.discard()`. `TrackSketch` in the history screen became internal for it.
+- **Closing (`ui/dashboard/CloseFlow.kt`):** `CloseOnDoubleBack` at the dashboard root, enabled only
+  when nothing else takes back. `CloseViewModel.onBack()` → hint (`back_hint`, 2 s) / close / ask
+  (`save_prompt_save|discard|cancel`). Closing is `finishAndRemoveTask()`.
+
 ## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);

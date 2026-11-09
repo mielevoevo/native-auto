@@ -11,6 +11,9 @@ import com.nativeauto.trip.TripTracker
 import com.nativeauto.trip.elapsedNanos
 import com.nativeauto.trip.haversineMeters
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -49,6 +52,14 @@ class TripRecorder @Inject constructor(
     private var started = false
     private val addressLock = Mutex()
 
+    private val _lastOutcome = MutableStateFlow<TripOutcome?>(null)
+
+    /**
+     * What happened to the last ended trip (9b's end-of-trip summary): saved, with its record, or
+     * too short to keep. Null while a trip is in progress or none has ended yet.
+     */
+    val lastOutcome: StateFlow<TripOutcome?> = _lastOutcome.asStateFlow()
+
     private class Recording(val startedAtNanos: Long) {
         val points = ArrayList<GeoPoint>()
         var stats: TripStats? = null
@@ -71,7 +82,10 @@ class TripRecorder @Inject constructor(
                     }
                 }
                 if (key == null) return@collect
-                val r = rec ?: Recording(key).also { rec = it }
+                val r = rec ?: Recording(key).also {
+                    rec = it
+                    _lastOutcome.value = null
+                }
                 r.stats = stats
                 val sample = stats.lastSample
                 if (sample != null && sample !== r.lastSample) {
@@ -98,14 +112,17 @@ class TripRecorder @Inject constructor(
             val end = GeoPoint(last.latitude, last.longitude)
             if (r.points.lastOrNull() != end) r.points += end
         }
-        if (!worthKeeping(s) || r.points.size < 2) return
+        if (!worthKeeping(s) || r.points.size < 2) {
+            _lastOutcome.value = TripOutcome.TooShort
+            return
+        }
         val nowNanos = clock.nowNanos()
         val nowMs = wall.nowMs()
         fun wallMs(nanos: Long) = nowMs - (nowNanos - nanos) / 1_000_000
         val track = simplify(r.points, SIMPLIFY_TOLERANCE_M)
         val start = r.points.first()
         val end = r.points.last()
-        val id = dao.insert(
+        val record =
             TripRecord(
                 startedAtMs = wallMs(r.startedAtNanos),
                 endedAtMs = wallMs(endNanos),
@@ -118,8 +135,9 @@ class TripRecorder @Inject constructor(
                 endLat = end.latitude,
                 endLon = end.longitude,
                 track = Polyline.encode(track),
-            ),
-        )
+            )
+        val id = dao.insert(record)
+        _lastOutcome.value = TripOutcome.Saved(record.copy(id = id))
         scope.launch { resolve(id, start, end, knownStart = null, knownEnd = null) }
     }
 
@@ -146,4 +164,11 @@ class TripRecorder @Inject constructor(
         const val MIN_STEP_M = 3.0
         const val SIMPLIFY_TOLERANCE_M = 4.0
     }
+}
+
+/** The fate of an ended trip, for the end-of-trip summary. */
+sealed interface TripOutcome {
+    data class Saved(val trip: TripRecord) : TripOutcome
+    /** Under the short-trip limits (or no usable path): not kept. */
+    data object TooShort : TripOutcome
 }

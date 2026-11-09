@@ -137,6 +137,9 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
             )
             // Over the panes, never instead of them: the map stays composed underneath (rule #3).
             if (historyOpen) TripHistoryScreen(onClose = { historyOpen = false })
+            // 9b: double back closes, only when back has nothing else to do. Sheets live in their
+            // own windows and take back first.
+            CloseOnDoubleBack(enabled = !historyOpen && layout.fullscreen == null && layout.maximized == null)
         }
     }
 

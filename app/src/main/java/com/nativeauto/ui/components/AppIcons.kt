@@ -22,6 +22,7 @@ internal object AppIcons {
     // Media
     val Play = icon("Play", "M8,5v14l11,-7z")
     val Pause = icon("Pause", "M6,19h4V5H6v14zM14,5v14h4V5h-4z")
+    val Stop = icon("Stop", "M6,6h12v12H6z")
     val SkipNext = icon("SkipNext", "M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z")
     val SkipPrevious = icon("SkipPrevious", "M6,6h2v12H6zM9.5,12l8.5,6V6z")
     val MusicNote = icon(
