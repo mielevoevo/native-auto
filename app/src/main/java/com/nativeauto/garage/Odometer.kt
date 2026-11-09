@@ -33,8 +33,12 @@ fun estimateOdometerKm(reading: OdometerReading?, factor: Double, gpsMetersSince
 /** A correction teaches the factor only over this much GPS distance (short spans are noise). */
 const val MIN_LEARN_KM = 30.0
 
-/** Factors outside this band are a typo or a forgotten reading, not GPS drift. */
-val FACTOR_RANGE = 0.8..1.2
+/**
+ * Factors outside this band are a typo, a forgotten reading or an untracked ride, not GPS drift.
+ * 11b narrowed it from 0.8–1.2: a ride without the app that goes unlogged would otherwise be
+ * learned as drift (Rider-Feedback, "riding without the app").
+ */
+val FACTOR_RANGE = 0.9..1.1
 
 /** How far each correction moves the factor: recent corrections count more. */
 const val LEARN_WEIGHT = 0.5

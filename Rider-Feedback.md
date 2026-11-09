@@ -512,3 +512,24 @@ on-phone feedback matters most within that phase's test.
   (Valhalla).
   - Short `maps.app.goo.gl` links have to be expanded first (one HTTP redirect).
   - If a link has only a place name, it goes through the search service.
+
+## Decided (2026-11-09): riding without the app (untracked km)
+
+Covers the phone left at home, the app not running, and the app killed mid-ride. Agreed with the user;
+built in 11b (v3.1), trip recovery included.
+
+- **No prompts, ever** (not at launch, not at a reading). Tracked trips keep adding to the odometer as now.
+- **"Add untracked km" button** in the Garage's bike detail, next to Correct. The rider uses it when they
+  remember. Stored as an odometer entry (kind UNTRACKED, re-anchors at estimate + km), with no trips.
+  Counts for servicing and fuel (the rider's own riding, so km/L still applies: fuel is not marked
+  unknown, unlike away km). Logged as "Untracked +42 km". Hidden until the odometer is set.
+- **The real odometer is the source of truth:** every refuel (11b) asks for it, prefilled with the
+  estimate.
+- **The factor learns only from small gaps:** narrow `learnFactor`'s band (about 0.9–1.1 instead of
+  0.8–1.2), so an untracked ride that goes unlogged isn't learned as GPS drift.
+- **km/L from odometer deltas** between full fills (not GPS km), so untracked rides can't skew it.
+- **Range is an upper bound between readings:** untracked km only show up at the next reading or button
+  press. 11c's Garage card gets a quick odometer button.
+- **Trip recovery (separate small step):** save the trip in progress to the DB about once a minute. On
+  relaunch after a kill: last save under 10 min old → resume the same trip (straight-line join);
+  otherwise save it as ended at the last saved point.

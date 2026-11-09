@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import com.nativeauto.history.TripRecord
 import kotlinx.coroutines.flow.Flow
 
@@ -19,11 +20,14 @@ enum class BikeType(val label: String) {
     SCOOTER_CVT("Scooter (CVT)"),
 }
 
-/** Indonesian pump fuels. Prices per litre arrive with 11b's refuel log. */
-enum class FuelType(val label: String) {
-    PERTALITE("Pertalite"),
-    PERTAMAX("Pertamax"),
-    PERTAMAX_TURBO("Pertamax Turbo"),
+/**
+ * Indonesian pump fuels. [defaultPricePerL] (Rp) is only a starting point: the refuel log
+ * stores the price seen at the pump ([FuelPrice]), which is used from then on.
+ */
+enum class FuelType(val label: String, val defaultPricePerL: Double) {
+    PERTALITE("Pertalite", 10_000.0),
+    PERTAMAX("Pertamax", 12_500.0),
+    PERTAMAX_TURBO("Pertamax Turbo", 13_500.0),
 }
 
 /**
@@ -80,6 +84,12 @@ enum class ReadingKind {
      * next full refuel (11b).
      */
     AWAY,
+    /**
+     * 11b: the rider's own ride without the app (phone at home, app not running), added by hand
+     * as [OdometerReading.awayKm] on top of the estimate. Counts for servicing and fuel like a
+     * tracked ride (km/L still applies), teaches nothing, adds no trips.
+     */
+    UNTRACKED,
 }
 
 /**
@@ -94,7 +104,7 @@ data class OdometerReading(
     val km: Double,
     /** [ReadingKind] name. */
     val kind: String,
-    /** AWAY only: km ridden while the app wasn't there. */
+    /** AWAY and UNTRACKED: km ridden while the app wasn't there (by others, or by the rider). */
     val awayKm: Double = 0.0,
     /**
      * GPS metres the trip running at [timeMs] had already covered (0 if none). That trip is
@@ -147,6 +157,9 @@ interface GarageDao {
     @Query("DELETE FROM bikes WHERE id = :id")
     suspend fun deleteBikeRow(id: String)
 
+    @Query("DELETE FROM refuels WHERE bikeId = :id")
+    suspend fun deleteRefuels(id: String)
+
     @Query("DELETE FROM odometer_readings WHERE bikeId = :id")
     suspend fun deleteReadings(id: String)
 
@@ -157,10 +170,11 @@ interface GarageDao {
     @Query("UPDATE trips SET bikeId = :id WHERE bikeId IS NULL")
     suspend fun tagUntaggedTrips(id: String)
 
-    /** The bike and its readings go; its trips stay in the history, untagged. */
+    /** The bike, its readings and fill-ups go; its trips stay in the history, untagged. */
     @Transaction
     suspend fun deleteBike(id: String) {
         deleteReadings(id)
+        deleteRefuels(id)
         untagTrips(id)
         deleteBikeRow(id)
     }
@@ -197,6 +211,29 @@ interface GarageDao {
     @Query("SELECT * FROM trips WHERE bikeId = :bikeId ORDER BY endedAtMs DESC LIMIT 1")
     suspend fun lastTrip(bikeId: String): TripRecord?
 
+    // ---- 11b: fuel ----
+
+    @Query("SELECT * FROM refuels WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC")
+    fun observeRefuels(bikeId: String): Flow<List<RefuelRecord>>
+
+    @Insert
+    suspend fun insertRefuel(refuel: RefuelRecord): Long
+
+    @Query("DELETE FROM refuels WHERE id = :id")
+    suspend fun deleteRefuel(id: Long)
+
+    @Query("SELECT * FROM fuel_prices")
+    fun observePrices(): Flow<List<FuelPrice>>
+
+    @Upsert
+    suspend fun upsertPrice(price: FuelPrice)
+
+    @Query("DELETE FROM refuels")
+    suspend fun deleteAllRefuels()
+
+    @Query("DELETE FROM fuel_prices")
+    suspend fun deleteAllPrices()
+
     @Query("DELETE FROM bikes")
     suspend fun deleteAllBikes()
 
@@ -206,6 +243,8 @@ interface GarageDao {
     /** Device tests start from an empty garage. */
     @Transaction
     suspend fun clear() {
+        deleteAllRefuels()
+        deleteAllPrices()
         deleteAllReadings()
         deleteAllBikes()
     }

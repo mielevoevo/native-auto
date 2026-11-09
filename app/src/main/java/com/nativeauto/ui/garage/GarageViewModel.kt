@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nativeauto.garage.BikeDraft
 import com.nativeauto.garage.BikeRecord
+import com.nativeauto.garage.FuelPrice
+import com.nativeauto.garage.FuelState
+import com.nativeauto.garage.RefuelDraft
 import com.nativeauto.garage.GaragePrompt
 import com.nativeauto.garage.GarageRepository
 import com.nativeauto.garage.OdometerReading
@@ -45,6 +48,38 @@ class GarageViewModel @Inject constructor(private val garage: GarageRepository) 
     fun ride(id: String) = viewModelScope.launch { garage.activate(id) }
 
     fun enterReading(id: String, km: Double) = viewModelScope.launch { garage.enterReading(id, km) }
+
+    // ---- 11b ----
+
+    fun fuel(bikeId: String): Flow<FuelState> = garage.fuel(bikeId)
+
+    val prices: StateFlow<List<FuelPrice>> = garage.prices().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun logRefuel(bikeId: String, draft: RefuelDraft) = viewModelScope.launch { garage.logRefuel(bikeId, draft) }
+
+    fun addUntrackedKm(bikeId: String, km: Double) = viewModelScope.launch { garage.addUntrackedKm(bikeId, km) }
+
+    private val _refuelArmed = MutableStateFlow<Long?>(null)
+
+    /** The fill-up whose delete was tapped once (3 s to confirm). */
+    val refuelArmed: StateFlow<Long?> = _refuelArmed.asStateFlow()
+    private var refuelDisarm: Job? = null
+
+    /** Two taps within 3 s. Returns true when it deleted. */
+    fun onDeleteRefuelTapped(id: Long): Boolean {
+        refuelDisarm?.cancel()
+        if (_refuelArmed.value == id) {
+            _refuelArmed.value = null
+            viewModelScope.launch { garage.deleteRefuel(id) }
+            return true
+        }
+        _refuelArmed.value = id
+        refuelDisarm = viewModelScope.launch {
+            delay(3_000)
+            _refuelArmed.value = null
+        }
+        return false
+    }
 
     fun answerOdometerPrompt(km: Double?) = viewModelScope.launch { garage.answerOdometerPrompt(km) }
 

@@ -130,6 +130,26 @@ class TripTracker @Inject constructor(
         _state.value = TripState.Idle
     }
 
+    /**
+     * 11b trip recovery: continues a trip the process lost (killed mid-ride), from its last
+     * checkpoint. No-op unless Idle. Running: the GPS read starts again and the first fix joins
+     * the last saved one in a straight line (the reducer's long-gap rule), so the gap counts as
+     * riding. Paused: stays paused. Auto-pause counts from now, like a resume.
+     */
+    fun restore(saved: TripStats, paused: Boolean) {
+        if (_state.value != TripState.Idle || saved.startedAtNanos == null) return
+        val now = clock.nowNanos()
+        _stats.value = saved.copy(
+            endedAtNanos = null,
+            pausedAtNanos = if (paused) saved.pausedAtNanos ?: now else null,
+            autoPaused = paused && saved.autoPaused,
+            lastMovingAtNanos = if (paused) saved.lastMovingAtNanos else now,
+            currentSpeedMps = 0f,
+            gpsStatus = GpsStatus.Searching,
+        )
+        if (paused) _state.value = TripState.Paused else collect()
+    }
+
     private fun collect() {
         _state.value = TripState.Running
         job = scope.launch {

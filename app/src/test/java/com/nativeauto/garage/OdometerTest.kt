@@ -47,6 +47,13 @@ class OdometerTest {
         assertEquals(1.02, learnFactor(1.02, 1_000.0, 900.0, gpsKm = 100.0), 0.0)
     }
 
+    @Test fun `an unlogged ride without the app isn't learned as drift`() {
+        // 11b narrowed the band to 0.9–1.1: 115 bike km for 100 GPS km is a missed ride.
+        assertEquals(1.0, learnFactor(1.0, 1_000.0, 1_115.0, gpsKm = 100.0), 0.0)
+        assertEquals(1.0, learnFactor(1.0, 1_000.0, 1_088.0, gpsKm = 100.0), 0.0)
+        assertEquals(1.04, learnFactor(1.0, 1_000.0, 1_108.0, gpsKm = 100.0), 1e-9)
+    }
+
     @Test fun `the first reading is a set, later ones corrections`() {
         assertEquals(ReadingDecision.Store(ReadingKind.SET), decideReading(12_000.0, null, away = false))
         assertEquals(ReadingDecision.Store(ReadingKind.SET), decideReading(12_000.0, null, away = true))

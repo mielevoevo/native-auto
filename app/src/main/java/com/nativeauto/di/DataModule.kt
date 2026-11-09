@@ -9,6 +9,10 @@ import com.nativeauto.history.AddressResolver
 import com.nativeauto.history.AppDatabase
 import com.nativeauto.history.MIGRATION_1_2
 import com.nativeauto.history.MIGRATION_2_3
+import com.nativeauto.history.MIGRATION_3_4
+import com.nativeauto.history.LiveTripDao
+import com.nativeauto.history.RoomTripCheckpoints
+import com.nativeauto.history.TripCheckpoints
 import com.nativeauto.garage.ActiveBike
 import com.nativeauto.garage.GarageDao
 import com.nativeauto.garage.GarageRepository
@@ -40,12 +44,13 @@ object DataModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "native-auto.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
 
     @Provides fun provideTripDao(db: AppDatabase): TripDao = db.trips()
     @Provides fun provideRecentPlaceDao(db: AppDatabase): RecentPlaceDao = db.recentPlaces()
     @Provides fun provideGarageDao(db: AppDatabase): GarageDao = db.garage()
+    @Provides fun provideLiveTripDao(db: AppDatabase): LiveTripDao = db.liveTrip()
 
     /**
      * One client for routing (FOSSGIS Valhalla) and search (Photon). Both are free community
@@ -75,4 +80,6 @@ abstract class DataBindings {
     @Binds abstract fun bindTripMaps(impl: SnapshotTripMaps): TripMaps
     // 11a: trips are tagged with the Garage's active bike.
     @Binds abstract fun bindActiveBike(impl: GarageRepository): ActiveBike
+    // 11b: the trip in progress is checkpointed for recovery after a kill.
+    @Binds abstract fun bindTripCheckpoints(impl: RoomTripCheckpoints): TripCheckpoints
 }

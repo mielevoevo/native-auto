@@ -56,8 +56,9 @@ import java.util.Locale
 
 /**
  * 11a: the rider's bikes, which one is being ridden, and each one's odometer. Drawn over the
- * dashboard like the history (rule #3: the live map stays composed underneath). 11b/11c add
- * the refuel log, services and the Garage card.
+ * dashboard like the history (rule #3: the live map stays composed underneath). 11b adds
+ * fuel (range, the refuel log, km/L, costs on demand) and untracked km; 11c services and the
+ * Garage card.
  */
 @Composable
 fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel()) {
@@ -69,6 +70,8 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var newModel by rememberSaveable { mutableStateOf(BikeModel.NMAX_GEN1) }
     var correcting by rememberSaveable { mutableStateOf<String?>(null) }
+    var refuelling by rememberSaveable { mutableStateOf<String?>(null) }
+    var addingUntracked by rememberSaveable { mutableStateOf<String?>(null) }
 
     val list = bikes
     val selected = list?.firstOrNull { it.id == selectedId } ?: list?.firstOrNull { it.active } ?: list?.firstOrNull()
@@ -106,6 +109,8 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                             onRide = { haptics.confirm(); viewModel.ride(selected.id) },
                             onEdit = { haptics.tap(); editing = selected.id },
                             onCorrect = { haptics.tap(); correcting = selected.id },
+                            onUntracked = { haptics.tap(); addingUntracked = selected.id },
+                            onRefuel = { haptics.tap(); refuelling = selected.id },
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
@@ -156,6 +161,39 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                 skipLabel = "Cancel",
                 onSave = { km -> haptics.confirm(); viewModel.enterReading(id, km); correcting = null },
                 onSkip = { correcting = null },
+            )
+        }
+    }
+    refuelling?.let { id ->
+        val bike = list?.firstOrNull { it.id == id }
+        if (bike == null) {
+            refuelling = null
+        } else {
+            val odo by remember(id) { viewModel.odometer(id) }.collectAsStateWithLifecycle(null)
+            val prices by viewModel.prices.collectAsStateWithLifecycle()
+            // Wait for the estimate, so the odometer field is prefilled.
+            if (odo != null) {
+                RefuelDialog(
+                    bike = bike,
+                    estimateKm = odo?.estimateKm,
+                    prices = prices,
+                    onSave = { draft -> haptics.confirm(); viewModel.logRefuel(id, draft); refuelling = null },
+                    onDismiss = { refuelling = null },
+                )
+            }
+        }
+    }
+    addingUntracked?.let { id ->
+        val bike = list?.firstOrNull { it.id == id }
+        if (bike == null) {
+            addingUntracked = null
+        } else {
+            val odo by remember(id) { viewModel.odometer(id) }.collectAsStateWithLifecycle(null)
+            UntrackedKmDialog(
+                bike = bike,
+                estimateKm = odo?.estimateKm,
+                onSave = { km -> haptics.confirm(); viewModel.addUntrackedKm(id, km); addingUntracked = null },
+                onDismiss = { addingUntracked = null },
             )
         }
     }
@@ -217,10 +255,15 @@ private fun BikeDetail(
     onRide: () -> Unit,
     onEdit: () -> Unit,
     onCorrect: () -> Unit,
+    onUntracked: () -> Unit,
+    onRefuel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val odo by remember(bike.id) { viewModel.odometer(bike.id) }.collectAsStateWithLifecycle(null)
     val readings by remember(bike.id) { viewModel.readings(bike.id) }.collectAsStateWithLifecycle(emptyList())
+    val fuel by remember(bike.id) { viewModel.fuel(bike.id) }.collectAsStateWithLifecycle(null)
+    val refuelArmed by viewModel.refuelArmed.collectAsStateWithLifecycle()
+    val haptics = rememberHaptics()
     val dim = AppTheme.colors.textDim
     Column(modifier.verticalScroll(rememberScrollState())) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -245,6 +288,13 @@ private fun BikeDetail(
                     modifier = Modifier.testTag("garage_odometer"),
                 )
             }
+            // 11b: hidden until the odometer is set (there's nothing to add to before that).
+            if (odo?.lastReading != null) {
+                FilledTonalButton(onClick = onUntracked, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_untracked")) {
+                    Text("Add untracked km")
+                }
+                Spacer(Modifier.width(8.dp))
+            }
             FilledTonalButton(onClick = onCorrect, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_correct")) {
                 Text(if (odo?.lastReading == null) "Set odometer" else "Correct")
             }
@@ -260,6 +310,14 @@ private fun BikeDetail(
                 Text("Ride ${bike.name}")
             }
         }
+        Spacer(Modifier.height(20.dp))
+        FuelSection(
+            bike = bike,
+            fuel = fuel,
+            refuelArmed = refuelArmed,
+            onRefuel = onRefuel,
+            onDeleteRefuel = { id -> if (viewModel.onDeleteRefuelTapped(id)) haptics.confirm() else haptics.tap() },
+        )
         if (readings.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
             Text("Odometer log", style = MaterialTheme.typography.titleMedium)
@@ -292,6 +350,7 @@ private fun ReadingRow(r: OdometerReading) {
                 ReadingKind.SET -> "First reading"
                 ReadingKind.CORRECTION -> "Corrected"
                 ReadingKind.AWAY -> "Away +${formatOdometer(r.awayKm)}"
+                ReadingKind.UNTRACKED -> "Untracked +${formatOdometer(r.awayKm)}"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = if (r.readingKind == ReadingKind.AWAY) AppTheme.colors.amber else AppTheme.colors.textDim,
@@ -301,7 +360,7 @@ private fun ReadingRow(r: OdometerReading) {
 
 private val READING_DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)
 
-private fun readingDate(ms: Long): String = READING_DATE.format(Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()))
+internal fun readingDate(ms: Long): String = READING_DATE.format(Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()))
 
 /** 6.6 → "6.6", 7.0 → "7". */
 internal fun trimNumber(v: Double): String =

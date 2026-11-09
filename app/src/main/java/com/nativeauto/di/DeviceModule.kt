@@ -35,4 +35,6 @@ interface SettingsEntryPoint {
     /** 11a: tests start from an empty Garage, and seed bikes through the repository. */
     fun garage(): com.nativeauto.garage.GarageRepository
     fun garageDao(): com.nativeauto.garage.GarageDao
+    /** 11b: no leftover trip checkpoint is recovered into a test. */
+    fun liveTripDao(): com.nativeauto.history.LiveTripDao
 }

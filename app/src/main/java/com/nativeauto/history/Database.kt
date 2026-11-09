@@ -14,8 +14,10 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import com.nativeauto.garage.BikeRecord
+import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.GarageDao
 import com.nativeauto.garage.OdometerReading
+import com.nativeauto.garage.RefuelRecord
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -137,14 +139,18 @@ interface RecentPlaceDao {
 }
 
 @Database(
-    entities = [TripRecord::class, RecentPlaceRecord::class, TrackPointRecord::class, BikeRecord::class, OdometerReading::class],
-    version = 3,
+    entities = [
+        TripRecord::class, RecentPlaceRecord::class, TrackPointRecord::class, BikeRecord::class, OdometerReading::class,
+        RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
+    ],
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun trips(): TripDao
     abstract fun recentPlaces(): RecentPlaceDao
     abstract fun garage(): GarageDao
+    abstract fun liveTrip(): LiveTripDao
 }
 
 /**
@@ -185,5 +191,38 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
                 "km REAL NOT NULL, kind TEXT NOT NULL, awayKm REAL NOT NULL, tripOffsetM REAL NOT NULL)",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS index_odometer_readings_bikeId ON odometer_readings (bikeId)")
+    }
+}
+
+/**
+ * v3 → v4 (11b): the refuel log and the last pump price per fuel type; the trip-recovery
+ * checkpoint (one row) and its fixes.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS refuels (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bikeId TEXT NOT NULL, timeMs INTEGER NOT NULL, " +
+                "odometerKm REAL NOT NULL, litres REAL NOT NULL, pricePerL REAL NOT NULL, totalRp REAL NOT NULL, " +
+                "full INTEGER NOT NULL, fuelType TEXT NOT NULL)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_refuels_bikeId ON refuels (bikeId)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS fuel_prices (" +
+                "fuelType TEXT NOT NULL, pricePerL REAL NOT NULL, updatedAtMs INTEGER NOT NULL, PRIMARY KEY(fuelType))",
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS live_trip (" +
+                "id INTEGER NOT NULL, savedAtMs INTEGER NOT NULL, savedAtNanos INTEGER NOT NULL, " +
+                "startedAtNanos INTEGER NOT NULL, distanceM REAL NOT NULL, maxSpeedMps REAL NOT NULL, " +
+                "movingNanos INTEGER NOT NULL, pausedNanos INTEGER NOT NULL, pausedAtNanos INTEGER, " +
+                "lastMovingAtNanos INTEGER, autoPaused INTEGER NOT NULL, paused INTEGER NOT NULL, PRIMARY KEY(id))",
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS live_points (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, timestampNanos INTEGER NOT NULL, " +
+                "latitude REAL NOT NULL, longitude REAL NOT NULL, speedMps REAL NOT NULL, speedAccuracyMps REAL, " +
+                "accuracyM REAL NOT NULL, bearingDeg REAL)",
+        )
     }
 }

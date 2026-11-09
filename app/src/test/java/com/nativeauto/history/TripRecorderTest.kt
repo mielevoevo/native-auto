@@ -7,7 +7,10 @@ import com.nativeauto.nav.GeoPoint
 import com.nativeauto.trip.METERS_PER_DEGREE_LAT
 import com.nativeauto.trip.SpeedSample
 import com.nativeauto.trip.TripTracker
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,15 +64,36 @@ class TripRecorderTest {
         }
     }
 
-    private inner class Rig(val scope: TestScope) {
+    /** 11b: the trip checkpoint, kept across a simulated process death. */
+    private class FakeCheckpoints : TripCheckpoints {
+        var trip: LiveTripRecord? = null
+        val fixes = mutableListOf<SpeedSample>()
+        var writes = 0
+        override suspend fun write(trip: LiveTripRecord, newFixes: List<SpeedSample>, replace: Boolean) {
+            writes++
+            if (replace) fixes.clear()
+            this.trip = trip
+            fixes += newFixes
+        }
+        override suspend fun read() = trip?.let { Checkpoint(it, fixes.toList()) }
+        override suspend fun clear() { trip = null; fixes.clear() }
+    }
+
+    /**
+     * One app process. [after] shares the previous process's storage and GPS (a relaunch after
+     * a kill); [kill] cancels everything the process was running.
+     */
+    private inner class Rig(val scope: TestScope, after: Rig? = null) {
         val clock = TestClock(scope.testScheduler)
-        val source = Source()
-        val dao = FakeTripDao()
-        val addresses = FakeAddresses()
+        val source: Source = after?.source ?: Source()
+        val dao: FakeTripDao = after?.dao ?: FakeTripDao()
+        val addresses: FakeAddresses = after?.addresses ?: FakeAddresses()
+        val checkpoints: FakeCheckpoints = after?.checkpoints ?: FakeCheckpoints()
+        private val process = CoroutineScope(scope.backgroundScope.coroutineContext + Job())
         /** The Garage's active bike, as the recorder reads it at save time (11a). */
         var bikeId: String? = null
-        val tracker = TripTracker(source, clock, scope.backgroundScope)
-        val recorder = TripRecorder(tracker, dao, addresses, { bikeId }, clock, WallClock { WALL_BASE_MS + scope.testScheduler.currentTime }, scope.backgroundScope)
+        val tracker = TripTracker(source, clock, process)
+        val recorder = TripRecorder(tracker, dao, addresses, { bikeId }, checkpoints, clock, WallClock { WALL_BASE_MS + scope.testScheduler.currentTime }, process)
             .also {
                 // The geometry tests drive a few hundred metres; the real limits have their own tests.
                 it.minDistanceM = 100.0
@@ -101,6 +125,11 @@ class TripRecorderTest {
 
         fun startTrip() {
             tracker.start()
+            scope.runCurrent()
+        }
+
+        fun kill() {
+            process.cancel()
             scope.runCurrent()
         }
     }
@@ -340,6 +369,101 @@ class TripRecorderTest {
         // Ended at the pause: the clock froze there.
         assertEquals(WALL_BASE_MS + 10_000, t.endedAtMs)
         assertTrue(t.averageSpeedMps > 19f)
+    }
+
+    // ---- 11b: checkpoints and recovery ----
+
+    @Test fun `a running trip is checkpointed about once a minute, with only the new fixes appended`() = runTest {
+        val rig = Rig(this)
+        rig.startTrip()
+        rig.drive(59)
+        assertNull(rig.checkpoints.trip)
+        rig.drive(5) // past a minute
+        val first = rig.checkpoints.trip!!
+        assertEquals(rig.checkpoints.fixes.size, rig.checkpoints.fixes.distinct().size)
+        assertTrue(first.distanceM > 1_000)
+        rig.drive(61)
+        assertEquals(2, rig.checkpoints.writes)
+        // Every accepted fix is there once, in order.
+        assertEquals(rig.checkpoints.fixes.sortedBy { it.timestampNanos }, rig.checkpoints.fixes)
+        // A pause is written at once.
+        rig.tracker.pause(); runCurrent()
+        assertTrue(rig.checkpoints.trip!!.paused)
+        // Ending clears it.
+        rig.tracker.end(); runCurrent()
+        assertNull(rig.checkpoints.trip)
+        assertEquals(1, rig.dao.trips.value.size)
+    }
+
+    @Test fun `a discarded trip clears its checkpoint`() = runTest {
+        val rig = Rig(this)
+        rig.startTrip()
+        rig.drive(70)
+        assertTrue(rig.checkpoints.trip != null)
+        rig.tracker.discard(); runCurrent()
+        assertNull(rig.checkpoints.trip)
+        assertTrue(rig.dao.trips.value.isEmpty())
+    }
+
+    @Test fun `a trip killed mid-ride resumes within ten minutes, joining the gap in a straight line`() = runTest {
+        val first = Rig(this)
+        first.startTrip()
+        first.drive(70) // 1.4 km; checkpoint at 60 s holds ~1.2 km
+        val saved = first.checkpoints.trip!!
+        first.kill()
+
+        advanceTimeBy(3 * 60_000L)
+        val second = Rig(this, after = first)
+        second.north = first.north + 2_000.0 // rode on 2 km while the app was dead
+        assertEquals(Recovery.Resumed, second.recorder.recover())
+        runCurrent()
+        assertEquals(com.nativeauto.trip.TripState.Running, second.tracker.state.value)
+        assertEquals(saved.distanceM, second.tracker.stats.value.distanceM, 1e-6)
+        // Only once per process.
+        assertEquals(Recovery.None, second.recorder.recover())
+
+        second.emit(second.fix())
+        val gapStart = first.checkpoints.fixes.last().latitude * METERS_PER_DEGREE_LAT
+        val joined = second.tracker.stats.value.distanceM
+        assertEquals(saved.distanceM + (second.north - gapStart), joined, 1.0)
+        second.drive(10)
+        second.tracker.end(); runCurrent()
+        val t = second.dao.trips.value.single()
+        assertEquals(WALL_BASE_MS, t.startedAtMs)
+        assertEquals(joined + 10 * SPEED, t.distanceM, 1.0)
+        // The path runs from the first process's start to the end of the second.
+        assertEquals(0.0, t.startLat, 1e-9)
+        assertEquals(second.north, t.endLat * METERS_PER_DEGREE_LAT, 1e-6)
+        assertNull(second.checkpoints.trip)
+    }
+
+    @Test fun `a trip lost longer ago is saved as ended at its last checkpoint`() = runTest {
+        val first = Rig(this)
+        advanceTimeBy(1_000)
+        first.startTrip()
+        first.drive(70)
+        val saved = first.checkpoints.trip!!
+        val lastFix = first.checkpoints.fixes.last()
+        first.kill()
+
+        advanceTimeBy(TripRecorder.RESUME_WITHIN_MS)
+        val second = Rig(this, after = first)
+        assertEquals(Recovery.SavedEnded, second.recorder.recover())
+        runCurrent()
+        assertEquals(com.nativeauto.trip.TripState.Idle, second.tracker.state.value)
+        val t = second.dao.trips.value.single()
+        assertEquals(WALL_BASE_MS + 1_000, t.startedAtMs)
+        assertEquals(WALL_BASE_MS + lastFix.timestampNanos / 1_000_000, t.endedAtMs)
+        assertEquals(saved.distanceM, t.distanceM, 1e-6)
+        assertNull(second.checkpoints.trip)
+        // The end-of-trip summary isn't raised for it.
+        assertNull(second.recorder.lastOutcome.value)
+    }
+
+    @Test fun `no checkpoint means nothing to recover`() = runTest {
+        val rig = Rig(this)
+        assertEquals(Recovery.None, rig.recorder.recover())
+        assertEquals(com.nativeauto.trip.TripState.Idle, rig.tracker.state.value)
     }
 
     private companion object {

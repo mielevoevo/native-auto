@@ -65,6 +65,21 @@ class GarageRepositoryTest {
         override suspend fun metersSince(bikeId: String, sinceMs: Long, offsetM: Double) = meters(trips.value, bikeId, sinceMs, offsetM)
         override suspend fun lastTrip(bikeId: String) = trips.value.filter { it.bikeId == bikeId }.maxByOrNull { it.endedAtMs }
         override suspend fun deleteAllBikes() { bikes.value = emptyList() }
+        val refuels = MutableStateFlow<List<RefuelRecord>>(emptyList())
+        val prices = MutableStateFlow<List<FuelPrice>>(emptyList())
+        override suspend fun deleteRefuels(id: String) { refuels.value = refuels.value.filterNot { it.bikeId == id } }
+        override fun observeRefuels(bikeId: String) =
+            refuels.map { l -> l.filter { it.bikeId == bikeId }.sortedWith(compareByDescending<RefuelRecord> { it.timeMs }.thenByDescending { it.id }) }
+        override suspend fun insertRefuel(refuel: RefuelRecord): Long {
+            val id = refuels.value.size + 1L
+            refuels.value += refuel.copy(id = id)
+            return id
+        }
+        override suspend fun deleteRefuel(id: Long) { refuels.value = refuels.value.filterNot { it.id == id } }
+        override fun observePrices() = prices
+        override suspend fun upsertPrice(price: FuelPrice) { prices.value = prices.value.filterNot { it.fuelType == price.fuelType } + price }
+        override suspend fun deleteAllRefuels() { refuels.value = emptyList() }
+        override suspend fun deleteAllPrices() { prices.value = emptyList() }
         override suspend fun deleteAllReadings() { readings.value = emptyList() }
     }
 
@@ -233,6 +248,100 @@ class GarageRepositoryTest {
         // More fixes of the same trip don't ask again.
         rig.drive(2)
         assertNull(rig.garage.prompt.value)
+    }
+
+    // ---- 11b ----
+
+    private fun refuel(full: Boolean, litres: Double, odometerKm: Double, price: Double = 12_500.0) =
+        RefuelDraft(full, litres, price, litres * price, FuelType.PERTAMAX, odometerKm)
+
+    @Test fun `untracked km re-anchor the odometer and teach nothing`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 100.0, startedAgoMs = 3_000_000)
+        assertTrue(rig.garage.addUntrackedKm(gen1, 42.0))
+        val r = rig.dao.lastReading(gen1)!!
+        assertEquals(ReadingKind.UNTRACKED, r.readingKind)
+        assertEquals(42.0, r.awayKm, 0.0)
+        assertEquals(1_142.0, r.km, 1e-9)
+        assertEquals(1_142.0, rig.garage.estimateNow(gen1)!!, 1e-9)
+        assertEquals(1.0, rig.dao.bike(gen1)!!.odoFactor, 0.0)
+        // Nothing to add to before the odometer is set, and no zero or negative km.
+        val gen2 = rig.garage.addBike(rig.nmax.copy(name = "Gen 2"), odometerKm = null)
+        assertEquals(false, rig.garage.addUntrackedKm(gen2, 10.0))
+        assertEquals(false, rig.garage.addUntrackedKm(gen1, 0.0))
+    }
+
+    @Test fun `a refuel at the estimate keeps it exactly, a different reading is stored as a correction`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 10.25, startedAgoMs = 3_000_000)
+        // The prefilled, rounded estimate (1010) accepted: no reading logged, the exact estimate kept.
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 5.0, odometerKm = 1_010.0, price = 12_900.0))
+        assertEquals(1, rig.dao.readings.value.size)
+        val first = rig.dao.refuels.value.single()
+        assertEquals(1_010.25, first.odometerKm, 1e-9)
+        assertEquals(12_900.0, rig.dao.prices.value.single().pricePerL, 0.0)
+        // The pump shows 1,050: that's the truth, logged as a correction.
+        advanceTimeBy(60_000)
+        rig.garage.logRefuel(gen1, refuel(full = false, litres = 1.0, odometerKm = 1_050.0))
+        assertEquals(ReadingKind.CORRECTION, rig.dao.lastReading(gen1)!!.readingKind)
+        assertEquals(1_050.0, rig.dao.refuels.value.last().odometerKm, 0.0)
+        assertEquals(12_500.0, rig.dao.prices.value.single().pricePerL, 0.0)
+    }
+
+    @Test fun `fuel state follows fill-ups, rides and untracked km`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        // No full fill yet: the level is unknown.
+        assertNull(rig.garage.fuel(gen1).first().level.litres)
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 5.0, odometerKm = 1_000.0))
+        var f = rig.garage.fuel(gen1).first()
+        assertEquals(6.6, f.level.litres!!, 1e-9)
+        assertEquals(6.6 * DEFAULT_KM_PER_L, f.level.rangeKm!!, 1e-9)
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 72.0, startedAgoMs = 3_000_000)
+        rig.garage.addUntrackedKm(gen1, 36.0)
+        f = rig.garage.fuel(gen1).first()
+        assertEquals(6.6 - 3.0, f.level.litres!!, 1e-9)
+        assertEquals(108.0, f.level.sinceRefuelKm!!, 1e-9)
+        // A full fill: 108 km on 3.0 L = 36 km/L, the starting value, so nothing moves.
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 3.0, odometerKm = 1_108.0))
+        f = rig.garage.fuel(gen1).first()
+        assertEquals(36.0, f.consumption.kmPerL, 1e-9)
+        assertEquals(6.6, f.level.litres!!, 1e-9)
+        assertEquals(2, f.refuels.size)
+        // The pump price for the bike's fuel.
+        assertEquals(12_500.0, f.pricePerL, 0.0)
+    }
+
+    @Test fun `away km make the fuel unknown until the next full fill`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        val gen2 = rig.garage.addBike(rig.nmax.copy(name = "Gen 2"), odometerKm = 30_000.0)
+        rig.garage.activate(gen2)
+        rig.garage.logRefuel(gen2, refuel(full = true, litres = 5.0, odometerKm = 30_000.0))
+        rig.garage.activate(gen1)
+        advanceTimeBy(AWAY_AFTER_MS)
+        rig.garage.activate(gen2)
+        rig.garage.answerOdometerPrompt(30_200.0)
+        val f = rig.garage.fuel(gen2).first()
+        assertNull(f.level.litres)
+        assertEquals(UnknownFuel.AWAY, f.level.unknownBecause)
+        rig.garage.logRefuel(gen2, refuel(full = true, litres = 6.0, odometerKm = 30_200.0))
+        assertEquals(rig.dao.bike(gen2)!!.tankLitres, rig.garage.fuel(gen2).first().level.litres!!, 1e-9)
+        // The away span teaches no km/L.
+        assertEquals(false, rig.garage.fuel(gen2).first().consumption.learned)
+    }
+
+    @Test fun `deleting a bike drops its fill-ups`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 5.0, odometerKm = 1_000.0))
+        rig.garage.deleteBike(gen1)
+        assertTrue(rig.dao.refuels.value.isEmpty())
     }
 
     private companion object {

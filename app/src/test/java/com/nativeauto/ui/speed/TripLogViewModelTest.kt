@@ -62,7 +62,12 @@ class TripLogViewModelTest {
         val resolver = object : AddressResolver {
             override suspend fun addressOf(point: GeoPoint): String? = null
         }
-        val recorder = TripRecorder(tracker, Dao(), resolver, { null }, clock, WallClock { 0L }, backgroundScope).also { it.start() }
+        val noCheckpoints = object : com.nativeauto.history.TripCheckpoints {
+            override suspend fun write(trip: com.nativeauto.history.LiveTripRecord, newFixes: List<com.nativeauto.trip.SpeedSample>, replace: Boolean) = Unit
+            override suspend fun read(): com.nativeauto.history.Checkpoint? = null
+            override suspend fun clear() = Unit
+        }
+        val recorder = TripRecorder(tracker, Dao(), resolver, { null }, noCheckpoints, clock, WallClock { 0L }, backgroundScope).also { it.start() }
         return tracker to TripLogViewModel(tracker, recorder, Dao(), com.nativeauto.FakeSettingsRepository())
     }
 

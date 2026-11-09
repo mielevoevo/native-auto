@@ -435,6 +435,34 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
 - Device tests: `GarageScreenTest`; `ResetSettingsRule` clears the Garage (`SettingsEntryPoint.garageDao()`)
   and its prompt. Odometer always in km.
 
+## Phase 11b: fuel, untracked km, trip recovery (built 2026-11-09, beyond the handoff)
+
+- **Room v4** (`MIGRATION_3_4`): `refuels` (`RefuelRecord`: bike, time, odometerKm, litres, pricePerL,
+  totalRp, full, fuelType), `fuel_prices` (`FuelPrice`, last pump price per `FuelType`; defaults in
+  `FuelType.defaultPricePerL`), `live_trip` + `live_points` (trip checkpoint). `MigrationTest` opens v1 under v4.
+- **`garage/Fuel.kt` (pure, `FuelTest`):** everything runs on **odometer** km, never GPS km.
+  `learnConsumption` (full-to-full spans, partials included; first measure weight 0.5, then 0.3; 10–100 km/L;
+  ±35% outlier once learning started; spans with AWAY readings skipped), `fuelLevel` (full at the last full
+  fill, walked forward through partials, capped at the tank; unknown with no full fill or AWAY since),
+  `refuelAmounts`, `costPerKm`, `spend`, `formatRupiah` ("Rp 98.000").
+- **`GarageRepository`:** `fuel(bikeId)` → `FuelState` (level, consumption, refuels, price); `logRefuel`
+  (odometer within `REFUEL_SAME_KM` of the estimate = the estimate, else stored as a reading; updates the
+  fuel's price); `deleteRefuel`; `addUntrackedKm` (`ReadingKind.UNTRACKED`, km in `awayKm`, re-anchors at
+  estimate + km, teaches nothing; false before the odometer is set). `FACTOR_RANGE` narrowed to 0.9–1.1.
+- **UI (`ui/garage/FuelUi.kt`):** `FuelSection` in the bike detail (`garage_range`, `garage_refuel`,
+  `garage_fuel_line`, `garage_since_refuel`, `garage_cost_toggle` → `garage_cost` / `garage_refill_estimate`,
+  `garage_refuel_row` with two-tap `garage_refuel_delete`); `RefuelDialog` (`garage_refuel_dialog`,
+  `_full/_partial`, `_fuel_<TYPE>`, `_mode_RUPIAH|LITRES`, `_amount`, `_price`, `_result`, `_odo`, `_save`);
+  `UntrackedKmDialog` (`garage_untracked` button, shown once the odometer is set). Costs only behind the toggle.
+- **Trip recovery (`history/TripCheckpoint.kt`):** `TripRecorder` writes `TripCheckpoints` every
+  `CHECKPOINT_EVERY_NANOS` (60 s) and at pause/resume, off the collector; clears it on end / discard.
+  `TripRecorder.recover()` (from `MainActivity.onStart`, once per process): checkpoint under
+  `RESUME_WITHIN_MS` (10 min), same boot → `TripTracker.restore` (next fix joins in a straight line) +
+  `TripService.start`; otherwise saved as ended at the last checkpointed fix, `lastOutcome` untouched.
+  `ResetSettingsRule` clears the checkpoint (`SettingsEntryPoint.liveTripDao()`).
+- Device tests: `GarageScreenTest` (fill-up → range, hidden costs, two-tap delete; untracked km). Buttons low in
+  the scrolling bike detail need `performScrollTo()` before the click.
+
 ## Known issues (deferred)
 
 - **TomTom key pending (WIP, 10a):** add `TOMTOM_API_KEY` to `local.properties`, rebuild, compare on the

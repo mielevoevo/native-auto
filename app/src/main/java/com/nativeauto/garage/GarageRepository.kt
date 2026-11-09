@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
+import kotlin.math.abs
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -59,8 +60,29 @@ data class OdometerState(
     val factor: Double,
 )
 
+/** What one fill-up the rider logs at the pump (11b). */
+data class RefuelDraft(
+    val full: Boolean,
+    val litres: Double,
+    val pricePerL: Double,
+    val totalRp: Double,
+    val fuel: FuelType,
+    /** The bike's real odometer, prefilled with the estimate. */
+    val odometerKm: Double,
+)
+
+/** A bike's fuel as the Garage shows it (11b). */
+data class FuelState(
+    val level: FuelLevel,
+    val consumption: Consumption,
+    /** Newest first. */
+    val refuels: List<RefuelRecord>,
+    /** Rp per litre of the bike's fuel: the last price logged, else the default. */
+    val pricePerL: Double,
+)
+
 /**
- * The Garage's bikes and odometers (11a). Only the active bike collects the live trip, so the
+ * The Garage's bikes and odometers (11a), fuel (11b). Only the active bike collects the live trip, so the
  * Garage card (11c) can show its odometer moving during a ride.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -124,6 +146,73 @@ class GarageRepository @Inject constructor(
                 }
             }
         }
+    }
+
+    fun prices(): Flow<List<FuelPrice>> = dao.observePrices()
+
+    /**
+     * Range, km/L and the refuel log. Everything runs on the odometer (so untracked km count and
+     * can't skew km/L); away readings make the level unknown until the next full fill.
+     */
+    fun fuel(bikeId: String): Flow<FuelState> =
+        combine(
+            dao.observeBikes().map { list -> list.firstOrNull { it.id == bikeId } },
+            dao.observeRefuels(bikeId),
+            dao.observeReadings(bikeId).map { rs -> rs.filter { it.readingKind == ReadingKind.AWAY }.map { it.timeMs } }.distinctUntilChanged(),
+            odometer(bikeId).map { it.estimateKm },
+            dao.observePrices(),
+        ) { bike, refuels, away, odo, prices ->
+            val tank = bike?.tankLitres ?: BikeModel.OTHER.tankLitres
+            val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away)
+            FuelState(
+                level = fuelLevel(tank, consumption.kmPerL, refuels, away, odo),
+                consumption = consumption,
+                refuels = refuels,
+                pricePerL = priceOf(bike?.fuel ?: FuelType.PERTAMAX, prices),
+            )
+        }.distinctUntilChanged()
+
+    /**
+     * Logs a fill-up. The odometer typed at the pump is the truth: if it differs from the
+     * estimate by a kilometre or more it's stored as a reading too (a correction, which teaches
+     * the GPS factor, or the first reading); otherwise the exact estimate is kept, so accepting
+     * the prefilled (rounded) value doesn't log a correction every time. The pump price becomes
+     * the fuel type's price.
+     */
+    suspend fun logRefuel(bikeId: String, draft: RefuelDraft) {
+        val estimate = estimateNow(bikeId)
+        val odo = if (estimate != null && abs(draft.odometerKm - estimate) < REFUEL_SAME_KM) {
+            estimate
+        } else {
+            enterReading(bikeId, draft.odometerKm)
+            draft.odometerKm
+        }
+        lock.withLock {
+            val now = wall.nowMs()
+            dao.insertRefuel(
+                RefuelRecord(
+                    bikeId = bikeId, timeMs = now, odometerKm = odo, litres = draft.litres, pricePerL = draft.pricePerL,
+                    totalRp = draft.totalRp, full = draft.full, fuelType = draft.fuel.name,
+                ),
+            )
+            dao.upsertPrice(FuelPrice(draft.fuel.name, draft.pricePerL, now))
+        }
+    }
+
+    suspend fun deleteRefuel(id: Long) = lock.withLock { dao.deleteRefuel(id) }
+
+    /**
+     * The rider's own ride without the app ("Add untracked km"): re-anchors the odometer at the
+     * estimate plus [km]. Counts for fuel and servicing like any ride; teaches nothing. Needs
+     * the odometer to be set. Returns false when it isn't.
+     */
+    suspend fun addUntrackedKm(bikeId: String, km: Double): Boolean = lock.withLock {
+        if (km <= 0) return@withLock false
+        val bike = dao.bike(bikeId) ?: return@withLock false
+        val prev = dao.lastReading(bikeId) ?: return@withLock false
+        val estimate = estimateOdometerKm(prev, bike.odoFactor, gpsSince(bike, prev)) ?: return@withLock false
+        insertReading(bike, estimate + km, ReadingKind.UNTRACKED, km)
+        true
     }
 
     /** The estimate right now (one-shot). */
@@ -275,6 +364,9 @@ class GarageRepository @Inject constructor(
         activate(id)
     }
 }
+
+/** A refuel's odometer within this of the estimate is the estimate (the rounded prefill accepted). */
+const val REFUEL_SAME_KM = 1.0
 
 /** A trip starting this far from the active bike's last ride asks "which bike?" (debug). */
 const val WHICH_BIKE_KM = 50.0

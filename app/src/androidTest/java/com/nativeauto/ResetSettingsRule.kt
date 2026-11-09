@@ -40,6 +40,8 @@ class ResetSettingsRule : ExternalResource() {
             SettingsEntryPoint::class.java,
         )
         entry.garageDao().clear()
+        // 11b: a checkpoint left by an earlier run would be recovered as a trip.
+        entry.liveTripDao().clear()
         entry.garage().dismissPrompt()
         settings.saveLayout(SavedLayout.Default)
         settings.setSpeedUnit(SpeedUnit.KMH)

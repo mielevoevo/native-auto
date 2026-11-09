@@ -33,8 +33,9 @@ import javax.inject.Singleton
  * - very short trips aren't kept: under [MIN_DISTANCE_M] or under [MIN_MOVING_MS] of moving
  *   time (opening the app at a desk, a Start pressed by mistake).
  *
- * A trip in progress lives in memory, like the tracker's figures; if the process dies
- * mid-trip, that trip is lost with them.
+ * 11b: the trip in progress is also checkpointed to the database about once a minute (and at
+ * each pause / resume), so a process killed mid-ride can be resumed or saved on the next
+ * launch ([recover]).
  */
 @Singleton
 class TripRecorder @Inject constructor(
@@ -42,6 +43,7 @@ class TripRecorder @Inject constructor(
     private val dao: TripDao,
     private val addresses: AddressResolver,
     private val bike: ActiveBike,
+    private val checkpoints: TripCheckpoints,
     private val clock: MonotonicClock,
     private val wall: WallClock,
     @ApplicationScope private val scope: CoroutineScope,
@@ -69,21 +71,39 @@ class TripRecorder @Inject constructor(
         val fixes = ArrayList<SpeedSample>()
         var stats: TripStats? = null
         var lastSample: SpeedSample? = null
-        var saved = false
+        @Volatile var saved = false
+        /** How many of [fixes] are in the checkpoint already, and when it was last written. */
+        var checkpointed = 0
+        var checkpointAtNanos = startedAtNanos
+        var checkpointedPaused = false
+
+        fun add(sample: SpeedSample) {
+            lastSample = sample
+            fixes += sample
+            val p = GeoPoint(sample.latitude, sample.longitude)
+            val prev = points.lastOrNull()
+            if (prev == null || haversineMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) >= MIN_STEP_M) {
+                points += p
+            }
+        }
     }
+
+    /** The trip being recorded. [recover] sets it before restoring the tracker, so the path carries on. */
+    @Volatile private var rec: Recording? = null
+    private val checkpointLock = Mutex()
 
     /** Called once from the Application. */
     fun start() {
         if (started) return
         started = true
         scope.launch {
-            var rec: Recording? = null
             combine(tracker.state, tracker.stats, ::Pair).collect { (state, stats) ->
                 val key = stats.startedAtNanos
                 rec?.let { r ->
                     if (r.startedAtNanos != key) {
                         // Cleared without ending: discarded (Reset), so nothing is saved.
                         rec = null
+                        if (!r.saved) clearCheckpoint()
                     }
                 }
                 if (key == null) return@collect
@@ -93,24 +113,94 @@ class TripRecorder @Inject constructor(
                 }
                 r.stats = stats
                 val sample = stats.lastSample
-                if (sample != null && sample !== r.lastSample) {
-                    r.lastSample = sample
-                    r.fixes += sample
-                    val p = GeoPoint(sample.latitude, sample.longitude)
-                    val prev = r.points.lastOrNull()
-                    if (prev == null || haversineMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) >= MIN_STEP_M) {
-                        r.points += p
-                    }
-                }
+                if (sample != null && sample !== r.lastSample) r.add(sample)
                 if (state == TripState.Ended && !r.saved) {
                     r.saved = true
                     save(r, endNanos = stats.endedAtNanos ?: clock.nowNanos())
+                    clearCheckpoint()
+                } else if (state == TripState.Running || state == TripState.Paused) {
+                    val paused = state == TripState.Paused
+                    val now = clock.nowNanos()
+                    if (now - r.checkpointAtNanos >= CHECKPOINT_EVERY_NANOS || paused != r.checkpointedPaused) {
+                        checkpoint(r, stats, paused, now)
+                    }
                 }
             }
         }
     }
 
-    private suspend fun save(r: Recording, endNanos: Long) {
+    /** Writes the figures and the new fixes in the background: the collector never waits on disk. */
+    private fun checkpoint(r: Recording, stats: TripStats, paused: Boolean, nowNanos: Long) {
+        r.checkpointAtNanos = nowNanos
+        r.checkpointedPaused = paused
+        val from = r.checkpointed
+        val newFixes = r.fixes.subList(from, r.fixes.size).toList()
+        r.checkpointed = r.fixes.size
+        val row = stats.toCheckpoint(paused, wall.nowMs(), nowNanos, r.startedAtNanos)
+        scope.launch {
+            checkpointLock.withLock {
+                // Ended or discarded meanwhile: the checkpoint is already cleared; don't bring it back.
+                if (r.saved || rec !== r) return@withLock
+                checkpoints.write(row, newFixes, replace = from == 0)
+            }
+        }
+    }
+
+    private suspend fun clearCheckpoint() = checkpointLock.withLock { checkpoints.clear() }
+
+    private var recoveryChecked = false
+
+    /**
+     * 11b, called when the app becomes visible (it acts once per process). A trip the process
+     * lost mid-ride is
+     * - **resumed** when its last checkpoint is under [RESUME_WITHIN_MS] old (same boot): the
+     *   tracker carries on with the same figures and path, and the next fix joins the last one
+     *   in a straight line. The caller then restarts the trip service.
+     * - otherwise **saved as ended** at the last checkpointed point (if it's long enough to keep).
+     *
+     * Nothing happens while a trip is already in progress in this process.
+     */
+    suspend fun recover(): Recovery {
+        if (recoveryChecked) return Recovery.None
+        recoveryChecked = true
+        if (tracker.state.value != TripState.Idle) return Recovery.None
+        val cp = checkpointLock.withLock { checkpoints.read() } ?: return Recovery.None
+        val row = cp.trip
+        val nowNanos = clock.nowNanos()
+        val nowMs = wall.nowMs()
+        val sameBoot = nowNanos >= row.savedAtNanos
+        val r = Recording(row.startedAtNanos)
+        cp.fixes.forEach(r::add)
+        r.checkpointed = cp.fixes.size
+        r.checkpointAtNanos = if (sameBoot) row.savedAtNanos else nowNanos
+        r.checkpointedPaused = row.paused
+        val stats = row.toStats(cp.fixes.lastOrNull())
+        r.stats = stats
+        if (sameBoot && nowMs - row.savedAtMs in 0 until RESUME_WITHIN_MS) {
+            rec = r
+            tracker.restore(stats, paused = row.paused)
+            return Recovery.Resumed
+        }
+        // Too old, or the phone rebooted: the trip ends where it was last saved.
+        val endNanos = row.pausedAtNanos ?: cp.fixes.lastOrNull()?.timestampNanos ?: row.savedAtNanos
+        r.stats = stats.copy(endedAtNanos = endNanos)
+        save(r, endNanos, refNanos = row.savedAtNanos, refMs = row.savedAtMs, report = false)
+        clearCheckpoint()
+        return Recovery.SavedEnded
+    }
+
+    /**
+     * [refNanos] / [refMs]: one instant on both clocks, to turn monotonic times into wall times
+     * (a recovered trip uses its checkpoint's, which still holds after a reboot). [report]: set
+     * [lastOutcome] for the end-of-trip summary; not for a recovered trip.
+     */
+    private suspend fun save(
+        r: Recording,
+        endNanos: Long,
+        refNanos: Long = clock.nowNanos(),
+        refMs: Long = wall.nowMs(),
+        report: Boolean = true,
+    ) {
         r.saved = true
         val s = r.stats ?: return
         // The last accepted fix may have been skipped as too close; the path still ends there.
@@ -119,12 +209,10 @@ class TripRecorder @Inject constructor(
             if (r.points.lastOrNull() != end) r.points += end
         }
         if (!worthKeeping(s) || r.points.size < 2) {
-            _lastOutcome.value = TripOutcome.TooShort
+            if (report) _lastOutcome.value = TripOutcome.TooShort
             return
         }
-        val nowNanos = clock.nowNanos()
-        val nowMs = wall.nowMs()
-        fun wallMs(nanos: Long) = nowMs - (nowNanos - nanos) / 1_000_000
+        fun wallMs(nanos: Long) = refMs - (refNanos - nanos) / 1_000_000
         val track = simplify(r.points, SIMPLIFY_TOLERANCE_M)
         val start = r.points.first()
         val end = r.points.last()
@@ -157,7 +245,7 @@ class TripRecorder @Inject constructor(
             )
         }
         val id = dao.insertWithTrack(record, full)
-        _lastOutcome.value = TripOutcome.Saved(record.copy(id = id))
+        if (report) _lastOutcome.value = TripOutcome.Saved(record.copy(id = id))
         scope.launch { resolve(id, start, end, knownStart = null, knownEnd = null) }
     }
 
@@ -182,9 +270,18 @@ class TripRecorder @Inject constructor(
         const val MIN_MOVING_MS = 120_000L
 
         const val MIN_STEP_M = 3.0
+
+        /** 11b: the trip in progress is checkpointed this often (and at each pause / resume). */
+        const val CHECKPOINT_EVERY_NANOS = 60_000_000_000L
+
+        /** A lost trip whose last checkpoint is younger than this is resumed; older, it's saved as ended. */
+        const val RESUME_WITHIN_MS = 10 * 60_000L
         const val SIMPLIFY_TOLERANCE_M = 4.0
     }
 }
+
+/** What [TripRecorder.recover] found. */
+enum class Recovery { None, Resumed, SavedEnded }
 
 /** The fate of an ended trip, for the end-of-trip summary. */
 sealed interface TripOutcome {

@@ -31,6 +31,9 @@ import com.nativeauto.nav.IncomingLinks
 import com.nativeauto.core.SelfClose
 import com.nativeauto.trip.TripState
 import com.nativeauto.trip.TripTracker
+import com.nativeauto.history.Recovery
+import com.nativeauto.history.TripRecorder
+import com.nativeauto.location.TripService
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
@@ -42,6 +45,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var selfClose: SelfClose
     @Inject lateinit var tracker: TripTracker
     @Inject lateinit var links: IncomingLinks
+    @Inject lateinit var recorder: TripRecorder
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -96,6 +100,11 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         selfClose.onVisible()
+        // 11b: a trip lost with the process (killed mid-ride) is resumed or saved. Checked once
+        // per process, here because the trip service may only start while the app is visible.
+        lifecycleScope.launch {
+            if (recorder.recover() == Recovery.Resumed) TripService.start(this@MainActivity)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getSystemService(PowerManager::class.java)?.addThermalStatusListener(mainExecutor, thermalListener)
         }

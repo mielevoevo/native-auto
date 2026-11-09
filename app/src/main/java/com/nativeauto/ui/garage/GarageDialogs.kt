@@ -55,7 +55,7 @@ import kotlin.math.roundToLong
 
 /** The shared frame: a wide card that fits a landscape phone, the action beside the title. */
 @Composable
-private fun GarageDialog(
+internal fun GarageDialog(
     tag: String,
     title: String,
     onDismiss: () -> Unit,
@@ -175,7 +175,7 @@ internal fun BikeEditor(
 }
 
 @Composable
-private fun <T> Segments(options: List<T>, selected: T, text: (T) -> String, tag: (T) -> String, onSelect: (T) -> Unit) {
+internal fun <T> Segments(options: List<T>, selected: T, text: (T) -> String, tag: (T) -> String, onSelect: (T) -> Unit) {
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         options.forEachIndexed { i, option ->
             SegmentedButton(
@@ -190,7 +190,7 @@ private fun <T> Segments(options: List<T>, selected: T, text: (T) -> String, tag
 }
 
 @Composable
-private fun NumberField(
+internal fun NumberField(
     value: String,
     onChange: (String) -> Unit,
     label: String,

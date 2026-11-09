@@ -174,3 +174,37 @@ Format: **sub-phase · decision** — why, and how to change it.
   there are two bikes or more.
 - **Odometer always in km** (bikes' own unit), even with mph set for speed.
 - **Indonesian number style accepted:** "12.345" in an odometer field is 12,345 km; "6,6" in a litre field is 6.6 L.
+
+## 11b · Fuel, untracked km, trip recovery (v3.1)
+
+- **The untracked-km design (2026-11-09) shipped here**, as the user asked: "Add untracked km" in the bike
+  detail, no prompts, the narrower factor band, km/L from odometer deltas, trip recovery.
+- **Fuel prices to start from:** Pertalite Rp 10.000, Pertamax Rp 12.500, Pertamax Turbo Rp 13.500 per
+  litre (approximate pump prices; the spec's Rp 19.600 example looked like a placeholder). Each refuel stores
+  the price typed at the pump for that fuel type, and that price is used from then on.
+- **Refuel form:** Full tank (default) / Partial; fuel type (the bike's by default); amount as **Paid (Rp)**
+  (default) or **Litres**, the other worked out from the price per litre; odometer prefilled with the
+  estimate. An amount over twice the tank (Rp typed into Litres) isn't accepted.
+- **The odometer at the pump:** within 1 km of the estimate it counts as the estimate (accepting the rounded
+  prefill doesn't log a correction every fill-up); otherwise it's stored as a reading (a correction, which
+  teaches the GPS factor, or the first reading).
+- **km/L learning:** the first full-to-full measure moves the starting value halfway (it's a guess); later
+  ones move it 30% (recent tanks count more, one odd tank doesn't swing it). Ignored: under 10 or over
+  100 km/L, and, once learning has started, anything more than 35% off the current figure (forgotten fill-up,
+  typo). Shown in the refuel log as "(skipped)". Spans with away km teach nothing.
+- **"Correction doesn't change the range" (decided 2026-11-08), read as:** a correction never changes km/L.
+  The range still follows the odometer (the agreed "real odometer is the source of truth"), so a correction
+  upward means more km ridden since the fill and less fuel left.
+- **Range before the first full fill-up:** "—" with "Log a full fill-up to start the tank estimate". After
+  away km: "—" until the next full fill. Range turns red at ≤ 20% of the tank (the 11c tank's last segment).
+- **Costs stay hidden:** the refuel log shows litres only. "Calculate refill" shows next refill (litres ×
+  price = Rp), spend for the last 7 days / this month / last month, and Rp per km (first to last full fill).
+  It closes again each time the Garage opens.
+- **Range on the dashboard waits for 11c's Garage card** (the log-face stat was the other option in §6).
+- **Untracked km:** at most 5,000 km per entry (a typo guard), stored in the existing `awayKm` column with
+  kind UNTRACKED, so no reading migration.
+- **Trip recovery:** checkpoint every 60 s and at each pause / resume. Checked once per process when the app
+  becomes visible (the trip service may only start then). Resumed if the last checkpoint is under 10 min old
+  and the phone hasn't rebooted since; otherwise saved as ended at the last checkpointed fix (no end-of-trip
+  summary for it). Known edge: if the app is swiped away and the process dies before the save finishes, the
+  next launch within 10 min resumes that trip; End then saves it.
