@@ -632,3 +632,17 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
     still map, fastest only while the map follows / rotates or cards animate / drag.
   - In every mode: no needless redraws (nothing drawn when nothing changed); smooth only raises the rate
     while there is motion.
+
+### Decided (2026-11-09, later): Phase 12 = v3.3
+- **R4 refresh rate, revised:** animations always look 120 Hz. LTPO logic: any drag, card move or map
+  motion jumps to the fastest mode at once, and it drops back down as soon as demand ends. The setting
+  (Auto / Power saver / Smooth) decides how low it drops and how quickly. Nothing is drawn when nothing changes.
+- **R3 drag:** the proposal above is accepted (1 s hold with ring + tick, lift-release = picker, hold time
+  setting 1/2/3 s).
+- **R1 / R2:** build as planned (range card with one cautious number + optional end-of-ride km/L;
+  Day / Week / Month total on the speed card).
+- **Version:** Phase 12 ships as **3.3** (a QOL phase, one version). Sub-phase builds keep versionName 3.3,
+  versionCode +1 each.
+- **Sub-phases:** 12a (look and feel: true black, drag to swap, refresh-rate policy and setting), then
+  12b (numbers: range card, end-of-ride km/L prompt, period totals). Each ends with the release smoke test
+  and a testable APK.
