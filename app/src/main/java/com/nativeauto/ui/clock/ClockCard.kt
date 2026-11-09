@@ -60,6 +60,7 @@ import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
 import com.nativeauto.ui.theme.AppTheme
+import com.nativeauto.ui.theme.Geist
 import com.nativeauto.ui.theme.appSegmentedColors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -210,6 +211,7 @@ private fun Time(time: ClockTime, size: TextUnit) {
         Text(
             time.digits,
             style = TextStyle(
+                fontFamily = Geist,
                 fontSize = size,
                 lineHeight = size,
                 fontWeight = FontWeight.Medium,

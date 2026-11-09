@@ -538,7 +538,7 @@ built in 11b (v3.1), trip recovery included.
 
 - **Geist** (Vercel, SIL Open Font License, free for a public release) replaces the default system font,
   so the app feels less industrial and less "default Android". Picked by the user over Switzer / Satoshi.
-- **Not applied yet** (the user's call: after the phase work). When it is: bundle the font files in
+- **Applied 2026-11-09 (after 11c).** Was: not applied yet (the user's call: after the phase work). When it is: bundle the font files in
   `app/src/main/res/font/`, set it in the theme's `Typography` (every Material text style, plus `PaneTitle`),
   and check:
   - tabular figures still work (`fontFeatureSettings = "tnum"` on speed, clock, odometer);

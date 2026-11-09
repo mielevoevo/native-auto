@@ -69,6 +69,7 @@ import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
 import com.nativeauto.ui.theme.AppTheme
+import com.nativeauto.ui.theme.Geist
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Locale
 import javax.inject.Inject
@@ -295,7 +296,7 @@ private fun ValueText(big: BigValue, size: TextUnit) {
     Column {
         Text(
             big.text,
-            style = TextStyle(fontSize = size, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
+            style = TextStyle(fontFamily = Geist, fontSize = size, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
             color = big.color ?: AppTheme.colors.text,
             maxLines = 1,
             softWrap = false,

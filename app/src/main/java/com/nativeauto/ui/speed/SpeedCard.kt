@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import com.nativeauto.ui.theme.AppTheme
+import com.nativeauto.ui.theme.Geist
 import androidx.annotation.StringRes
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -326,6 +327,7 @@ private fun SpeedHero(ui: SpeedometerUiState, size: TextUnit) {
 }
 
 private fun heroStyle(size: TextUnit) = TextStyle(
+    fontFamily = Geist,
     fontSize = size,
     lineHeight = size,
     fontWeight = FontWeight.Bold,

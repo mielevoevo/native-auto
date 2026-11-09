@@ -493,6 +493,14 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
   (`FakeGarageDao`); device: `GarageScreenTest` (service add / due / done, log-face badge, Garage card +
   low-fuel icon).
 
+## App font: Geist (applied 2026-11-09, after 11c)
+
+- **Geist** (Vercel, OFL; licence in `assets/licenses/geist-OFL.txt`), bundled as static TTFs from the `geist`
+  npm package 1.3.1: `res/font/geist_regular|medium|semibold|bold.ttf`. `Geist` (`ui/theme/Type.kt`) is set on
+  every Material style, `PaneTitle` and `TabularNumbers`. Bare `TextStyle(...)` doesn't inherit the theme, so
+  the speed hero (`heroStyle`), clock digits and Garage card value set `fontFamily = Geist` themselves; any new
+  bare `TextStyle` must too. All four faces have `tnum`. Map labels keep the map's own fonts.
+
 ## Known issues (deferred)
 
 - **TomTom key pending (WIP, 10a):** add `TOMTOM_API_KEY` to `local.properties`, rebuild, compare on the
