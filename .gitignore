@@ -16,3 +16,6 @@ local.properties
 .claude/settings.local.json
 .kotlin
 /.dev/
+
+# User screenshots dropped in for Claude (not part of the app)
+Screenshot*.png
