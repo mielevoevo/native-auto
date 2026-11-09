@@ -646,3 +646,8 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
 - **Sub-phases:** 12a (look and feel: true black, drag to swap, refresh-rate policy and setting), then
   12b (numbers: range card, end-of-ride km/L prompt, period totals). Each ends with the release smoke test
   and a testable APK.
+- **R1 addition (rider, 2026-11-09): a fuel level without a full fill.** The odometer alone can't say
+  what's left, so the rider sets a starting level from the bike's own fuel gauge ("Set fuel level":
+  bars out of the gauge's total, or a fraction) together with the odometer. Range works from there, rounded
+  down (cautious). The first full fill replaces this estimate with a measured one. Part of 12b.
+  - **Open:** how many bars the bike's fuel gauge has (chosen per bike, default from the model).
