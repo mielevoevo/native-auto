@@ -20,6 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.FilterChipDefaults
 import com.nativeauto.settings.TelemetryStat
 import com.nativeauto.ui.theme.AppTheme
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -291,7 +293,18 @@ fun SettingsSheet(
 
                     if (BuildConfig.DEBUG) {
                         HorizontalDivider()
-                        Text(stringResource(R.string.settings_debug), style = MaterialTheme.typography.titleMedium)
+                        val context = LocalContext.current
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.settings_debug), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            // 10a: Photon vs TomTom on local queries. The activity exists in debug builds only.
+                            FilledTonalButton(
+                                onClick = {
+                                    haptics.tap()
+                                    context.startActivity(Intent().setClassName(context, "com.nativeauto.debug.SearchTestActivity"))
+                                },
+                                modifier = Modifier.heightIn(min = 56.dp).testTag("debug_search_test"),
+                            ) { Text(stringResource(R.string.settings_search_test)) }
+                        }
                         SwitchRow(label = R.string.settings_fake_gps, hint = null, checked = fakeGps, tag = "debug_fake_gps") {
                             haptics.toggle(it); viewModel.setUseFakeGps(it)
                         }

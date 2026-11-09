@@ -108,3 +108,19 @@ Format: **sub-phase · decision** — why, and how to change it.
   Garage joins it in 11c.
 - **Back up / Import buttons** sit in the history's top bar (56 dp); results show as a line next to the
   title.
+
+## 10a · Place search: TomTom behind `PlaceSearch`
+
+- **WIP — TomTom key not added yet.** `local.defaults.properties` has the placeholder
+  `TOMTOM_API_KEY=DEFAULT_TOMTOM_KEY`; `BuildConfig.HAS_TOMTOM_KEY` stays false until the user puts the real
+  key in `local.properties` (`TOMTOM_API_KEY=...`, from developer.tomtom.com) and rebuilds. Until then search
+  runs on Photon exactly as before, and the Search test screen says "No TomTom key yet". **To finish later:**
+  add the key, run the Search test on the 20 queries, and confirm TomTom is the better default.
+- **TomTom when it has a key, Photon otherwise** (`PreferredPlaceSearch`), and Photon whenever TomTom fails
+  (offline, quota, bad key), so search is never worse than before. Reverse lookups follow the same order.
+- **TomTom Fuzzy Search**, `typeahead=false` (the UI already waits for a pause in typing), biased (not
+  filtered) to the rider's position, 8 results. POIs are named by the POI, addresses by the street.
+- **Search test: a debug-only activity** (`src/debug`, not in the release APK), opened from the Debug row
+  in settings. 20 fixed queries (13 Yogyakarta, 7 Jakarta: landmarks, abbreviations, small businesses,
+  street + number, a gang, misspellings), each biased to its city centre; Photon and TomTom side by side
+  with distance from the centre. Scored by hand; queries run only on a tap (fair use / quota).

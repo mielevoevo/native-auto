@@ -55,6 +55,7 @@
     <string name="settings_off">Off</string>
     <string name="settings_telemetry">Trip figures</string>
     <string name="settings_trip_options">Trip options</string>
+    <string name="settings_search_test">Search test</string>
     <string name="settings_trip_options_hint">Auto-pause, auto-end, figures</string>
     <string name="settings_telemetry_choose">Choose</string>
     <string name="settings_telemetry_hint">Shown on the trip log, the summary and the history. Every trip records all of them.</string>

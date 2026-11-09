@@ -20,6 +20,14 @@ val hasGoogleMapsKey: Boolean = run {
     key.isNotEmpty() && key != "DEFAULT_API_KEY"
 }
 
+/** 10a: true once a real TomTom key is in local.properties (WIP: the user adds it later). */
+val hasTomTomKey: Boolean = run {
+    val props = Properties()
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { props.load(it) }
+    val key = props.getProperty("TOMTOM_API_KEY", "").trim()
+    key.isNotEmpty() && key != "DEFAULT_TOMTOM_KEY"
+}
+
 android {
     namespace = "com.nativeauto"
     compileSdk {
@@ -31,11 +39,12 @@ android {
         // 26 is the floor for Location.speedAccuracyMetersPerSecond.
         minSdk = 26
         targetSdk = 37
-        versionCode = 9
-        versionName = "2.6"
+        versionCode = 10
+        versionName = "2.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_GOOGLE_MAPS_KEY", hasGoogleMapsKey.toString())
+        buildConfigField("boolean", "HAS_TOMTOM_KEY", hasTomTomKey.toString())
     }
 
     buildTypes {

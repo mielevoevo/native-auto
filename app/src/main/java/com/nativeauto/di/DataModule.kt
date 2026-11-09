@@ -15,7 +15,7 @@ import com.nativeauto.history.TripDao
 import com.nativeauto.history.TripMaps
 import com.nativeauto.nav.FerrostarNavigator
 import com.nativeauto.nav.Navigator
-import com.nativeauto.nav.PhotonPlaceSearch
+import com.nativeauto.nav.PreferredPlaceSearch
 import com.nativeauto.nav.PlaceSearch
 import com.nativeauto.nav.RecentPlaces
 import com.nativeauto.nav.RoomRecentPlaces
@@ -63,7 +63,8 @@ object DataModule {
 abstract class DataBindings {
     @Binds abstract fun bindWallClock(impl: SystemWallClock): WallClock
     @Binds abstract fun bindNavigator(impl: FerrostarNavigator): Navigator
-    @Binds abstract fun bindPlaceSearch(impl: PhotonPlaceSearch): PlaceSearch
+    // 10a: TomTom when its key is set, Photon otherwise and on any TomTom failure.
+    @Binds abstract fun bindPlaceSearch(impl: PreferredPlaceSearch): PlaceSearch
     @Binds abstract fun bindRecentPlaces(impl: RoomRecentPlaces): RecentPlaces
     @Binds abstract fun bindAddressResolver(impl: GeocoderAddressResolver): AddressResolver
     @Binds abstract fun bindTripMaps(impl: SnapshotTripMaps): TripMaps

@@ -381,7 +381,23 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
 - `SettingsEntryPoint` also exposes `tripDao()` / `tripFiles()` for device tests (`TripFilesTest`,
   the history test in `DashboardScreenTest`), which seed and delete their own trips.
 
+## Phase 10a: TomTom search (built 2026-11-09, beyond the handoff)
+
+- **Key (WIP):** `TOMTOM_API_KEY` like `MAPS_API_KEY`: placeholder `DEFAULT_TOMTOM_KEY` in
+  `local.defaults.properties`, the real one only in `local.properties` (the user adds it).
+  `app/build.gradle.kts` derives `BuildConfig.HAS_TOMTOM_KEY`; the secrets plugin provides
+  `BuildConfig.TOMTOM_API_KEY`. Not added yet: search runs on Photon.
+- **`nav/TomTomPlaceSearch.kt`:** `TomTomPlaceSearch` (search/2/search, reverseGeocode; `available` =
+  has key), `PreferredPlaceSearch` (bound as `PlaceSearch` in `DataModule`: TomTom else Photon, Photon on
+  any `IOException`), pure `parseTomTomSearch` / `parseTomTomReverse` / `withFallback` (`TomTomParseTest`).
+- **Debug Search test (`app/src/debug/`):** `SearchTestActivity` + its manifest; `TEST_QUERIES` (20,
+  YK/JKT). Opened from settings' Debug row (`debug_search_test`, by class name, so main code doesn't
+  reference it). Device test `SearchTestScreenTest` (network-tolerant).
+
 ## Known issues (deferred)
+
+- **TomTom key pending (WIP, 10a):** add `TOMTOM_API_KEY` to `local.properties`, rebuild, compare on the
+  Search test screen.
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);
   cold start is ~14 s there. MapLibre with real tiles costs the same as Google without a key, so
