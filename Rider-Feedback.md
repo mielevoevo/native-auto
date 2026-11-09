@@ -653,6 +653,22 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
   - **Gauge bars (rider):** Gen 1 6 bars, Gen 2 8 bars. In 12b these are fixed by model: NMAX gen 1 = 6 bars, NMAX gen 2 = 8 bars;
     a per-bike gauge setting in the editor is **WIP, after Phase 12**.
 
+## Phase 12c (planned 2026-11-09, build on the rider's "start"): adjustable fuel prices
+
+- **Why:** fuel rates change; prices must never need a rebuild. Today the last pump price per fuel type
+  (`fuel_prices`) already becomes the price, but there is no way to change it without a fill-up, and the
+  defaults are stale.
+- **Fuel prices section in the Garage:** a row for each fuel type (Rp/L, last updated); tap → edit dialog. Writes the same
+  `fuel_prices` store (a fill-up at a new price still updates it). Past refuels keep their own price.
+- **Defaults (rates as of 2026-11-09):** Pertalite Rp 10.000/L, Pertamax (92) Rp 15.950/L, Pertamax Green
+  Rp 19.150/L, Pertamax Turbo Rp 19.600/L. Only used until the rider has a price of their own for that fuel.
+- **Buttons:** Pertalite / Pertamax / Pertamax Turbo, labels stacked on two lines ("Pertamax" / "Turbo") to
+  fit the segment width.
+- **WIP, after 12c:** fuel types typed in by the rider. 12c keeps prices keyed by name (any string) so a
+  custom type needs no migration later.
+- Still v3.3; versionCode 18 (Phase 13 then 19 / 20, unless the rider says otherwise). Effort: medium.
+- Tests: editing a price changes the refuel prefill and the refill estimate; defaults; release smoke edits a price.
+
 ## Phase 13 (WIP, planned 2026-11-09, not started): call controls + portrait
 
 **Versions (rider):** 13a ships as **3.4.1**, 13b as **3.4.2** (versionCode +1 each: 18, 19).
