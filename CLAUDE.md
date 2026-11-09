@@ -9,6 +9,8 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   `app/build.gradle.kts`, once that sub-phase's tests pass.
   **Phase 11 is a major version (user, 2026-11-09):** 11a ships as 3.0, then +0.1 again (11b → 3.1,
   11c → 3.2); `versionCode` keeps adding 1 (10b = 11, 11a = 12).
+  **Phase 13 (user, 2026-11-09):** 13a ships as 3.4.1, 13b as 3.4.2 (versionCode 18, 19). Plan (WIP, not
+  started) in `Rider-Feedback.md` "Phase 13".
   **Phase 12 is one version (user, 2026-11-09):** 3.3 for the whole phase (12a, 12b); `versionCode` still +1
   per sub-phase build (3.2.1 = 15, Phase 12 starts at 16).
 - `MAPS_API_KEY` goes in `local.properties` only (fallback placeholder in `local.defaults.properties`).

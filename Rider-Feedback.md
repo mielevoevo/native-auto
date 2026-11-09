@@ -652,3 +652,33 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
   down (cautious). The first full fill replaces this estimate with a measured one. Part of 12b.
   - **Gauge bars (rider):** Gen 1 6 bars, Gen 2 8 bars. In 12b these are fixed by model: NMAX gen 1 = 6 bars, NMAX gen 2 = 8 bars;
     a per-bike gauge setting in the editor is **WIP, after Phase 12**.
+
+## Phase 13 (WIP, planned 2026-11-09, not started): call controls + portrait
+
+**Versions (rider):** 13a ships as **3.4.1**, 13b as **3.4.2** (versionCode +1 each: 18, 19).
+
+### 13a · Call controls (modular, any Android skin)
+- **Goal:** works on HyperOS, near-stock (Motorola, Pixel), One UI and others: not tied to one dialer.
+  - Modular: a `CallSource` interface with interchangeable backends, picked at runtime by what the phone allows:
+    1. Notification listener (access already granted for media): read the call notification
+       (`Notification.CallStyle` on 12+, or category `call`) and fire its own Answer / Decline / Hang up actions.
+       Covers any dialer and VoIP apps that post CallStyle notifications (WhatsApp, Teams, Zoom, Meet...).
+    2. `TelecomManager` + `ANSWER_PHONE_CALLS` / `READ_PHONE_STATE` (cellular): answer / end, call state.
+    3. Audio route + mic mute via `AudioManager` (communication device, speaker / Bluetooth / earpiece) where the
+       OS allows a third-party app; hidden when it doesn't.
+  - Each control is shown only when some backend supports it on this phone (capability flags).
+- **Behaviour (rider):** an incoming call doesn't override fullscreen on its own. Whether the call is answered
+  from the notification (then back to the app) or from the app's card, a **call card takes over the
+  lowest-priority pane** on screen (e.g. speed before navigation, or replaces media), like Auto layout's
+  override, and gives it back when the call ends.
+- **Call card:** caller / app name, duration, mute mic, end call, audio output (speaker / Bluetooth / phone);
+  while ringing: Answer / Decline. Big glove targets.
+- To check per skin: CallStyle actions present, HyperOS's full-screen incoming UI, One UI's dialer notification.
+
+### 13b · Portrait (for the bike mount)
+- App still launches **landscape by default**; it may detect the phone's position from the rotation / gravity
+  sensor and switch to portrait when mounted upright (plus a setting: Landscape / Portrait / Auto).
+- Portrait shapes for every preset (`computeRects` by orientation), pane order saved per orientation.
+- Rotation handled in-activity (`configChanges`): map, trip and navigation never recreated; panes slide.
+- Settings / dialogs to 1–2 columns; card modes re-checked at narrow widths; status corner on the top pane.
+- Tests: every layout in both orientations, map survives rotation, release smoke in portrait.
