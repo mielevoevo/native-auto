@@ -650,5 +650,5 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
   what's left, so the rider sets a starting level from the bike's own fuel gauge ("Set fuel level":
   bars out of the gauge's total, or a fraction) together with the odometer. Range works from there, rounded
   down (cautious). The first full fill replaces this estimate with a measured one. Part of 12b.
-  - **Gauge bars (rider):** Gen 1 6 bars, Gen 2 8 bars. In 12b these are fixed defaults per bike (by name/model);
+  - **Gauge bars (rider):** Gen 1 6 bars, Gen 2 8 bars. In 12b these are fixed by model: NMAX gen 1 = 6 bars, NMAX gen 2 = 8 bars;
     a per-bike gauge setting in the editor is **WIP, after Phase 12**.
