@@ -715,3 +715,15 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
 - Rotation handled in-activity (`configChanges`): map, trip and navigation never recreated; panes slide.
 - Settings / dialogs to 1–2 columns; card modes re-checked at narrow widths; status corner on the top pane.
 - Tests: every layout in both orientations, map survives rotation, release smoke in portrait.
+
+## Later phases (planned 2026-11-09)
+
+- **Phase 14: feedback update** after a few days of real riding on v3.3 (fixes and tweaks from the phone test,
+  plus the WIP items above that the rides prove are needed). Content decided after the rides.
+- **Phase 15: app logo** (its own phase). The rider supplies the artwork:
+  - a square **SVG** (best) or a **1024×1024 PNG** with a transparent background, the mark kept inside the
+    central ~66% (Android crops adaptive icons to circles, squircles etc.);
+  - optionally a background colour, and a one-colour version for Android 13+ themed icons (else derived).
+  - Build: adaptive icon (foreground / background / monochrome in `res/mipmap-anydpi-v26`), legacy PNGs for
+    older launchers, the splash-screen icon, the notification icon (white silhouette), and a check on
+    HyperOS / One UI / Pixel launcher shapes.
