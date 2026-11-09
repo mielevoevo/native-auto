@@ -124,3 +124,22 @@ Format: **sub-phase · decision** — why, and how to change it.
   in settings. 20 fixed queries (13 Yogyakarta, 7 Jakarta: landmarks, abbreviations, small businesses,
   street + number, a gang, misspellings), each biased to its city centre; Photon and TomTom side by side
   with distance from the centre. Scored by hand; queries run only on a tap (fair use / quota).
+
+## 10b · Google Maps links → our navigation
+
+- **Followed the "Decided" section (option C reworked)** over §7's older "C dropped as a navigation
+  feature": a place shared (or pasted) from Google Maps starts Native Auto's own Valhalla navigation. The
+  roadmap row says the same.
+- **Shared → route preview, not straight into guidance:** the rider still presses Start, as with a
+  searched place (a wrong link shouldn't start talking). A status pill shows "Opening shared place…" or
+  why it failed (5 s).
+- **Entry points:** the share sheet (`ACTION_SEND` text/plain: Google Maps sends "name / address / link")
+  and `geo:` links ("open with"). Plain shared text without a link is searched as an address. Pasting a
+  link into the search box shows it as the one result. No `VIEW` filter for google.com/maps URLs (the app
+  would be offered for every maps link in the browser).
+- **Reading links:** the place pin (`!3d…!4d…`) beats the camera centre (`@lat,lon`); then `q` / `query`
+  / `destination` / `daddr` / `ll` (coordinates, or a name → search, first result near the rider). The
+  name comes from the share's first line, else the `/place/<name>` segment.
+- **Short links** (`maps.app.goo.gl`, `goo.gl/maps`) are expanded by following redirects by hand (max 5)
+  until a full maps URL, passing through Google's consent page via its `continue` parameter.
+- **HERE skipped** (card issue, as planned).

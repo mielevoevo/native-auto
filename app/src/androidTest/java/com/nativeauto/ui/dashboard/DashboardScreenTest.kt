@@ -450,6 +450,35 @@ class DashboardScreenTest {
         }
     }
 
+    private val NL = Char(10).toString()
+
+    /** 10b: what Google Maps' share button sends, delivered to the running activity (singleTask). */
+    private fun share(text: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_SEND)
+                .setClassName(context, "com.nativeauto.MainActivity")
+                .setType("text/plain")
+                .putExtra(android.content.Intent.EXTRA_TEXT, text)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+
+    @Test fun anUnreadableSharedLinkSaysSo() {
+        share("Somewhere" + NL + "geo:0,0")
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Couldn't read a place from that link", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        tag("link_status").assertIsDisplayed()
+    }
+
+    @Test fun aSharedPlaceStartsRouting() {
+        share(listOf("Tugu Jogja", "Jl. Jend. Sudirman, Yogyakarta", "https://maps.google.com/?q=-7.7829,110.3671").joinToString(NL))
+        // Routing, then a preview (or a failure card when the emulator is offline): never idle.
+        rule.waitUntil(15_000) {
+            listOf("nav_status", "nav_preview", "nav_retry").any { count(it).fetchSemanticsNodes().isNotEmpty() }
+        }
+        count("nav_where_to").assertCountEquals(0)
+    }
+
     @Test fun backOnceShowsTheHint() {
         back()
         tag("back_hint").assertIsDisplayed()

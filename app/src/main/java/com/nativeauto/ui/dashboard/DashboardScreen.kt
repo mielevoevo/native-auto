@@ -1,6 +1,7 @@
 package com.nativeauto.ui.dashboard
 
 import androidx.activity.compose.BackHandler
+import com.nativeauto.ui.nav.LinkStatusPill
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateRectAsState
 import androidx.compose.animation.core.spring
@@ -140,6 +141,8 @@ fun DashboardScreen(layout: DashboardLayoutState = rememberDashboardLayoutState(
             // 9b: double back closes, only when back has nothing else to do. Sheets live in their
             // own windows and take back first.
             CloseOnDoubleBack(enabled = !historyOpen && layout.fullscreen == null && layout.maximized == null)
+            // 10b: a link shared from Google Maps being opened (or why it couldn't be).
+            LinkStatusPill()
         }
     }
 

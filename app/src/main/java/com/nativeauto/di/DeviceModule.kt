@@ -30,4 +30,6 @@ interface SettingsEntryPoint {
     /** Device tests seed and clean trip history, and check the shared files (9d). */
     fun tripDao(): com.nativeauto.history.TripDao
     fun tripFiles(): com.nativeauto.history.TripFiles
+    /** 10b: tests that open shared links put navigation back to idle. */
+    fun navigator(): com.nativeauto.nav.Navigator
 }

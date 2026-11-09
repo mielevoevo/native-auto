@@ -29,6 +29,11 @@ class ResetSettingsRule : ExternalResource() {
             InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
             SettingsEntryPoint::class.java,
         ).tripTracker().discard()
+        val navigator = EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            SettingsEntryPoint::class.java,
+        ).navigator()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { navigator.stop() }
         settings.saveLayout(SavedLayout.Default)
         settings.setSpeedUnit(SpeedUnit.KMH)
         settings.setShowBattery(true)

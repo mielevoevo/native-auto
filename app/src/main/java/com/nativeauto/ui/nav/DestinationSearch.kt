@@ -48,6 +48,8 @@ import com.nativeauto.location.LiveLocation
 import com.nativeauto.nav.GeoPoint
 import com.nativeauto.nav.Place
 import com.nativeauto.nav.PlaceSearch
+import com.nativeauto.nav.MapsLinkResolver
+import com.nativeauto.nav.findMapsUrl
 import com.nativeauto.nav.RecentPlaces
 import com.nativeauto.settings.SettingsRepository
 import com.nativeauto.settings.SpeedUnit
@@ -85,6 +87,7 @@ class DestinationSearchViewModel @Inject constructor(
     recents: RecentPlaces,
     private val live: LiveLocation,
     settings: SettingsRepository,
+    private val links: MapsLinkResolver,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -100,6 +103,20 @@ class DestinationSearchViewModel @Inject constructor(
         .flatMapLatest { q ->
             if (q.length < MIN_CHARS) {
                 recent.map { SearchUiState(query = q, results = it, showingRecent = true) }
+            } else if (findMapsUrl(q) != null) {
+                // 10b: a pasted Google Maps link becomes its one place.
+                flow {
+                    emit(SearchUiState(query = q, searching = true, showingRecent = false))
+                    emit(
+                        try {
+                            SearchUiState(query = q, results = listOf(links.resolve(q)), showingRecent = false)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            SearchUiState(query = q, failed = true, showingRecent = false)
+                        },
+                    )
+                }
             } else {
                 flow {
                     emit(SearchUiState(query = q, searching = true, showingRecent = false))

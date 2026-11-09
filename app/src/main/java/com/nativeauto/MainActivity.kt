@@ -26,6 +26,8 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import android.content.Intent
+import com.nativeauto.nav.IncomingLinks
 import com.nativeauto.core.SelfClose
 import com.nativeauto.trip.TripState
 import com.nativeauto.trip.TripTracker
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var settings: SettingsRepository
     @Inject lateinit var selfClose: SelfClose
     @Inject lateinit var tracker: TripTracker
+    @Inject lateinit var links: IncomingLinks
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -48,6 +51,8 @@ class MainActivity : ComponentActivity() {
         // 9a: ten minutes after a trip is ended from the notification, an app left in the
         // background closes itself.
         lifecycleScope.launch { selfClose.closeRequests.collect { finishAndRemoveTask() } }
+        // 10b: launched by a share or a geo: link. Not again on a recreation (rotation).
+        if (savedInstanceState == null) openSharedLink(intent)
 
         setContent {
             // Dark until DataStore answers (a few ms): the window is black anyway.
@@ -71,6 +76,21 @@ class MainActivity : ComponentActivity() {
         PowerManager.OnThermalStatusChangedListener { status ->
             Log.i(THERMAL_TAG, "thermal status ${thermalName(status)} ($status)")
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openSharedLink(intent)
+    }
+
+    /** A Google Maps share (name, address, link), any shared text, or a `geo:` URI → route preview. */
+    private fun openSharedLink(intent: Intent?) {
+        val text = when (intent?.action) {
+            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+            Intent.ACTION_VIEW -> intent.dataString?.takeIf { it.startsWith("geo:", ignoreCase = true) }
+            else -> null
+        }?.takeIf { it.isNotBlank() } ?: return
+        links.open(text)
     }
 
     override fun onStart() {

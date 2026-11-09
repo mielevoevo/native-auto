@@ -7,6 +7,8 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
 - **Versioning (user rule, 2026-11-08):** Phase 8b shipped as `versionName` 2.0. Each later sub-phase
   build adds 0.1 to the minor version (8c → 2.1, 8d → 2.2, …) and 1 to `versionCode`, in
   `app/build.gradle.kts`, once that sub-phase's tests pass.
+  **Phase 11 is a major version (user, 2026-11-09):** 11a ships as 3.0, then +0.1 again (11b → 3.1,
+  11c → 3.2); `versionCode` keeps adding 1 (10b = 11, 11a = 12).
 - `MAPS_API_KEY` goes in `local.properties` only (fallback placeholder in `local.defaults.properties`).
   Other keys (e.g. TomTom) follow the same pattern: a placeholder in `local.defaults.properties`, the
   real value only ever added by the user to `local.properties`. Never read or edit `local.properties`.
@@ -393,6 +395,20 @@ Replaces the Phase 4 life cycle where it differs (Rider-Feedback §2–3 and "De
 - **Debug Search test (`app/src/debug/`):** `SearchTestActivity` + its manifest; `TEST_QUERIES` (20,
   YK/JKT). Opened from settings' Debug row (`debug_search_test`, by class name, so main code doesn't
   reference it). Device test `SearchTestScreenTest` (network-tolerant).
+
+## Phase 10b: Google Maps links (built 2026-11-09, beyond the handoff)
+
+- **`nav/MapsLink.kt` (pure):** `findMapsUrl`, `isShortMapsLink`, `parseMapsLink(url, sharedText)` →
+  `LinkTarget.At(point, name)` / `Query(text)`, `sharedName` / `sharedDetail` (`MapsLinkTest`).
+- **`nav/MapsLinkResolver.kt`:** `MapsLinkResolver.resolve(text)` (expands short links with a
+  no-redirect OkHttp client, searches names, throws `LinkException` with a rider-readable message);
+  `IncomingLinks.open(text)` (app scope) → `Navigator.routeTo` (preview) and `status` (`LinkStatus`).
+  `MapsLinkResolverTest` uses a local `HttpServer` for the redirect chain.
+- **Intake:** `MainActivity` (singleTask) handles `ACTION_SEND` text and `VIEW geo:` in `onCreate`
+  (not on recreation) and `onNewIntent`. `LinkStatusPill` (`link_status`) sits top-centre on the
+  dashboard. `DestinationSearchViewModel` resolves a pasted link instead of searching it.
+- Device tests deliver real share intents (`DashboardScreenTest.share`); `ResetSettingsRule` stops the
+  navigator (`SettingsEntryPoint.navigator()`, on the main thread) so a preview doesn't leak.
 
 ## Known issues (deferred)
 
