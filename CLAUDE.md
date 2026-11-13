@@ -694,6 +694,40 @@ Rider feedback after a week on v3.3 (Rider-Feedback "Phase 13 decisions"). Choic
   else presets + hex (`route_hex`, `route_preset_<key>`). `SettingsRepository.routeColor` (null follows the accent);
   `MapLook.withRoute` carries it into both map engines through `MapPane`.
 
+## Phase 14a: call controls (built 2026-11-14, v3.5.1, versionCode 22)
+
+Modular across Android skins (HyperOS, near-stock, One UI) and VoIP apps (WhatsApp, Teams, Zoom): only platform APIs an
+ordinary app has, no per-skin code. Choices and reasons: DECISIONS.md "14a"; what only the phone can settle is listed
+under "Concerns to check at the phone test (run 13a-14a)".
+- **Pure model (`call/CallModel.kt`, `CallModelTest`):** `CallInfo` / `CallPhase`, `NotificationFacts` → `classifyCall`
+  (a `CallStyle` notification says ringing / ongoing / screening itself; older ones by category `call` and by labelled
+  actions, whole-word matches in English and Indonesian: `findAnswerAction` etc.), `pickCall` (ringing first),
+  `mergeCall` (the notification's call, else one made from the cellular state), `callCapabilities` (each control only
+  if some backend can do it), `formatCallDuration`.
+- **Backends:** `NotificationCallSource` (fed by `MediaListenerService`, which since 14a also reads **call**
+  notifications: only those `classifyCall` accepts are kept, in memory, with their Answer / Decline / Hang up
+  `PendingIntent`s from the CallStyle extras or the labelled actions; nothing stored or sent), `PhoneCallSource`
+  (READ_PHONE_STATE: ringing / off-hook; ANSWER_PHONE_CALLS: `TelecomManager.acceptRingingCall` / `endCall`),
+  `CallAudio` (`AudioManager`: mic mute read back after the change, a phone that ignores it loses the button; route
+  list from `availableCommunicationDevices` on API 31+, earpiece / speaker before). `CallRepository` puts them together
+  (`state: CallState?`); actions go to the notification's own intent first, the telephony API second.
+- **Call card (`Pane.CALL`, `ui/call/CallCard.kt`):** ringing: Decline + Answer; on: Mute (a switch), Audio output (one tap
+  cycles the routes), End; name, app, "Incoming call" or the duration (`CallViewModel` ticks it each second, in the view
+  model). Tags `call_name`, `call_app`, `call_status`, `call_answer`, `call_decline`, `call_mute`, `call_audio`,
+  `call_end`, `call_route`.
+- **Takeover (`LayoutModel.kt`, `DashboardLayoutState.callActive`):** while a call rings or is on, `view` is the arranged
+  view with `Pane.CALL` in the slot of the first pane in `CallTakeoverOrder` (media, clock, Garage, speed, Navigation,
+  map) that has room (`callTakeoverPane`; a pane folded away by a maximized neighbour doesn't count). **Never over a
+  fullscreen pane**: with one, the card waits and comes when it ends. The rider's arrangement (`assignments`) is never
+  touched, so the pane comes back exactly when the call ends. A zoom on the card is stored on the pane under it
+  (`real`). `CALL` is not a picker choice and can't be dragged. `DashboardRoute` syncs `callActive` from
+  `CallViewModel.active`.
+- **Settings, Audio:** "Call controls" (`CallControlsRow`, `CallSettingsViewModel`): says what works, and a button
+  (`settings_call_permissions`) asks for READ_PHONE_STATE + ANSWER_PHONE_CALLS (never at startup).
+- Device tests (`CallCardTest`): real CallStyle notifications posted from the test (needs the debug-only
+  USE_FULL_SCREEN_INTENT permission and the app-op), answer / decline / hang-up arrive as broadcasts, the card takes
+  media's slot and gives it back, never a fullscreen card, mute only where it takes effect.
+
 ## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);

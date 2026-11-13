@@ -1,5 +1,10 @@
 # What's new in Native Auto
 
+## 3.5.1 (22) · 2026-11-14
+- Calls: when a call rings or is on, a Call card takes the least important card's place (the media card first) and gives it back when the call ends. It never takes over a fullscreen card.
+- Answer, Decline, Mute, End and the audio output show only where your phone lets the app do them. It works through the call notification, so it covers the phone app on any brand and calls from WhatsApp, Teams, Zoom and similar.
+- Settings, Audio: "Call controls" lets you allow the phone permission, so plain phone calls can be answered and ended from the card too.
+
 ## 3.4.3 (21) · 2026-11-14
 - Settings are sorted into categories along the top: Display, Layout, Navigation, Trip and Garage, Audio and Backup.
 - Colours (Settings, Display): choose the accent from presets or type your own hex code. New installs start green; yours stays cyan until you change it. The route line on the map can follow the accent or have its own colour.

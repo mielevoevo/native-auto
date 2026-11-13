@@ -438,3 +438,71 @@ Unattended run (rider's "start 13a", 2026-11-14). Each entry: the question, what
 - **Upgrade checked on the emulator:** the 3.3 release APK installed and opened (saving its layout), then the 3.4.3 APK
   installed over it: the accent stayed cyan, and the "What's new" sheet showed 3.4.3, 3.4.2 and 3.4.1 once.
   A clean install of 3.4.3 starts green.
+
+### 14a
+
+- **Notification first.** The notification listener is already granted for media, covers every dialer (HyperOS, One UI,
+  Pixel...) and every VoIP app that posts a call notification, and carries the call's own Answer / Decline / Hang up
+  intents: pressing them is exactly what tapping the notification does, so it is the same on every skin. Telecom
+  (`acceptRingingCall` / `endCall`) is the second choice, for a plain phone call whose notification has no such action,
+  and only with the rider's permission. No per-skin code anywhere.
+- **Permissions asked for by a button, not at startup.** READ_PHONE_STATE and ANSWER_PHONE_CALLS are dangerous
+  permissions; a rider who only wants the notification route never sees a dialog. The Audio page says what works
+  and offers "Allow".
+- **Which pane gives way.** The plan's own wording was "the lowest-priority pane (e.g. speed before navigation, or replaces
+  media)". Order picked: media, clock, Garage, speed, Navigation, map. Media first (a call silences it anyway), speed
+  before the Navigation pane (as the plan's example), the map last (it is the main view, and a call during navigation
+  must not hide the route). Only panes with room count, so with a maximized neighbour the card takes a visible pane.
+- **Fullscreen.** Never taken over (rider's rule). While a fullscreen pane stays, the card waits; it appears the moment
+  fullscreen ends, if the call is still on.
+- **Derived, not stored.** The takeover is part of the derived `view` (like auto layout's override but separate): the
+  arrangement is never touched, a swap or drag while the call is up edits the real arrangement, and the pane returns
+  by itself when the call ends. The call card can't be dragged or picked.
+- **Mute and audio route are hidden unless they work.** After a mute attempt the state is read back; a phone that
+  ignores an ordinary app's request (some skins only let the dialer do it) loses the button for the rest of the call.
+  The audio button shows only with two or more real routes and one tap cycles them (a menu would be a second target
+  on a glove-sized card).
+- **Plain-phone fallback text.** With only the cellular state (no notification we can read) the card says "Incoming call"
+  / "Phone call": the number needs READ_CALL_LOG, which the app does not ask for.
+- **Reading notifications, privacy.** The listener now sees every notification the system gives it, but only those that
+  are calls are kept (in memory, until they go away); the rest are dropped at once; nothing is stored or sent anywhere.
+  The manifest comment and the class doc say so.
+- **Tests that needed a workaround.** A CallStyle notification can only be posted by a foreground service or with a
+  full-screen intent, so the debug manifest declares USE_FULL_SCREEN_INTENT and the test sets the app-op. The
+  compose test clock stops while the test thread sleeps (a screenshot taken during `Thread.sleep` shows a frozen
+  UI): wait with `waitForIdle` in a loop when looking at the screen.
+
+Needs the phone (also listed in the closing concerns section at the end of this file):
+- The three real skins: a **call on the Redmi (HyperOS)**, and if the rider has them a One UI or near-stock phone: does the
+  card appear on ringing, do Answer / Decline / End work from it, does the dialer's own full-screen incoming screen
+  still show (it is not affected by the card).
+- **Mute** from the card during a real call: does the mic actually go quiet (some skins ignore it).
+- **Audio output** from the card on a cellular call and on a WhatsApp call, and a Bluetooth headset in the helmet.
+- **Answer / End without the notification route:** with the phone permission allowed, a call from a dialer that posts no
+  call notification.
+- Whether a ringing call over the Navigation pane (Quad with navigation) takes the right pane.
+
+## Concerns to check at the phone test (run 13a-14a, from 13b on)
+
+13b
+- **Auto-start on the bike:** with the app open and Auto-start = Start trip, ride off: does it start about 30 s after 15 km/h
+  and say "Trip started"? Does Odometer only add the km (check the odometer after the ride, no trip saved)? After
+  pressing End does it stay quiet until the app is opened again?
+- **Low-rate watching battery:** the 5 s balanced-power request while stationary should be cheap; check the phone's
+  battery stats after an hour at a red light / parked with the app open. HyperOS may also throttle location for
+  an app whose screen is off, but this feature is for the screen being on.
+- **The compact map while navigating:** chip, mute + End in the header, the big follow button. Is the chip readable at a
+  glance? Can Fullscreen / Maximize be found in the hold menu without hunting?
+- **Wi-Fi fixes with no speed** make the "moving" jump rule (120 m) fire: check it doesn't keep the high-accuracy
+  request on in a parking lot with a bad network position.
+
+13c
+- **Accent in sunlight:** green on black reads well on the emulator; check it in daylight, and the light theme's darker
+  variant on white cards.
+- **Settings in landscape on the Redmi:** every page fits without scrolling on the emulator (411 dp tall); the Redmi's
+  height is similar, check Trip and Garage (four rows on the left, auto-start on the right) and Display.
+- **Backup from Settings:** the share sheet opens over the app; check saving to Drive works from here as it does from
+  the history.
+- **Existing install:** after updating from 3.3, accent still cyan; the "What's new" sheet shows once (3.4.1 to 3.5.1).
+
+14a: see the "Needs the phone" list under "14a" above.

@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var links: IncomingLinks
     @Inject lateinit var recorder: TripRecorder
     @Inject lateinit var autoStart: com.nativeauto.location.AutoStartMonitor
+    @Inject lateinit var calls: com.nativeauto.call.CallRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -110,6 +111,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         selfClose.onVisible()
+        // 14a: the rider may have changed the phone permissions in system settings.
+        calls.refreshPermissions()
         // 11b: a trip lost with the process (killed mid-ride) is resumed or saved. Checked once
         // per process, here because the trip service may only start while the app is visible.
         lifecycleScope.launch {

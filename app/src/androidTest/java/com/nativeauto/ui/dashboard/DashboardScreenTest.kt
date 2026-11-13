@@ -912,6 +912,18 @@ class DashboardScreenTest {
         closeSettings()
     }
 
+    // ---------------------------------------------------------------- Phase 14a
+
+    @Test fun theAudioPageHasCallControlsAndTheCallCardIsNotAPickerChoice() {
+        openSettings("AUDIO")
+        tag("settings_call_status").assertIsDisplayed()
+        closeSettings()
+        // The call card is nobody's choice: the pane picker lists the other six only.
+        openPicker(Pane.MEDIA)
+        assertEquals(0, count("pick_CALL").fetchSemanticsNodes().size)
+        tag("pick_MAP").assertIsDisplayed()
+    }
+
     // ---------------------------------------------------------------- Phase 8b: layouts
 
     @Test fun everyPresetTilesTheScreen() {

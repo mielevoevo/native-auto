@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Debug builds only (10a): the search comparison screen. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 14a: the call-card device tests post a CallStyle notification, which needs a full-screen intent. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <application>
         <activity
             android:name="com.nativeauto.debug.SearchTestActivity"

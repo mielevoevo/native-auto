@@ -52,8 +52,19 @@ class DashboardLayoutState(
     var lastArrangedAtMs by mutableLongStateOf(lastArrangedAtMs); private set
 
     /** What's on screen. `this.` everywhere: the constructor parameters would shadow the properties. */
-    val view: LayoutView by derivedStateOf {
+    /** 14a: a call is ringing or on: the call card takes the lowest-priority slot ([callTakeoverPane]), never a fullscreen one. */
+    var callActive by mutableStateOf(false); @JvmName("assignCallActive") private set
+
+    fun setCallActive(active: Boolean) { callActive = active }
+
+    /** What the rider arranged (or auto layout shows), before any call card. */
+    private val baseView: LayoutView by derivedStateOf {
         this.override ?: LayoutView(this.preset, this.assignments.getValue(this.preset), this.baseFullscreen, this.baseMaximized)
+    }
+
+    val view: LayoutView by derivedStateOf {
+        val b = this.baseView
+        if (this.callActive) b.withCall(callTakeoverPane(b, this.bigOnLeft, this.split)) else b
     }
 
     val fullscreen: Pane? get() = view.fullscreen
@@ -119,12 +130,12 @@ class DashboardLayoutState(
 
     fun toggleFullscreen(pane: Pane) {
         if (pane !in view.panes) return
-        zoom(fullscreen = if (view.fullscreen == pane) null else pane, maximized = view.maximized)
+        zoom(fullscreenPane = if (view.fullscreen == pane) null else pane, maximizedPane = view.maximized)
     }
 
     fun toggleMaximized(pane: Pane) {
         if (!canMaximize(pane)) return
-        zoom(fullscreen = view.fullscreen, maximized = if (view.maximized == pane) null else pane)
+        zoom(fullscreenPane = view.fullscreen, maximizedPane = if (view.maximized == pane) null else pane)
     }
 
     /** Returns true if it consumed the back press. */
@@ -134,7 +145,10 @@ class DashboardLayoutState(
         else -> false
     }
 
-    private fun zoom(fullscreen: Pane?, maximized: Pane?) {
+    private fun zoom(fullscreenPane: Pane?, maximizedPane: Pane?) {
+        // The call card stands in for a pane (14a): a zoom on it is a zoom on that pane underneath.
+        val fullscreen = real(fullscreenPane)
+        val maximized = real(maximizedPane)
         val o = override
         if (o != null) {
             override = o.copy(fullscreen = fullscreen, maximized = maximized)
@@ -143,6 +157,10 @@ class DashboardLayoutState(
             baseMaximized = maximized
         }
     }
+
+    /** The pane the call card currently stands in for, when [pane] is the call card; otherwise [pane]. */
+    private fun real(pane: Pane?): Pane? =
+        if (pane == Pane.CALL) callTakeoverPane(baseView, bigOnLeft, split) ?: pane else pane
 
     // ---- arrangement: the user's own, ends an override ----
 

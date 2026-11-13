@@ -326,6 +326,7 @@ private fun AudioPage(viewModel: SettingsViewModel, wide: Boolean) {
             ) { haptics.toggle(it); viewModel.setVoiceGuidance(it) }
         },
         right = {
+            CallControlsRow()
         },
     )
 }

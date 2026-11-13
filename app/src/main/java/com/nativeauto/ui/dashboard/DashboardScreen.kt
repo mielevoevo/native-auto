@@ -58,6 +58,8 @@ import com.nativeauto.ui.components.LocalPanePicker
 import com.nativeauto.ui.components.LocalStatusCorner
 import com.nativeauto.ui.components.StatusCorner
 import com.nativeauto.ui.history.TripHistoryScreen
+import com.nativeauto.ui.call.CallCard
+import com.nativeauto.ui.call.CallViewModel
 import com.nativeauto.ui.changelog.ChangelogSheet
 import com.nativeauto.ui.garage.GarageCard
 import com.nativeauto.ui.garage.GarageScreen
@@ -108,6 +110,11 @@ fun DashboardRoute(viewModel: DashboardViewModel = hiltViewModel()) {
         lastNavActive = navActive
     }
 
+    // 14a: a call ringing or on gives the call card the lowest-priority slot (never a fullscreen one).
+    val call: CallViewModel = hiltViewModel()
+    val callActive by call.active.collectAsStateWithLifecycle()
+    LaunchedEffect(callActive) { layout.setCallActive(callActive) }
+
     val battery by viewModel.battery.collectAsStateWithLifecycle()
     val refresh by viewModel.refreshMode.collectAsStateWithLifecycle()
     val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
@@ -147,7 +154,8 @@ fun DashboardScreen(
     val corner = remember(battery, time) {
         StatusCorner(time, battery, onOpenLayouts = { layoutsOpen = true }, onOpenSettings = { settingsOpen = true })
     }
-    val picker = remember { { pane: Pane -> pickerFor = pane } }
+    // The call card (14a) is nobody's choice: nothing to pick for it.
+    val picker = remember { { pane: Pane -> if (pane != Pane.CALL) pickerFor = pane } }
 
     BackHandler(enabled = !covered && (layout.fullscreen != null || layout.maximized != null)) { layout.back() }
 
@@ -198,7 +206,7 @@ fun DashboardScreen(
                                     layout = layout,
                                     holdMs = { hold },
                                     // A fullscreen map's body keeps its long-press (a destination): it lifts from its header.
-                                    allowAt = { pane != Pane.MAP || layout.fullscreen != Pane.MAP || it.y <= mapHeaderPx },
+                                    allowAt = { pane != Pane.CALL && (pane != Pane.MAP || layout.fullscreen != Pane.MAP || it.y <= mapHeaderPx) },
                                     onLift = { haptics.lift() },
                                     onArm = { dragScope.launch { haptics.lift(); delay(ARM_BUZZ_GAP_MS); haptics.lift() } },
                                     onPick = { pickerFor = it },
@@ -272,6 +280,7 @@ private fun PaneContent(pane: Pane, layout: DashboardLayoutState, covered: () ->
         Pane.NAV -> NextTurnCard(layout.modeOf(Pane.NAV), layout)
         Pane.CLOCK -> ClockCard(layout.modeOf(Pane.CLOCK), layout)
         Pane.GARAGE -> GarageCard(layout.modeOf(Pane.GARAGE), layout, onOpenGarage = openGarage)
+        Pane.CALL -> CallCard(layout.modeOf(Pane.CALL), layout)
     }
 }
 

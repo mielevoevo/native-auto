@@ -4,7 +4,12 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Rect
 
 /** Everything that can fill a slot. Each pane exists once; a layout shows some of them. */
-enum class Pane { MAP, MEDIA, SPEED, NAV, CLOCK, GARAGE }
+enum class Pane {
+    MAP, MEDIA, SPEED, NAV, CLOCK, GARAGE,
+
+    /** 14a: the call card. Never chosen by the rider: it takes over a slot while a call rings or is on ([withCall]). */
+    CALL,
+}
 
 /**
  * How a card draws itself, chosen from the slot it's in, never from its measured size (rule #6).
@@ -128,4 +133,33 @@ internal object LayoutCodec {
     }
 
     fun preset(name: String): LayoutPreset = LayoutPreset.entries.firstOrNull { it.name == name } ?: LayoutPreset.DUO
+}
+
+/**
+ * 14a: the order in which a call takes a pane's slot, first to go first. Media is the least useful during a call
+ * (the call mutes it anyway), the clock and the Garage next, then speed, then the Navigation pane; the map is
+ * the last to give way.
+ */
+internal val CallTakeoverOrder = listOf(Pane.MEDIA, Pane.CLOCK, Pane.GARAGE, Pane.SPEED, Pane.NAV, Pane.MAP)
+
+/**
+ * The pane the call card replaces in [view], or null when it must not: a fullscreen pane is never taken over
+ * (the rider chose it; the call notification still tells them), and only panes that have room on screen
+ * (not folded away by a maximized neighbour) count.
+ */
+internal fun callTakeoverPane(view: LayoutView, bigOnLeft: Boolean, split: Float): Pane? {
+    if (view.fullscreen != null) return null
+    val rects = computeRects(view, bigOnLeft, split)
+    val onScreen = view.panes.filter { p -> rects.getValue(p).let { it.width > 0f && it.height > 0f } }
+    return CallTakeoverOrder.firstOrNull { it in onScreen } ?: onScreen.firstOrNull()
+}
+
+/** [view] with the call card in [replaced]'s slot (a zoom on that pane moves to the call card). */
+internal fun LayoutView.withCall(replaced: Pane?): LayoutView {
+    if (replaced == null || replaced !in panes) return this
+    return copy(
+        panes = panes.map { if (it == replaced) Pane.CALL else it },
+        fullscreen = if (fullscreen == replaced) Pane.CALL else fullscreen,
+        maximized = if (maximized == replaced) Pane.CALL else maximized,
+    )
 }

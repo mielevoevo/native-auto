@@ -58,6 +58,7 @@ internal val Pane.label: String
         Pane.NAV -> "Navigation"
         Pane.CLOCK -> "Clock"
         Pane.GARAGE -> "Garage"
+        Pane.CALL -> "Call"
     }
 
 internal val Pane.icon: ImageVector
@@ -68,6 +69,7 @@ internal val Pane.icon: ImageVector
         Pane.NAV -> AppIcons.Directions
         Pane.CLOCK -> AppIcons.Clock
         Pane.GARAGE -> AppIcons.Fuel
+        Pane.CALL -> AppIcons.Call
     }
 
 private val ThumbShape = RoundedCornerShape(12.dp)
@@ -199,7 +201,7 @@ internal fun PanePickerSheet(layout: DashboardLayoutState, slotPane: Pane, onDis
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
             ) {
-                Pane.entries.forEach { pane ->
+                Pane.entries.filter { it != Pane.CALL }.forEach { pane ->
                     val current = pane == slotPane
                     val elsewhere = !current && pane in shown
                     Surface(

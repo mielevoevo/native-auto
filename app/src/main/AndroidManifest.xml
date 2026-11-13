@@ -13,6 +13,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Android 13+: lets the ongoing trip notification show in the shade. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 14a: call controls, each asked for by a button in settings (Audio). READ_PHONE_STATE: ringing / in a call;
+         ANSWER_PHONE_CALLS: answer and end a cellular call; MODIFY_AUDIO_SETTINGS: mic mute, audio route. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Android 11+: voice guidance must be able to find the text-to-speech engine. -->
     <queries>
@@ -69,8 +74,8 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <!-- Notification access (a system setting the user grants) is what lets the media card
-             see and control other apps' media sessions. Nothing reads the notifications. -->
+        <!-- Notification access (a system setting the user grants) is what lets the media card and the call card
+             see and control other apps' media sessions and call notifications. Only call notifications are read. -->
         <service
             android:name=".media.MediaListenerService"
             android:exported="true"
