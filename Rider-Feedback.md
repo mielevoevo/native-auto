@@ -718,8 +718,9 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
 
 ## Later phases (planned 2026-11-09)
 
-- **Phase 14: feedback update** after a few days of real riding on v3.3 (fixes and tweaks from the phone test,
-  plus the WIP items above that the rides prove are needed). Content decided after the rides.
+- **Phase 14: feedback update** (collected 2026-11-14 after a week of riding v3.3 plus a second rider; details
+  in "Phase 14 plan" below). Build order proposed: 14a before Phase 13 (portrait rewrites the geometry that
+  14a touches). Version numbers not yet fixed (proposal 3.5.x, versionCode from 21).
 - **Phase 15: app logo** (its own phase). The rider supplies the artwork:
   - a square **SVG** (best) or a **1024×1024 PNG** with a transparent background, the mark kept inside the
     central ~66% (Android crops adaptive icons to circles, squircles etc.);
@@ -727,3 +728,72 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
   - Build: adaptive icon (foreground / background / monochrome in `res/mipmap-anydpi-v26`), legacy PNGs for
     older launchers, the splash-screen icon, the notification icon (white silhouette), and a check on
     HyperOS / One UI / Pixel launcher shapes.
+
+## Phase 14 plan (collected 2026-11-14, WIP, not started)
+
+Rider notes: the green pin at a pane's top-right in screenshots is Android's privacy indicator (location in use). Ignore it.
+
+### 14a · Fixes and tweaks
+- **Nav voice muted must not duck music.** Muted = no TTS and no audio-focus request at all (check the mute flag before taking focus).
+- **Speed card opens on the log face.** Code has speed as page 0; find what lands on page 1 (pager state restore, an Ended/Paused trip at launch) and make the speed face always the start.
+- **Nav card alignment** (screenshot 2026-11-09): ETA line starts at the far-left edge while the text above is indented; arrow sits low against the distance text. Align all text to one left edge and centre the arrow on the distance + road block. Header title is cut ("Next tu") by the corner clock.
+- **Fullscreen:** hide Maximize; the fullscreen button becomes "exit fullscreen".
+- **Drag drop target:** choose by overlap of the lifted card's rect (largest overlap, ~20% threshold), finger-inside still counts, nearest-centre fallback; highlight before release. Today dropping a card straight on top of its target can miss.
+- **Map hold:** the map body's long-press (dropped pin) only in **fullscreen**; in Compact/Expanded the whole card behaves like the others (hold = drag / picker). Pan still wins on any move.
+- **Dash km/L after a ride on every card size** (speed card Compact, Wide, Expanded, Fullscreen): `sum_dash` must be reachable in all of them (compact form of the prompt).
+- **Garage:** "Add bike" becomes a card at the end of the bike list (replaces the top-right button).
+- **Tank icon option:** Gauge (today) or Plain (fixed fuel-pump icon, still red in the last segment). Default Gauge.
+- **Rename the Next turn pane** (short, fits the header): candidates Route / Navigate / Guide. OPEN: rider to pick.
+- **Crowded controls (open):** proposals: drop the header swap button (drag + picker replace it; keep the accessibility action), fullscreen shows only exit, map controls move to small header buttons (below), optional "minimal headers". OPEN: rider to confirm.
+
+### 14b · Quad navigation, auto-start
+- **Compact map during navigation (option A, decided):** route line + one slim chip (turn arrow + distance); no banner, no ETA card. Header gets small buttons: **mute** and **End** (moved up from the bottom-right). The bottom-right big button becomes **recentre / follow my position** (replaces the X). Expanded/Fullscreen map keeps the full banner and ETA. No "Show navigation card" chip: Auto layout's snap already covers it.
+- **Auto-start logging (rider: important):** setting + first-run setup choice. **Only while the app is open** (never assume background running; no background location, no activity recognition). Two behaviours:
+  1. odometer-only counting (km add to odometer, fuel level, services; no saved trip),
+  2. auto-start trip once speed stays at or above a threshold (proposal 15 km/h) for a time (proposal 30 s); saved to history as usual; auto-pause / auto-end already exist.
+  Battery: low-rate location while stationary, high accuracy only once moving. This reverses Phase 9a's "no auto-start", by the rider's request.
+
+### 14c · Settings
+- Categories: Display (theme, **accent colour**, screen), Layout, Navigation (units, voice), Trip and Garage, Audio, Backup, Debug.
+- **Accent colour: user-selectable (WIP, future QOL).** Replaces the cyan token; offer cyan, ice blue, violet, magenta; amber / red stay status-only, no green.
+
+### Phase 16 (after the logo): welcome screen + first-run setup
+- Welcome: time-of-day greeting + readiness strip (GPS, media access) and data: cautious range with tank, next service due, odometer, today / week km. Show: Always / First open of the day / Never; self-dismiss ~3 s or tap; never blocks the dashboard. Android 12 splash icon from Phase 15.
+- Setup pages (skippable, re-runnable from settings): welcome, permissions, units + theme, bike + fuel prices, layout, auto-start choice, finish.
+
+### Parked
+- **Rider chat:** needs a server, accounts, moderation; typing while riding is unsafe; voice apps cover it (Phase 13's call card helps). Possible later: one-tap "share my ETA" link.
+
+## Phase 14 decisions (rider answers, 2026-11-14; they supersede the plan above where they differ)
+
+**Versions / order:** Phase 14 is built before Phase 13. 14a = 3.4.1 (vc 19), 14b = 3.4.2 (vc 20), 14c = 3.4.3 (vc 21). Phase 13 moves to 3.5.1 / 3.5.2 (vc 22 / 23).
+
+**14a**
+- Next turn pane is renamed **Navigation**. The header title must never be cut by the corner clock (width rule: title first, clock shifts or title shortens in Compact).
+- **Header swap button:** kept only in two-pane layouts (Side by side, Rows) and on Duo's tall pane; removed in Quad and on Duo's stacked panes (drag and picker stay). Compact headers: title plus at most two buttons, the rest in the hold menu. Header variants shown to the rider before building.
+- **Fullscreen:** the button stays the fullscreen button (no "exit" swap); only Maximize is hidden. Map keeps its X and recentre buttons in fullscreen.
+- Dash km/L reachable on every speed card size; Garage "Add bike" card; tank icon option Gauge (default) / Plain; speed card always opens on the speed face; nav card alignment; drop target by overlap; map hold = pin only in fullscreen.
+- **Two-step hold feedback** (the WIP "lifted = drag, held 0.7 s more = picker armed", double buzz) is built here.
+- **Refuel:** the Partial / Full choice becomes one toggle "Filled to the top" (default on). The litres input range is fixed 0 to the tank size (e.g. 0-6.1 L), never limited by the estimate. If the rider enters more than the estimated space left, the level after the fill is capped at a full tank, the fill counts as a measured full anchor, and the +-35% outlier rule decides whether that span teaches km/L.
+
+**14b**
+- **Auto-start (app open only; no service, no background location):** setting Off / Odometer only / Auto-start trip. Starts when speed stays at or above **15 km/h** for **30 s** (hold time adjustable, 20 / 30 / 45 / 60 s). The trip is backdated to the moment the hold completed (the first 30 s are not recorded: an auto-start is consent verified by "app open and already moving"). Works **only from a clean state** (app opened with no trip, no trip ended this session). After the rider presses End, auto-start is suppressed. Default Off (first-run setup asks later, Phase 16).
+- **Start announcement:** the speed card briefly slides in a banner over the speed face (same animation as speed to log face): "Trip started" with "Riding detected" below it, about 3 s, short buzz, swipe to dismiss. With no speed card on screen, a pill at the top centre (like the link status pill).
+- **MAX lag fixed here** (first fix after start/resume sets max too): auto-start begins mid-motion, so the lag would show on every auto-start.
+- Compact map during navigation, option A (as planned above).
+
+**14c**
+- **Colours (one settings section):** accent colour = presets plus a hex code field, **default green** (this deliberately drops the old "no green anywhere" rule; amber and red stay status colours). Map route line colour is adjustable in the same section (default: follows the accent, with an override). Light theme gets an auto-adjusted variant of the chosen colour for contrast; the hex field warns when a colour is hard to read on black or white.
+- Settings categories as listed above.
+
+**Phase 13 (portrait is for a vertically mounted phone on the bike, like delivery riders do)**
+- Portrait-only layouts derived from the originals: 1-4 cards stacked (Quad does not fit portrait as a grid). Rotating mid-ride keeps the same number of panes in the same order (2 landscape cards = 2 stacked).
+- Each orientation remembers its own last preset; a clean start in portrait with none saved derives it from the landscape one.
+- Portrait-only card forms: Map as it is; Speed with two cards = value on top, figures below; three or more cards = value left, figures right.
+- Open: the Phase 13 section gets rewritten as its own deep-dive before building.
+
+**Later phases**
+- Phase 17: range adjusted by riding style (average speed, climbs, spirited riding), only if it proves suitable (complex; the cautious range is already safe).
+- Phase 18: iOS port (Swift, Mac Air M2); prep a handoff when the rider says ready.
+- After that: rider chat and proximity (WIP, undecided). Rider chat parked until then.
+- TomTom search works (rider-tested 2026-11-14, better local knowledge); no key pending any more.
