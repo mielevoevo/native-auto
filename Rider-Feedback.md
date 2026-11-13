@@ -797,3 +797,7 @@ Rider notes: the green pin at a pane's top-right in screenshots is Android's pri
 - Phase 18: iOS port (Swift, Mac Air M2); prep a handoff when the rider says ready.
 - After that: rider chat and proximity (WIP, undecided). Rider chat parked until then.
 - TomTom search works (rider-tested 2026-11-14, better local knowledge); no key pending any more.
+
+### Addenda (rider, 2026-11-14)
+- **Existing installs keep their settings.** Every new setting gets a migration default that equals the old behaviour: an install with saved preferences and no accent key stays **cyan**; auto-start Off; Gauge tank icon; and so on. Only fresh installs get the new defaults (green accent), then Phase 16's setup asks. Implementation: a one-time check "preferences exist but this key doesn't" in `SettingsRepository`, with a test.
+- **Portrait 3 panes:** the plain stack is the first preset; "big pane on top, two side by side below" is added as a second 3-pane portrait preset in Phase 13 (it is just a preset in the layout model).
