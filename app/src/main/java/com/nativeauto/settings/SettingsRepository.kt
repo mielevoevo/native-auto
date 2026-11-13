@@ -12,6 +12,9 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.nativeauto.trip.AUTO_START_HOLD_CHOICES_S
+import com.nativeauto.trip.AutoStartMode
+import com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
@@ -65,6 +68,14 @@ interface SettingsRepository {
     /** 11c: what the normal-size Garage card shows. */
     val garageValue: Flow<GarageValue>
     suspend fun setGarageValue(value: GarageValue)
+
+    /** 13b: what the app does by itself while open and the bike moves. Off by default, and for every earlier install. */
+    val autoStartMode: Flow<AutoStartMode>
+    suspend fun setAutoStartMode(mode: AutoStartMode)
+
+    /** 13b: seconds at 15 km/h before auto-start acts, one of [AUTO_START_HOLD_CHOICES_S]. */
+    val autoStartHoldS: Flow<Int>
+    suspend fun setAutoStartHoldS(seconds: Int)
 
     /** 13a: the Garage card's tank icon. Gauge by default (and for installs from before it existed). */
     val tankIcon: Flow<TankIcon>
@@ -217,6 +228,20 @@ class DataStoreSettingsRepository @Inject constructor(
     override val garageValue: Flow<GarageValue> =
         prefs.map { enumOrDefault(it[GARAGE_VALUE], GarageValue.RANGE) }.distinctUntilChanged()
 
+    override val autoStartMode: Flow<AutoStartMode> =
+        prefs.map { enumOrDefault(it[AUTO_START_MODE], AutoStartMode.OFF) }.distinctUntilChanged()
+
+    override suspend fun setAutoStartMode(mode: AutoStartMode) {
+        store.edit { it[AUTO_START_MODE] = mode.name }
+    }
+
+    override val autoStartHoldS: Flow<Int> =
+        prefs.map { p -> p[AUTO_START_HOLD_S]?.takeIf { it in AUTO_START_HOLD_CHOICES_S } ?: DEFAULT_AUTO_START_HOLD_S }.distinctUntilChanged()
+
+    override suspend fun setAutoStartHoldS(seconds: Int) {
+        store.edit { it[AUTO_START_HOLD_S] = seconds }
+    }
+
     override val tankIcon: Flow<TankIcon> =
         prefs.map { enumOrDefault(it[TANK_ICON], TankIcon.GAUGE) }.distinctUntilChanged()
 
@@ -300,6 +325,8 @@ class DataStoreSettingsRepository @Inject constructor(
         val GARAGE_VALUE = stringPreferencesKey("garage_value")
         val TOTAL_PERIOD = stringPreferencesKey("total_period")
         val TANK_ICON = stringPreferencesKey("tank_icon")
+        val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
+        val AUTO_START_HOLD_S = intPreferencesKey("auto_start_hold_s")
         val REFRESH_MODE = stringPreferencesKey("refresh_mode")
         val DRAG_HOLD_MS = longPreferencesKey("drag_hold_ms")
         val CLOCK_SECONDS = booleanPreferencesKey("clock_seconds")

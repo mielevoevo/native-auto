@@ -7,6 +7,8 @@ import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.settings.ThemeMode
 import com.nativeauto.settings.RefreshMode
 import com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS
+import com.nativeauto.trip.AutoStartMode
+import com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S
 import com.nativeauto.trip.TripTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -74,6 +76,20 @@ class SettingsViewModel @Inject constructor(
 
     fun setStatShown(stat: TelemetryStat, shown: Boolean) {
         viewModelScope.launch { settings.setStatShown(stat, shown) }
+    }
+
+    /** 13b: what the app does by itself while open and the bike moves. */
+    val autoStartMode: StateFlow<AutoStartMode> =
+        settings.autoStartMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AutoStartMode.OFF)
+    val autoStartHoldS: StateFlow<Int> =
+        settings.autoStartHoldS.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_AUTO_START_HOLD_S)
+
+    fun setAutoStartMode(mode: AutoStartMode) {
+        viewModelScope.launch { settings.setAutoStartMode(mode) }
+    }
+
+    fun setAutoStartHoldS(seconds: Int) {
+        viewModelScope.launch { settings.setAutoStartHoldS(seconds) }
     }
 
     fun setAutoPauseMinutes(minutes: Int) {

@@ -54,6 +54,8 @@ class ResetSettingsRule : ExternalResource() {
         settings.setClockSeconds(false)
         settings.setGarageValue(com.nativeauto.settings.GarageValue.RANGE)
         settings.setTankIcon(com.nativeauto.settings.TankIcon.GAUGE)
+        settings.setAutoStartMode(com.nativeauto.trip.AutoStartMode.OFF)
+        settings.setAutoStartHoldS(com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S)
         settings.setTotalPeriod(com.nativeauto.settings.TotalPeriod.DAY)
         settings.setRefreshMode(com.nativeauto.settings.RefreshMode.AUTO)
         settings.setDragHoldMs(com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS)

@@ -18,6 +18,13 @@ interface SpeedSampleSource {
      * back on). Lets the tracker leave the "off" state without a flicker on every retry.
      */
     fun isLocationEnabled(): Boolean = true
+
+    /**
+     * 13b: the same fixes for something that only watches for movement (auto-start), at a rate that
+     * suits it: slow while stationary, full rate once moving. Sources with nothing to save just
+     * reuse [samples].
+     */
+    val watchSamples: Flow<SpeedSample> get() = samples
 }
 
 class LocationPermissionException(cause: Throwable? = null) :

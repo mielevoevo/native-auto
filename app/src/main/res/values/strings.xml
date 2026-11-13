@@ -77,6 +77,9 @@
     <string name="settings_debug">Debug</string>
     <string name="settings_fake_gps">Fake GPS (scripted drive)</string>
     <string name="settings_done">Done</string>
+    <string name="settings_auto_start">Auto-start</string>
+    <string name="settings_auto_start_hold">Hold at 15 km/h for</string>
+    <string name="settings_auto_start_hint">Only while the app is open. Odometer only counts the km without saving a trip. After you press End it waits until you open the app again.</string>
     <string name="settings_whats_new">What\'s new</string>
     <string name="settings_whats_new_hint">Changes in each version</string>
     <string name="settings_open">Open</string>

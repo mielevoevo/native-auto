@@ -57,6 +57,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nativeauto.BuildConfig
 import com.nativeauto.R
 import com.nativeauto.settings.SpeedUnit
+import com.nativeauto.trip.AUTO_START_HOLD_CHOICES_S
+import com.nativeauto.trip.AutoStartMode
 import com.nativeauto.settings.ThemeMode
 import com.nativeauto.settings.RefreshMode
 import com.nativeauto.settings.DRAG_HOLD_CHOICES_MS
@@ -92,6 +94,8 @@ fun SettingsSheet(
     val autoPause by viewModel.autoPauseMinutes.collectAsStateWithLifecycle()
     val autoEnd by viewModel.autoEndMinutes.collectAsStateWithLifecycle()
     val totalPeriod by viewModel.totalPeriod.collectAsStateWithLifecycle()
+    val autoStartMode by viewModel.autoStartMode.collectAsStateWithLifecycle()
+    val autoStartHold by viewModel.autoStartHoldS.collectAsStateWithLifecycle()
     val hiddenStats by viewModel.hiddenStats.collectAsStateWithLifecycle()
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
     val simulate by viewModel.simulateNavigation.collectAsStateWithLifecycle()
@@ -223,6 +227,28 @@ fun SettingsSheet(
                             )
                         }
                     }
+                            // 13b: the app starts the logging by itself while it is open (never in the background).
+                            ChoiceRow(
+                                label = R.string.settings_auto_start,
+                                options = AutoStartMode.entries,
+                                selected = autoStartMode,
+                                text = { it.label },
+                                tag = { "settings_auto_start_${it.name}" },
+                                stacked = true,
+                            ) { haptics.tick(); viewModel.setAutoStartMode(it) }
+                            ChoiceRow(
+                                label = R.string.settings_auto_start_hold,
+                                options = AUTO_START_HOLD_CHOICES_S,
+                                selected = autoStartHold,
+                                text = { "$it s" },
+                                tag = { "settings_auto_start_hold_$it" },
+                                stacked = true,
+                            ) { haptics.tick(); viewModel.setAutoStartHoldS(it) }
+                            Text(
+                                stringResource(R.string.settings_auto_start_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }

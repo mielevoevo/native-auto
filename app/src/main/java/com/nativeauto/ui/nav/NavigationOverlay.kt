@@ -197,3 +197,41 @@ internal fun NavStatusCard(
         }
     }
 }
+
+/**
+ * 13b: a compact map's whole navigation readout: the turn arrow and the distance to it in one slim
+ * chip. The road name, ETA and totals are for the bigger map or the Navigation pane.
+ */
+@Composable
+internal fun NavigationChip(state: NavState.Navigating, unit: SpeedUnit, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.testTag("nav_chip"),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        tonalElevation = 6.dp,
+        shadowElevation = 6.dp,
+    ) {
+        val instruction = state.instruction
+        Row(Modifier.padding(start = 10.dp, end = 16.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (state.rerouting || (state.offRoute && instruction == null)) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp)
+                Spacer(Modifier.width(10.dp))
+                Text("Rerouting…", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            } else {
+                if (instruction != null) {
+                    ManeuverGlyph(instruction, MaterialTheme.colorScheme.onPrimaryContainer, Modifier.size(36.dp))
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    formatNavDistance(state.distanceToManeuverM, unit),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.testTag("nav_chip_distance"),
+                )
+            }
+        }
+    }
+}

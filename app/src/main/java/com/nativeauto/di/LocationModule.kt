@@ -37,4 +37,7 @@ abstract class LocationBindings {
 
     @Binds
     abstract fun bindLocationPermissionState(impl: AndroidLocationPermissionState): LocationPermissionState
+
+    @Binds
+    abstract fun bindAutoStartActions(impl: com.nativeauto.location.AndroidAutoStartActions): com.nativeauto.location.AutoStartActions
 }

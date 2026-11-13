@@ -1,5 +1,12 @@
 # What's new in Native Auto
 
+## 3.4.2 (20) · 2026-11-14
+- Auto-start (Settings, Trip options): off, odometer only, or start the trip by itself after 30 seconds at 15 km/h. It only works while the app is open and starts fresh each time you open the app.
+- When a trip starts by itself the speed card slides in "Trip started", with a short buzz. Swipe it away, or it goes after 3 seconds.
+- The small map while navigating is simpler: the route, one slim turn chip, mute and End in its header, and a big follow button.
+- Holding a card now also offers Fullscreen and Maximize in its menu.
+- Fixed: the max speed no longer lags a moment behind the speed after a start or resume.
+
 ## 3.4.1 (19) · 2026-11-14
 - What's new: this list. After an update it shows what changed, once. It is also under Settings.
 - The Next turn card is now called Navigation, and its title is never hidden by the clock.

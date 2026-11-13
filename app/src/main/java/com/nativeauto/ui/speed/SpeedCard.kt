@@ -118,12 +118,16 @@ fun SpeedCard(
             onDismiss = { askingDash = false },
         )
     }
+    val (autoStartBanner, dismissAutoStartBanner) = rememberAutoStartBanner()
     SpeedCardContent(
         mode, layout, ui,
         TripLogUi(period, periodM, outcome, endArmed, visible, garage.reminder, bike?.name, dashGiven),
         actions,
         // 11c (§6): a small red tank when fuel is low and no Garage card shows it already.
         lowFuel = garage.lowFuel && !layout.isOnScreen(Pane.GARAGE),
+        // 13b: only a speed card on screen shows it; otherwise the dashboard's pill does.
+        announcement = autoStartBanner && layout.isOnScreen(Pane.SPEED),
+        onDismissAnnouncement = dismissAutoStartBanner,
     )
 }
 
@@ -140,6 +144,8 @@ fun SpeedCardContent(
     log: TripLogUi = TripLogUi(),
     actions: TripLogActions = TripLogActions.None,
     lowFuel: Boolean = false,
+    announcement: Boolean = false,
+    onDismissAnnouncement: () -> Unit = {},
 ) {
     DashboardCard(title = "Speed", pane = Pane.SPEED, mode = mode, layout = layout) {
         // 13a: the card always opens on the speed face. Not saved across a recreation: a pager state
@@ -178,6 +184,7 @@ fun SpeedCardContent(
             FaceDots(pager.currentPage, FACES, Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp))
             if (lowFuel) LowFuelIcon(modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp))
             if (ui.tripState == TripState.Ended) TripSummary(mode, ui, log, actions.dismissSummary, actions.askDashKmPerL)
+            AutoStartBanner(announcement, onDismissAnnouncement)
         }
     }
 }

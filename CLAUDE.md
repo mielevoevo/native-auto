@@ -53,6 +53,8 @@ Keep these; the reference versions are buggy.
 - `TripReducer` (§6.3): an implausible fix (over `MAX_ACCEL_MPS2`) is ignored completely, like
   a poor-accuracy fix. The reference let spikes reach the current speed and the distance, and
   two spikes in a row set a false max. See the class KDoc and `TripReducerTest`.
+- `TripReducer` (§6.3, 13b): the first fix after a start or resume sets `maxSpeedMps` too (accurate-speed rule), so
+  the max no longer lags the hero by one fix. Matters for auto-start, which begins mid-motion (`TripReducerTest`).
 
 ## Phase 4 additions (beyond the handoff's reference)
 
@@ -640,22 +642,40 @@ Rider feedback after a week on v3.3 (Rider-Feedback "Phase 13 decisions"). Choic
 - Device tests moved with this: stacked panes are swapped by dragging (`drag(from, to)`), pickers need
   `PICKER_MS` (hold + arm), the refuel dialog uses the switch.
 
-## Known issues (deferred)
+## Phase 13b: compact navigation map and auto-start (built 2026-11-14, v3.4.2, versionCode 20)
 
-- **TomTom key pending (WIP, 10a):** add `TOMTOM_API_KEY` to `local.properties`, rebuild, compare on the
-  Search test screen.
+- **Compact map while guiding (`MapPane`, `NavigationChip`):** route line + one slim chip (`nav_chip`: arrow + distance)
+  at the top left; no banner, no summary card. The header's own buttons are **mute** (`nav_voice`, a switch) and
+  **End** (`nav_end`), via `DashboardCard(headerActions)` (a pane that sets it drops its maximize / fullscreen / swap
+  buttons from the header: the pane picker has **Fullscreen** and **Maximize** buttons, `pick_fullscreen`,
+  `pick_maximize`). The bottom-right big button is the follow button (`map_recenter`, always there, navy + accent
+  while following). Expanded / Fullscreen keep the banner, ETA card and the FAB column. The chip shows only
+  where the Navigation pane isn't on screen (`showNavPanels`).
+- **Auto-start (`trip/AutoStart.kt`, `location/AutoStartMonitor.kt`):** `AutoStartMode` OFF (default, and what every
+  install keeps) / ODOMETER_ONLY / TRIP, hold 20 / 30 / 45 / 60 s (`autoStartHoldS`), in the Trip options dialog.
+  Pure `stepAutoStart` (speed ≥ 15 km/h held; no-speed or inaccurate fixes skipped; a slower fix or a 10 s gap
+  starts over; distance through `TripReducer`), `autoStartAllowed` (clean state only). The monitor runs **only while
+  the activity is started** (`repeatOnLifecycle(STARTED)` in `MainActivity`): no service, no background location.
+  Clean = the app was opened (`onAppOpened`, not a rotation) with no trip, and none has ended since
+  (`endedThisSession`, seen while the monitor is running). TRIP: `TripService.start`, then `announcements`.
+  ODOMETER_ONLY: the km (counted from the start of the hold) go to the active bike as untracked km in chunks of
+  ≥ 500 m, the rest when riding stops (2 min still) or the watch is cancelled; nothing while a trip exists.
+- **Low-rate watching (`SpeedSampleSource.watchSamples`):** `FusedSpeedSampleSource` asks for balanced-power fixes every
+  5 s while stationary and switches the same callback to 1 Hz high accuracy once a fix moves (speed ≥ 2.5 m/s, or a
+  position jump > 120 m: network fixes carry no speed), back after a minute without movement. Others reuse `samples`.
+- **Announcement (`ui/speed/AutoStartBanner.kt`):** `AutoStartBannerViewModel` (3 s timer in the view model) → the speed
+  card slides a "Trip started / Riding detected" banner over its faces (`auto_start_banner`, swipe to dismiss, a
+  short buzz); with no speed card on screen the dashboard shows `auto_start_pill` at the top centre.
+- Device tests: auto-start end to end on the scripted drive (banner, pill), the settings choice, the hold menu, and a
+  compact map guiding on a real route (skips itself offline).
+
+## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);
   cold start is ~14 s there. MapLibre with real tiles costs the same as Google without a key, so
   the missing key isn't the cause; likely the emulator's software renderer redrawing for the
   1 Hz location updates (the emulator re-sends its last fix forever). Re-measure on the user's
   phone when the app is complete.
-
-- **MAX lags the hero by one fix after a start or resume.** The reducer's first-fix branch
-  (§6.3 reference) sets `currentSpeedMps` but not `maxSpeedMps`, so for ~1 s the card can show
-  e.g. 72 km/h with MAX 0. The next fix corrects it. Deferred on purpose (2026-11-02): trips are
-  assumed to start while moving, so it's cosmetic. Fix later by applying the accurate-speed max
-  rule in the first-fix branch too, and list it under the deviations above.
 
 ## Future features (decided, not scheduled)
 

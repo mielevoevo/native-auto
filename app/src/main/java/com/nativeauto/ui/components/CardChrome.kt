@@ -66,6 +66,7 @@ fun DashboardCard(
     layout: DashboardLayoutState,
     color: Color = AppTheme.colors.card,
     chromeOverContent: Boolean = false,
+    headerActions: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -103,6 +104,7 @@ fun DashboardCard(
                     pane = pane,
                     mode = mode,
                     layout = layout,
+                    headerActions = headerActions,
                     modifier = Modifier.background(
                         Brush.verticalGradient(listOf(color.copy(alpha = 0.85f), Color.Transparent)),
                     ),
@@ -110,7 +112,7 @@ fun DashboardCard(
             }
         } else {
             Column(Modifier.fillMaxSize()) {
-                CardChrome(title = title, pane = pane, mode = mode, layout = layout)
+                CardChrome(title = title, pane = pane, mode = mode, layout = layout, headerActions = headerActions)
                 Column(Modifier.weight(1f).fillMaxWidth().then(body)) { content() }
             }
         }
@@ -144,6 +146,7 @@ fun CardChrome(
     mode: CardMode,
     layout: DashboardLayoutState,
     modifier: Modifier = Modifier,
+    headerActions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
     val picker = LocalPanePicker.current
@@ -180,6 +183,13 @@ fun CardChrome(
             battery = corner?.battery?.let { battery -> { BatteryIndicator(battery) } },
         ) {
             if (corner != null) StatusButtons(corner)
+            // 13b: a pane may put its own buttons here (the map while navigating: mute, End). Then
+            // maximize, fullscreen and swap are in the pane picker (hold the card), so the header
+            // keeps to the title plus two buttons.
+            if (headerActions != null) {
+                headerActions()
+                return@HeaderRow
+            }
             if (canMaximize && !fullscreen) {
                 val maximized = layout.maximized == pane
                 ChromeButton(

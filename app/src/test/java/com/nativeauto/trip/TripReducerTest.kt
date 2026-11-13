@@ -226,4 +226,23 @@ class TripReducerTest {
         assertEquals(0f, s.averageSpeedMps((0.5 * sec).toLong()), 0f)
         assertEquals(0f, s.movingAverageMps(), 0f)
     }
+
+    // ---- 13b: the max no longer lags the hero by a fix ----
+
+    @Test fun `the first fix sets the max too`() {
+        val s = TripReducer.reduce(TripStats(), fix(5.0, 20f))
+        assertEquals(20f, s.maxSpeedMps, 0f)
+    }
+
+    @Test fun `a first fix with a poor speed accuracy leaves the max alone`() {
+        val s = TripReducer.reduce(TripStats(), fix(5.0, 20f, speedAcc = 3f))
+        assertEquals(0f, s.maxSpeedMps, 0f)
+        assertEquals(20f, s.currentSpeedMps, 0f)
+    }
+
+    @Test fun `a resume keeps the earlier max and takes a faster first fix`() {
+        val resumed = TripStats(startedAtNanos = 1L, maxSpeedMps = 15f, lastSample = null)
+        assertEquals(15f, TripReducer.reduce(resumed, fix(9.0, 10f)).maxSpeedMps, 0f)
+        assertEquals(25f, TripReducer.reduce(resumed, fix(9.0, 25f)).maxSpeedMps, 0f)
+    }
 }

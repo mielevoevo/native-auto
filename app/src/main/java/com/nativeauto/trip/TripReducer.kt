@@ -29,8 +29,11 @@ object TripReducer {
         if (!fix.hasSpeed || fix.horizontalAccuracyM > MAX_ACCURACY_M) return s.copy(gpsStatus = GpsStatus.Searching)
 
         val speed = if (fix.speedMps < STATIONARY_MPS) 0f else fix.speedMps
+        val accurate = fix.speedAccuracyMps?.let { it < MAX_SPEED_ACCURACY_MPS } ?: true
         val prev = s.lastSample ?: return s.copy(
             startedAtNanos = s.startedAtNanos ?: fix.timestampNanos,
+            // 13b: the first fix after a start or resume sets the max too (it used to lag one fix behind the hero).
+            maxSpeedMps = if (accurate) max(s.maxSpeedMps, speed) else s.maxSpeedMps,
             lastSample = fix, currentSpeedMps = speed, gpsStatus = GpsStatus.Fix,
             lastMovingAtNanos = if (speed > 0f) fix.timestampNanos else s.lastMovingAtNanos,
         )
@@ -47,7 +50,6 @@ object TripReducer {
         val dDist = if (dtNanos > MAX_GAP_NANOS) haversineMeters(prev, fix)
                     else (s.currentSpeedMps + speed) / 2.0 * dtSec
 
-        val accurate = fix.speedAccuracyMps?.let { it < MAX_SPEED_ACCURACY_MPS } ?: true
 
         return s.copy(
             lastSample = fix,

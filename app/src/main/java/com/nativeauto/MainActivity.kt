@@ -34,7 +34,9 @@ import com.nativeauto.trip.TripTracker
 import com.nativeauto.history.Recovery
 import com.nativeauto.history.TripRecorder
 import com.nativeauto.location.TripService
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -46,6 +48,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var tracker: TripTracker
     @Inject lateinit var links: IncomingLinks
     @Inject lateinit var recorder: TripRecorder
+    @Inject lateinit var autoStart: com.nativeauto.location.AutoStartMonitor
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -57,6 +60,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { selfClose.closeRequests.collect { finishAndRemoveTask() } }
         // 10b: launched by a share or a geo: link. Not again on a recreation (rotation).
         if (savedInstanceState == null) openSharedLink(intent)
+        // 13b: auto-start watches only while the app is on screen; a fresh open starts a clean session.
+        if (savedInstanceState == null) autoStart.onAppOpened()
+        lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { autoStart.watch() } }
 
         setContent {
             // Dark until DataStore answers (a few ms): the window is black anyway.

@@ -25,21 +25,26 @@ class SwitchableSpeedSampleSource @Inject constructor(
     private val fake: FakeSpeedSampleSource,
     private val simulation: RouteSimulation,
     private val clock: MonotonicClock,
-    settings: SettingsRepository,
+    private val settings: SettingsRepository,
 ) : SpeedSampleSource {
 
     @Volatile private var usingFake = false
 
-    override val samples: Flow<SpeedSample> = combine(settings.useFakeGps.distinctUntilChanged(), simulation.route) { useFake, route -> useFake to route }
+    private fun choose(realSamples: Flow<SpeedSample>): Flow<SpeedSample> = combine(settings.useFakeGps.distinctUntilChanged(), simulation.route) { useFake, route -> useFake to route }
         .distinctUntilChanged()
         .flatMapLatest { (useFake, route) ->
             usingFake = useFake || route != null
             when {
                 route != null -> simulatedDrive(route, clock)
                 useFake -> fake.samples
-                else -> real.samples
+                else -> realSamples
             }
         }
+
+    override val samples: Flow<SpeedSample> = choose(real.samples)
+
+    /** 13b: auto-start watching: the real source at its idle rate, the fake and simulated drives as they are. */
+    override val watchSamples: Flow<SpeedSample> = choose(real.watchSamples)
 
     override fun isLocationEnabled(): Boolean = usingFake || real.isLocationEnabled()
 }

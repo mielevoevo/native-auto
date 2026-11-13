@@ -15,6 +15,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.nativeauto.trip.SpeedSample
+import com.nativeauto.trip.haversineMeters
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.channels.awaitClose
@@ -72,8 +73,68 @@ class FusedSpeedSampleSource @Inject constructor(
 
     override fun isLocationEnabled(): Boolean = LocationManagerCompat.isLocationEnabled(locationManager)
 
+    /**
+     * 13b: for auto-start, the app being open and waiting for the bike to move. A balanced-power
+     * request every [WATCH_IDLE_INTERVAL_MS] while stationary (no continuous GPS), switching to the
+     * full 1 Hz high-accuracy request once a fix shows movement, and back after it stops.
+     */
+    override val watchSamples: Flow<SpeedSample> = callbackFlow {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) throw LocationPermissionException()
+        if (!isLocationEnabled()) throw LocationDisabledException()
+
+        fun request(fast: Boolean) = if (fast) {
+            LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MS).setMinUpdateIntervalMillis(INTERVAL_MS)
+        } else {
+            LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, WATCH_IDLE_INTERVAL_MS)
+        }.setWaitForAccurateLocation(false).build()
+
+        var fast = false
+        var lastMovingNanos = 0L
+        var lastPosition: SpeedSample? = null
+        lateinit var callback: LocationCallback
+        callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.locations.forEach { location ->
+                    if (!location.hasAccuracy()) return@forEach
+                    val sample = location.toSpeedSample()
+                    trySend(sample)
+                    // Balanced-power fixes (Wi-Fi, cell) usually carry no speed: a jump in position counts too.
+                    val jumped = lastPosition?.let { haversineMeters(it, sample) > WATCH_JUMP_M } ?: false
+                    lastPosition = sample
+                    val moving = (sample.hasSpeed && sample.speedMps >= WATCH_MOVING_MPS) || jumped
+                    if (moving) lastMovingNanos = sample.timestampNanos
+                    // Back to the slow request only after a minute without movement (a red light isn't a stop).
+                    val wantFast = moving || (fast && sample.timestampNanos - lastMovingNanos < WATCH_LINGER_NANOS)
+                    if (wantFast != fast) {
+                        fast = wantFast
+                        // The same callback object replaces the earlier request.
+                        try { client.requestLocationUpdates(request(fast), callback, Looper.getMainLooper()) } catch (_: SecurityException) { close(LocationPermissionException()) }
+                    }
+                }
+            }
+
+            override fun onLocationAvailability(availability: LocationAvailability) {
+                if (!availability.isLocationAvailable && !isLocationEnabled()) close(LocationDisabledException())
+            }
+        }
+        try {
+            client.requestLocationUpdates(request(false), callback, Looper.getMainLooper()).addOnFailureListener { close(it) }
+        } catch (e: SecurityException) {
+            throw LocationPermissionException(e)
+        }
+        awaitClose { client.removeLocationUpdates(callback) }
+    }
+
     private companion object {
         const val INTERVAL_MS = 1_000L
+        const val WATCH_IDLE_INTERVAL_MS = 5_000L
+        /** Faster than a walk: worth the full-rate request (the auto-start line itself is 15 km/h). */
+        const val WATCH_MOVING_MPS = 2.5f
+        /** A network fix this far from the last one means the bike moved. */
+        const val WATCH_JUMP_M = 120.0
+        const val WATCH_LINGER_NANOS = 60_000_000_000L
     }
 }
 

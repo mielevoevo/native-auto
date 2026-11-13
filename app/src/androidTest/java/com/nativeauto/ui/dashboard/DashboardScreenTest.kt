@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.percentOffset
@@ -112,6 +113,8 @@ class DashboardScreenTest {
         assertMode(Pane.MEDIA, CardMode.Compact)
         assertMode(Pane.SPEED, CardMode.Compact)
     }
+
+    private fun awaitGone(t: String) = rule.waitUntil(5_000) { count(t).fetchSemanticsNodes().isEmpty() }
 
     private fun awaitSheet(sheet: String) =
         rule.waitUntil(5_000) { count(sheet).fetchSemanticsNodes().isNotEmpty() }
@@ -735,6 +738,121 @@ class DashboardScreenTest {
         tag("changelog_entry_${com.nativeauto.BuildConfig.VERSION_CODE}").assertIsDisplayed()
         click("changelog_history_done")
         rule.waitUntil(5_000) { count("changelog_history").fetchSemanticsNodes().isEmpty() }
+    }
+
+    // ---------------------------------------------------------------- Phase 13b
+
+    @Test fun autoStartBeginsATripAndAnnouncesItOverTheSpeedFace() {
+        try {
+            runBlocking {
+                resetSettings.settings.setAutoStartHoldS(20)
+                resetSettings.settings.setAutoStartMode(com.nativeauto.trip.AutoStartMode.TRIP)
+                // The scripted drive: stationary jitter, then 100 km/h; 20 s over 15 km/h completes inside it.
+                resetSettings.settings.setUseFakeGps(true)
+            }
+            rule.waitUntil(120_000) { count("auto_start_banner").fetchSemanticsNodes().isNotEmpty() }
+            tag("auto_start_banner").assertIsDisplayed()
+            // The trip is running: the log face's pause button is enabled.
+            // A swipe dismisses the banner.
+            tag("auto_start_banner").performTouchInput { swipeLeft() }
+            rule.waitUntil(10_000) { count("auto_start_banner").fetchSemanticsNodes().isEmpty() }
+        } finally {
+            runBlocking { resetSettings.settings.setUseFakeGps(false) }
+        }
+    }
+
+    @Test fun autoStartTellsWithAPillWhenNoSpeedCardIsOnScreen() {
+        try {
+            openPicker(Pane.SPEED)
+            pickFromSheet("pick_CLOCK", "picker_sheet")
+            assertCollapsed("speed left the layout", Pane.SPEED)
+            runBlocking {
+                resetSettings.settings.setAutoStartHoldS(20)
+                resetSettings.settings.setAutoStartMode(com.nativeauto.trip.AutoStartMode.TRIP)
+                resetSettings.settings.setUseFakeGps(true)
+            }
+            rule.waitUntil(120_000) { count("auto_start_pill").fetchSemanticsNodes().isNotEmpty() }
+            tag("auto_start_pill").assertIsDisplayed()
+            assertEquals(0, count("auto_start_banner").fetchSemanticsNodes().size)
+        } finally {
+            runBlocking { resetSettings.settings.setUseFakeGps(false) }
+        }
+    }
+
+    @Test fun autoStartStaysOffByDefaultAndTheChoiceIsSaved() {
+        assertEquals(com.nativeauto.trip.AutoStartMode.OFF, runBlocking { resetSettings.settings.autoStartMode.first() })
+        openSettings()
+        click("settings_trip_options")
+        // Below the figure chips in the dialog: it scrolls on a landscape phone (13c gives auto-start its own place).
+        tag("settings_auto_start_ODOMETER_ONLY").performScrollTo(); click("settings_auto_start_ODOMETER_ONLY")
+        tag("settings_auto_start_hold_45").performScrollTo(); click("settings_auto_start_hold_45")
+        rule.waitUntil(5_000) {
+            runBlocking { resetSettings.settings.autoStartMode.first() } == com.nativeauto.trip.AutoStartMode.ODOMETER_ONLY &&
+                runBlocking { resetSettings.settings.autoStartHoldS.first() } == 45
+        }
+        click("settings_trip_options_done")
+        closeSettings()
+    }
+
+    /**
+     * 13b: a compact map that guides is the route, one slim chip, and mute + End in its header. Needs
+     * the routing server and the scripted GPS, so it skips itself when no route comes back.
+     */
+    @Test fun aCompactMapGuidingShowsAChipAndMuteAndEndInItsHeader() {
+        val navigator = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        ).navigator()
+        try {
+            runBlocking {
+                resetSettings.settings.setAutoLayout(false) // keep the Quad: no Navigation pane to take over from the chip
+                resetSettings.settings.setUseFakeGps(true)
+            }
+            switchLayout(LayoutPreset.QUAD)
+            assertMode(Pane.MAP, CardMode.Compact)
+            val place = com.nativeauto.nav.Place(
+                "Test", null, com.nativeauto.nav.GeoPoint(com.nativeauto.location.FakeDrive.START_LAT + 0.02, com.nativeauto.location.FakeDrive.START_LON),
+            )
+            rule.runOnUiThread { navigator.routeTo(place) }
+            val deadline = System.currentTimeMillis() + 60_000
+            while (navigator.state.value !is com.nativeauto.nav.NavState.Preview && System.currentTimeMillis() < deadline) {
+                if (navigator.state.value is com.nativeauto.nav.NavState.Failed) break
+                Thread.sleep(500)
+            }
+            org.junit.Assume.assumeTrue("no route from the server", navigator.state.value is com.nativeauto.nav.NavState.Preview)
+            rule.runOnUiThread { navigator.start() }
+            rule.waitUntil(30_000) { count("nav_chip").fetchSemanticsNodes().isNotEmpty() }
+            tag("nav_chip").assertIsDisplayed()
+            assertEquals(0, count("nav_banner").fetchSemanticsNodes().size)
+            assertEquals(0, count("nav_summary").fetchSemanticsNodes().size)
+            tag("nav_voice").assertIsDisplayed()
+            tag("nav_end").assertIsDisplayed()
+            // Maximize and fullscreen moved into the hold menu.
+            assertEquals(0, count("fullscreen_MAP").fetchSemanticsNodes().size)
+            // The big bottom-right button is the follow button.
+            tag("map_recenter").assertIsDisplayed()
+            // Mute is a switch that flips the setting.
+            click("nav_voice")
+            rule.waitUntil(5_000) { !runBlocking { resetSettings.settings.voiceGuidance.first() } }
+            click("nav_voice")
+            rule.waitUntil(5_000) { runBlocking { resetSettings.settings.voiceGuidance.first() } }
+            click("nav_end")
+            rule.waitUntil(10_000) { navigator.state.value is com.nativeauto.nav.NavState.Idle }
+        } finally {
+            rule.runOnUiThread { navigator.stop() }
+            runBlocking { resetSettings.settings.setUseFakeGps(false) }
+        }
+    }
+
+    @Test fun theHoldMenuHoldsFullscreenAndMaximize() {
+        openPicker(Pane.SPEED)
+        click("pick_maximize")
+        awaitGone("picker_sheet")
+        assertMode(Pane.SPEED, CardMode.Expanded)
+        openPicker(Pane.SPEED)
+        click("pick_fullscreen")
+        awaitGone("picker_sheet")
+        assertMode(Pane.SPEED, CardMode.Fullscreen)
     }
 
     // ---------------------------------------------------------------- Phase 8b: layouts

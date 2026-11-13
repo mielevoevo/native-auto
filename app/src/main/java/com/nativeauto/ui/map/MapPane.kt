@@ -27,6 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -45,11 +48,13 @@ import com.nativeauto.trip.SpeedSample
 import com.nativeauto.ui.nav.DestinationSearchSheet
 import com.nativeauto.ui.nav.NavStatusCard
 import com.nativeauto.ui.nav.NavigationBanner
+import com.nativeauto.ui.nav.NavigationChip
 import com.nativeauto.ui.nav.NavigationSummary
 import com.nativeauto.ui.nav.RoutePreviewCard
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.DashboardCard
 import com.nativeauto.ui.components.rememberHaptics
+import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
 import com.nativeauto.ui.theme.AppTheme
@@ -74,6 +79,10 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
     LaunchedEffect(onScreen) { viewModel.setOnScreen(onScreen) }
     val awake by viewModel.awake.collectAsStateWithLifecycle()
     val nav by viewModel.nav.collectAsStateWithLifecycle()
+    val mode = layout.modeOf(Pane.MAP)
+    // 13b: a compact map that is guiding is just the route, one slim chip and two header buttons.
+    val compactNav = mode == CardMode.Compact && nav is NavState.Navigating
+    val voice by viewModel.voiceGuidance.collectAsStateWithLifecycle()
 
     var following by rememberSaveable { mutableStateOf(true) }
     // Previewing frames the route; starting guidance, or leaving the preview, follows again.
@@ -88,10 +97,13 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
     DashboardCard(
         title = "Map",
         pane = Pane.MAP,
-        mode = layout.modeOf(Pane.MAP),
+        mode = mode,
         layout = layout,
         color = AppTheme.colors.card,
         chromeOverContent = true,
+        headerActions = if (compactNav) {
+            { NavHeaderButtons(voice = voice, onToggleVoice = { viewModel.setVoiceGuidance(!voice) }, onEnd = viewModel::stopNavigation) }
+        } else null,
     ) {
         val area = Modifier.weight(1f).fillMaxWidth()
         if (awake) {
@@ -104,6 +116,7 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
                 showNavPanels = !layout.isOnScreen(Pane.NAV),
                 // 13a: a long-press drops a pin only in fullscreen; elsewhere the card is held like the others.
                 pinEnabled = layout.fullscreen == Pane.MAP,
+                compactNav = compactNav,
                 fadeIn = slept,
                 modifier = area,
             )
@@ -122,6 +135,7 @@ private fun AwakeMap(
     onFollowingChange: (Boolean) -> Unit,
     showNavPanels: Boolean,
     pinEnabled: Boolean,
+    compactNav: Boolean,
     fadeIn: Boolean,
     modifier: Modifier,
 ) {
@@ -144,6 +158,7 @@ private fun AwakeMap(
             onFollowingChange = onFollowingChange,
             showNavPanels = showNavPanels,
             pinEnabled = pinEnabled,
+            compactNav = compactNav,
             camera = viewModel.camera,
             actions = viewModel,
             modifier = Modifier.fillMaxSize(),
@@ -195,6 +210,7 @@ private fun DashboardMap(
     onFollowingChange: (Boolean) -> Unit,
     showNavPanels: Boolean,
     pinEnabled: Boolean,
+    compactNav: Boolean,
     camera: MapCameraMemory,
     actions: MapViewModel,
     modifier: Modifier,
@@ -226,7 +242,13 @@ private fun DashboardMap(
         // Top: the next turn, or the planning / failure / arrival status.
         val top = Modifier.align(Alignment.TopCenter).padding(start = 12.dp, end = 12.dp, top = MAP_TOP_PADDING + 4.dp).widthIn(max = 560.dp)
         when (nav) {
-            is NavState.Navigating -> if (showNavPanels) NavigationBanner(nav, unit, top)
+            is NavState.Navigating -> if (showNavPanels) {
+                if (compactNav) {
+                    NavigationChip(nav, unit, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = MAP_TOP_PADDING + 4.dp))
+                } else {
+                    NavigationBanner(nav, unit, top)
+                }
+            }
             is NavState.Routing, is NavState.Failed, is NavState.Arrived ->
                 if (showNavPanels) NavStatusCard(nav, onRetry = actions::retryRoute, onDismiss = actions::stopNavigation, modifier = top)
             else -> Unit
@@ -240,7 +262,7 @@ private fun DashboardMap(
                 onCancel = actions::stopNavigation,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = MapEngine.current.bottomClearance).widthIn(max = 560.dp),
             )
-            is NavState.Navigating -> if (showNavPanels) NavigationSummary(
+            is NavState.Navigating -> if (showNavPanels && !compactNav) NavigationSummary(
                 nav, unit, nowMs = System.currentTimeMillis(),
                 modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = MapEngine.current.bottomClearance),
             )
@@ -253,7 +275,8 @@ private fun DashboardMap(
                 onToggleTraffic = onToggleTraffic.takeIf { MapEngine.current.hasTraffic },
                 following = following,
                 onRecenter = { onFollowingChange(true) }, // the follow effect restarts and glides to the latest fix
-                navigating = nav is NavState.Navigating,
+                navigating = nav is NavState.Navigating && !compactNav,
+                compactNav = compactNav,
                 voice = voice,
                 onToggleVoice = { actions.setVoiceGuidance(!voice) },
                 onSearch = { searching = true }.takeIf { nav is NavState.Idle || nav is NavState.Arrived || nav is NavState.Failed },
@@ -282,6 +305,7 @@ private fun MapButtons(
     following: Boolean,
     onRecenter: () -> Unit,
     navigating: Boolean,
+    compactNav: Boolean,
     voice: Boolean,
     onToggleVoice: () -> Unit,
     onSearch: (() -> Unit)?,
@@ -342,15 +366,16 @@ private fun MapButtons(
                 Icon(AppIcons.Traffic, contentDescription = "Traffic")
             }
         }
-        if (!following) {
+        // 13b: a compact map that guides always has the follow button (it replaces End, now in the header).
+        if (!following || compactNav) {
             FloatingActionButton(
                 onClick = {
                     haptics.tap()
                     onRecenter()
                 },
                 modifier = Modifier.testTag("map_recenter"),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurface,
+                containerColor = if (following) AppTheme.colors.navy else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (following) AppTheme.colors.cyan else MaterialTheme.colorScheme.onSurface,
             ) {
                 Icon(AppIcons.Navigation, contentDescription = "Recenter map")
             }
@@ -385,3 +410,28 @@ internal val ROUTE_PREVIEW_CLEARANCE = 150.dp
 
 /** The map's key in [com.nativeauto.ui.components.MotionDemand]. */
 internal const val MAP_MOTION = "map"
+
+/**
+ * 13b: the compact map's own header buttons while guiding: mute (voice guidance) and End. They are
+ * the two buttons a compact header keeps; maximize and fullscreen are in the pane picker then.
+ */
+@Composable
+internal fun RowScope.NavHeaderButtons(voice: Boolean, onToggleVoice: () -> Unit, onEnd: () -> Unit) {
+    val haptics = rememberHaptics()
+    IconButton(
+        onClick = { haptics.toggle(on = !voice); onToggleVoice() },
+        modifier = Modifier.testTag("nav_voice").semantics {
+            role = Role.Switch
+            stateDescription = if (voice) "On" else "Off"
+        },
+    ) {
+        Icon(if (voice) AppIcons.VolumeUp else AppIcons.VolumeOff, contentDescription = "Voice guidance")
+    }
+    IconButton(
+        onClick = { haptics.confirm(); onEnd() },
+        modifier = Modifier.testTag("nav_end"),
+        colors = IconButtonDefaults.iconButtonColors(contentColor = AppTheme.colors.red),
+    ) {
+        Icon(AppIcons.Close, contentDescription = "End navigation")
+    }
+}

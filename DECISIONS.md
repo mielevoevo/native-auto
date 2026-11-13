@@ -376,3 +376,31 @@ Unattended run (rider's "start 13a", 2026-11-14). Each entry: the question, what
   like a distinct second step (ring, dim, double buzz) and not like the lift itself.
 - **Nav card alignment** (Compact / Wide): the arrow is now centred on the distance + road block; the old screenshot
   can't be reproduced on the emulator (no live route), so check it with a real route.
+
+### 13b
+
+- **Chip position and what stays.** The compact map's chip sits top left under the header (the header's own buttons
+  and the corner cluster take the right side). Traffic (Google engine) stays in the bottom-right stack next to the
+  follow button. The follow button is shown even while following, in the navy + accent "on" look, so it reads as a
+  state (the plan said "recentre / follow").
+- **Where maximize and fullscreen go on the compact guiding map.** The header keeps the title plus mute and End (the
+  rider's plan, and the "two buttons" rule), so Fullscreen and Maximize moved to the hold menu (the picker sheet),
+  which now has both for every pane (also useful for screen readers: they already had the action).
+- **"Backdated to the moment the hold completed".** The trip starts at the instant the hold completes (the first 20–60 s
+  are not recorded, as the rider's decision says: consent is "app open and already moving"); there is no earlier
+  timestamp to back-date to, so no `TripTracker` change was needed.
+- **Odometer-only counts from the start of the hold.** With no trip, nothing else would record those first seconds, and
+  the proof of riding is the whole run. Chunks of 500 m go to the odometer while riding, the rest when 2 min still or
+  when the app leaves the screen. Reuses "untracked km" (re-anchors the odometer, teaches no GPS factor), so fuel and
+  services follow with no new storage.
+- **"Clean state" definition.** Clean = at app open there was no trip and, since, none has ended while the monitor was
+  running. An End seen only while the app was in the background (notification) leaves the state Ended until the
+  summary is dismissed, which the next foreground watch still sees, so it counts too.
+- **Low-rate watching.** Balanced-power 5 s fixes while stationary (no continuous GPS); full rate once a fix moves
+  (speed ≥ 9 km/h, or a 120 m jump of the network position because Wi-Fi fixes have no speed); slow again after a
+  minute without movement. The map's own 1 Hz reader (if on screen) is independent of this one; the fused provider
+  merges the two requests.
+- **Settings placement.** Auto-start is in the Trip options dialog's right column (it scrolls on a landscape phone):
+  13c's categories give it a proper place.
+- **MAX lag fixed** in `TripReducer` (first fix applies the accurate-speed max rule); moved from "Known issues" to the
+  deviations list. The stale "TomTom key pending" known issue was removed too (the rider confirmed search works).

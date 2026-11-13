@@ -66,7 +66,9 @@ import com.nativeauto.ui.map.MapPane
 import com.nativeauto.ui.media.MediaCard
 import com.nativeauto.ui.nav.NextTurnCard
 import com.nativeauto.ui.settings.SettingsSheet
+import com.nativeauto.ui.speed.AutoStartPill
 import com.nativeauto.ui.speed.SpeedCard
+import com.nativeauto.ui.speed.rememberAutoStartBanner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -232,6 +234,9 @@ fun DashboardScreen(
             CloseOnDoubleBack(enabled = !covered && layout.fullscreen == null && layout.maximized == null)
             // 10b: a link shared from Google Maps being opened (or why it couldn't be).
             LinkStatusPill()
+            // 13b: auto-start began a trip and no speed card is on screen to say so.
+            val (autoStarted, dismissAutoStarted) = rememberAutoStartBanner()
+            AutoStartPill(visible = autoStarted && !layout.isOnScreen(Pane.SPEED), onDismiss = dismissAutoStarted)
             // 11a: the away-km question and (debug) "which bike?".
             GaragePrompts()
             // 13a: what changed, once after an update (waits while a trip or navigation runs).

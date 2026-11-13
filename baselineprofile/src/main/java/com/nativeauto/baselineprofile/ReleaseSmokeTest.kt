@@ -103,7 +103,11 @@ class ReleaseSmokeTest {
         tap("settings_trip_options")
         tap("settings_period_WEEK")
         tap("settings_period_DAY")
-        tap("settings_trip_options_done")
+        // 13b: auto-start on and off again (the monitor starts watching while the app is open).
+        scrollTap("settings_auto_start_TRIP")
+        scrollTap("settings_auto_start_OFF")
+        device.pressBack() // Done is scrolled out of sight by now
+        gone("trip_options")
         tap("settings_theme_DARK")
         // 13a: the changelog history.
         tap("settings_whats_new")
