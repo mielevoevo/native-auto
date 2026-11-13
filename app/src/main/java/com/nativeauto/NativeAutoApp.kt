@@ -6,6 +6,7 @@ import com.nativeauto.history.TripRecorder
 import com.nativeauto.trip.AutoTrip
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.runBlocking
 
 /**
  * Trip tracking is started by TripService when the rider presses Start, not here. The recorder
@@ -17,9 +18,13 @@ class NativeAutoApp : Application() {
     @Inject lateinit var recorder: TripRecorder
     @Inject lateinit var autoTrip: AutoTrip
     @Inject lateinit var garage: GarageRepository
+    @Inject lateinit var settings: com.nativeauto.settings.SettingsRepository
 
     override fun onCreate() {
         super.onCreate()
+        // 13c: first-run defaults that differ between a fresh install and an update (accent). Before anything else writes.
+        val fresh = com.nativeauto.changelog.InstallInfo.isFreshInstall(this)
+        runBlocking { settings.initialiseDefaults(fresh) }
         recorder.start()
         autoTrip.start()
         // 11a: "which bike?" after a big change of location, debug builds only (§6 privacy note).

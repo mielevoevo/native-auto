@@ -348,7 +348,7 @@ private fun SummaryTitle() {
         stringResource(R.string.summary_title),
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
-        color = AppTheme.colors.cyan,
+        color = AppTheme.colors.accent,
         maxLines = 1,
         softWrap = false,
     )

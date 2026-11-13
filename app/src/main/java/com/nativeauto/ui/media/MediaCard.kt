@@ -344,7 +344,7 @@ private fun Progress(np: NowPlaying, position: () -> Long, showTimes: Boolean) {
         LinearProgressIndicator(
             progress = ::fraction,
             modifier = Modifier.fillMaxWidth().height(4.dp),
-            color = AppTheme.colors.cyan,
+            color = AppTheme.colors.accent,
             trackColor = AppTheme.colors.outline,
             strokeCap = StrokeCap.Round,
             gapSize = 0.dp,

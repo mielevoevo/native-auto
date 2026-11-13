@@ -271,7 +271,7 @@ private fun AnalogFace(
         ) {
             drawEdgeTicks(colors.text, colors.textDim)
             val now = seconds?.value ?: minuteNow
-            drawHands(now, zone, colors.text, colors.cyan.takeIf { seconds != null }, colors.card)
+            drawHands(now, zone, colors.text, colors.accent.takeIf { seconds != null }, colors.card)
         }
         if (date != null) {
             Text(

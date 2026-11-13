@@ -319,7 +319,7 @@ private fun DragOverlay(drag: PaneDragState, layout: DashboardLayoutState) {
             val inset = 4.dp.toPx()
             val stroke = 3.dp.toPx()
             drawRoundRect(
-                color = colors.cyan,
+                color = colors.accent,
                 topLeft = Offset(r.left * size.width + inset + stroke / 2, r.top * size.height + inset + stroke / 2),
                 size = Size(r.width * size.width - 2 * inset - stroke, r.height * size.height - 2 * inset - stroke),
                 cornerRadius = CornerRadius(20.dp.toPx()),
@@ -337,7 +337,7 @@ private fun DragOverlay(drag: PaneDragState, layout: DashboardLayoutState) {
             val inset = 4.dp.toPx()
             val stroke = 3.dp.toPx()
             drawRoundRect(
-                color = colors.cyan,
+                color = colors.accent,
                 topLeft = Offset(left + inset + stroke / 2, top + inset + stroke / 2),
                 size = Size(w - 2 * inset - stroke, h - 2 * inset - stroke),
                 cornerRadius = CornerRadius(20.dp.toPx()),
@@ -349,7 +349,7 @@ private fun DragOverlay(drag: PaneDragState, layout: DashboardLayoutState) {
                 val ringStroke = 6.dp.toPx()
                 val centre = Offset(left + w / 2, top + h / 2)
                 drawCircle(colors.outline, radius, centre, style = Stroke(ringStroke))
-                drawArc(colors.cyan, -90f, 360f * arm, false, centre - Offset(radius, radius), Size(radius * 2, radius * 2), style = Stroke(ringStroke, cap = StrokeCap.Round))
+                drawArc(colors.accent, -90f, 360f * arm, false, centre - Offset(radius, radius), Size(radius * 2, radius * 2), style = Stroke(ringStroke, cap = StrokeCap.Round))
             }
         }
         val progress = drag.holdProgress.value
@@ -358,7 +358,7 @@ private fun DragOverlay(drag: PaneDragState, layout: DashboardLayoutState) {
             val stroke = 5.dp.toPx()
             val topLeft = drag.finger - Offset(radius, radius)
             drawCircle(colors.outline, radius, drag.finger, style = Stroke(stroke))
-            drawArc(colors.cyan, -90f, 360f * progress, false, topLeft, Size(radius * 2, radius * 2), style = Stroke(stroke, cap = StrokeCap.Round))
+            drawArc(colors.accent, -90f, 360f * progress, false, topLeft, Size(radius * 2, radius * 2), style = Stroke(stroke, cap = StrokeCap.Round))
         }
     }
 }

@@ -22,6 +22,9 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
+import androidx.compose.ui.graphics.toArgb
+import com.nativeauto.ui.theme.initialAccent
 import kotlinx.coroutines.flow.map
 
 /** User preferences. An interface so ViewModel tests can swap in an in-memory fake. */
@@ -77,6 +80,23 @@ interface SettingsRepository {
     val autoStartHoldS: Flow<Int>
     suspend fun setAutoStartHoldS(seconds: Int)
 
+    /**
+     * 13c: the accent colour, as ARGB. Cyan (what every install had) until [initialiseDefaults] says otherwise,
+     * so existing installs keep their look. The defaulted members need no change in the test fakes.
+     */
+    val accentColor: Flow<Int> get() = flowOf(LEGACY_ACCENT_ARGB)
+    suspend fun setAccentColor(argb: Int) {}
+
+    /** 13c: the map's route line colour as ARGB; null follows the accent. */
+    val routeColor: Flow<Int?> get() = flowOf(null)
+    suspend fun setRouteColor(argb: Int?) {}
+
+    /**
+     * 13c: once per install, at app start: gives settings that differ between a fresh install and an existing
+     * one their first value (the accent: green when fresh, cyan when anything was saved before).
+     */
+    suspend fun initialiseDefaults(freshInstall: Boolean) {}
+
     /** 13a: the Garage card's tank icon. Gauge by default (and for installs from before it existed). */
     val tankIcon: Flow<TankIcon>
     suspend fun setTankIcon(icon: TankIcon)
@@ -109,6 +129,9 @@ interface SettingsRepository {
     val hiddenStats: Flow<Set<TelemetryStat>>
     suspend fun setStatShown(stat: TelemetryStat, shown: Boolean)
 }
+
+/** Cyan, the accent of every install from before 13c (kept for them). */
+const val LEGACY_ACCENT_ARGB = 0xFF3FC8E0.toInt()
 
 const val DEFAULT_AUTO_PAUSE_MIN = 5
 const val DEFAULT_AUTO_END_MIN = 30
@@ -242,6 +265,22 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[AUTO_START_HOLD_S] = seconds }
     }
 
+    override val accentColor: Flow<Int> = prefs.map { it[ACCENT] ?: LEGACY_ACCENT_ARGB }.distinctUntilChanged()
+
+    override suspend fun setAccentColor(argb: Int) {
+        store.edit { it[ACCENT] = argb }
+    }
+
+    override val routeColor: Flow<Int?> = prefs.map { it[ROUTE_COLOR] }.distinctUntilChanged()
+
+    override suspend fun setRouteColor(argb: Int?) {
+        store.edit { if (argb == null) it.remove(ROUTE_COLOR) else it[ROUTE_COLOR] = argb }
+    }
+
+    override suspend fun initialiseDefaults(freshInstall: Boolean) {
+        store.initialiseAccent(freshInstall)
+    }
+
     override val tankIcon: Flow<TankIcon> =
         prefs.map { enumOrDefault(it[TANK_ICON], TankIcon.GAUGE) }.distinctUntilChanged()
 
@@ -325,10 +364,27 @@ class DataStoreSettingsRepository @Inject constructor(
         val GARAGE_VALUE = stringPreferencesKey("garage_value")
         val TOTAL_PERIOD = stringPreferencesKey("total_period")
         val TANK_ICON = stringPreferencesKey("tank_icon")
+        val ACCENT = intPreferencesKey("accent_color")
+        val ROUTE_COLOR = intPreferencesKey("route_color")
         val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
         val AUTO_START_HOLD_S = intPreferencesKey("auto_start_hold_s")
         val REFRESH_MODE = stringPreferencesKey("refresh_mode")
         val DRAG_HOLD_MS = longPreferencesKey("drag_hold_ms")
         val CLOCK_SECONDS = booleanPreferencesKey("clock_seconds")
+    }
+}
+
+private val ACCENT_KEY = intPreferencesKey("accent_color")
+
+/**
+ * 13c: gives the accent its first value, once. A fresh install (no saved preferences and installed new) starts
+ * green; anything else (an update over an older build, or preferences already saved) keeps cyan, the look it had
+ * until now. An accent already stored is never touched. `internal` so a JVM test can run it on a temp DataStore.
+ */
+internal suspend fun DataStore<Preferences>.initialiseAccent(freshInstall: Boolean) {
+    edit { p ->
+        if (ACCENT_KEY !in p) {
+            p[ACCENT_KEY] = initialAccent(hasSavedPreferences = p.asMap().isNotEmpty(), freshInstall = freshInstall).dark.toArgb()
+        }
     }
 }

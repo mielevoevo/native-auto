@@ -100,15 +100,24 @@ class ReleaseSmokeTest {
         tap("settings_open")
         find("settings_sheet")
         tap("settings_theme_LIGHT")
+        tap("settings_cat_TRIP_GARAGE")
         tap("settings_trip_options")
         tap("settings_period_WEEK")
         tap("settings_period_DAY")
-        // 13b: auto-start on and off again (the monitor starts watching while the app is open).
-        scrollTap("settings_auto_start_TRIP")
-        scrollTap("settings_auto_start_OFF")
-        device.pressBack() // Done is scrolled out of sight by now
+        tap("settings_trip_options_done")
         gone("trip_options")
+        // 13b: auto-start on and off again (the monitor starts watching while the app is open).
+        tap("settings_auto_start_TRIP")
+        tap("settings_auto_start_OFF")
+        tap("settings_cat_DISPLAY")
         tap("settings_theme_DARK")
+        // 13c: the colours dialog (accent presets), back to the default green.
+        tap("settings_colours")
+        find("colours_dialog")
+        tap("accent_preset_violet")
+        tap("accent_preset_green")
+        tap("colours_done")
+        gone("colours_dialog")
         // 13a: the changelog history.
         tap("settings_whats_new")
         find("changelog_history")
@@ -119,6 +128,7 @@ class ReleaseSmokeTest {
 
         // Garage: a bike, a fill-up, a service item marked done.
         tap("settings_open")
+        tap("settings_cat_TRIP_GARAGE")
         tap("settings_garage")
         find("garage_screen")
         tap("garage_add_NMAX_GEN1")
@@ -171,6 +181,7 @@ class ReleaseSmokeTest {
 
         // History, and the backup (Android's share sheet opens over it).
         tap("settings_open")
+        tap("settings_cat_TRIP_GARAGE")
         tap("settings_history")
         find("history_screen")
         tap("history_backup")
@@ -187,10 +198,12 @@ class ReleaseSmokeTest {
         tap("settings_refresh_POWER_SAVER")
         tap("settings_refresh_SMOOTH")
         tap("settings_refresh_AUTO")
-        tap("settings_drag_hold_2")
-        tap("settings_drag_hold_1")
         tap("settings_screen_options_done")
         gone("screen_options")
+        // 13c: the hold time lives on the Layout page.
+        tap("settings_cat_LAYOUT")
+        tap("settings_drag_hold_2")
+        tap("settings_drag_hold_1")
         tap("settings_done")
         gone("settings_sheet")
 

@@ -262,12 +262,12 @@ bike the week of 2026-11-02 (speed, map, media, saved trips all fine; search too
 ## Phase 8c: look and clock (built 2026-11-09, beyond the handoff)
 
 - **Theme tokens (`ui/theme/Color.kt`):** `AppColors` (bg, surface, outline, text, textDim, button /
-  onButton, buttonQuiet, navy / onNavy, cyan, amber, red, mapBackground), read through
+  onButton, buttonQuiet, navy / onNavy, accent (was cyan until 13c), amber, red, mapBackground), read through
   `AppTheme.colors` (`LocalAppColors`). The Material scheme is derived from them (`toScheme()`), so
   stock components follow. `OledDark` is the spec table (Rider-Feedback §11): true-black bg,
   #0A0C10 cards with a 1 dp #262A33 outline, navy for "selected" (`appSegmentedColors`, switch track
-  in `appSwitchColors`), at most **one cyan element per card**, status colours amber and red only (no
-  green anywhere, history start dots included). `Light` is its daylight twin.
+  in `appSwitchColors`), at most **one accent element per card**, status colours amber and red only (13c: the accent may be green, the rider's
+  choice, and is green by default; amber and red stay status-only and are not offered as accents; history start dots stay plain). `Light` is its daylight twin.
 - **Theme setting:** `ThemeMode` Dark (default) / Light / System in `SettingsRepository.themeMode`;
   `MainActivity` collects it before `NativeAutoTheme`. Window background is black (no white flash).
 - **Card titles:** sentence case ("Map", "Next turn"), `PaneTitle` style, textDim.
@@ -289,7 +289,7 @@ bike the week of 2026-11-02 (speed, map, media, saved trips all fine; search too
   pane on screen.
 - **Corner clock:** the status corner shows the time beside the battery whenever no clock pane is on
   screen (`corner_clock`), from the same minute ticker.
-- **Settings sheet:** three columns at ≥840 dp (Display: theme, unit, battery · Layout and
+- **Settings sheet (replaced by categories in 13c):** three columns at ≥840 dp (Display: theme, unit, battery · Layout and
   navigation · Trip and debug), two at ≥600 dp, one below; no drag handle, 1200 dp max width.
 - Unit tests: `EdgeGeometryTest` (points on the outline, outward unit normals, even spacing, corner
   normal, hand turns). Device tests: theme switch with the map on screen, clock face + second
@@ -668,6 +668,31 @@ Rider feedback after a week on v3.3 (Rider-Feedback "Phase 13 decisions"). Choic
   short buzz); with no speed card on screen the dashboard shows `auto_start_pill` at the top centre.
 - Device tests: auto-start end to end on the scripted drive (banner, pill), the settings choice, the hold menu, and a
   compact map guiding on a real route (skips itself offline).
+
+## Phase 13c: settings categories and colours (built 2026-11-14, v3.4.3, versionCode 21)
+
+- **Settings (`ui/settings/SettingsSheet.kt`):** categories in the header (`settings_cat_<NAME>`, `SettingsCategory`):
+  Display (theme, Colours, Screen options, What's new), Layout (map width, hold time), Navigation (speed unit, auto
+  layout), Trip and Garage (history, Garage, reset, trip options; auto-start mode + hold), Audio (voice guidance),
+  Backup (`BackupSection`: Back up / Import, the same `TripFiles` as the history's buttons) and Debug (debug builds).
+  Each page is two short columns on a landscape phone (one when < 600 dp) inside `settings_page_<NAME>`; the
+  sheet opens on Display. Screen options is refresh rate + battery only; Trip options is auto-pause, auto-end,
+  period total and the figure chips. Device tests pick a category first (`openSettings("LAYOUT")`).
+- **Accent (`ui/theme/AccentColor.kt`):** the `cyan` token is now `accent`. `AccentPresets` (green, cyan, ice blue, violet,
+  magenta; each a dark colour + a hand-picked light variant; no amber / red), `parseHexColor` (6 digits, or 3 as
+  shorthand; the field applies only a full 6), `contrastRatio` (WCAG), `lightVariant` / `darkVariant` (a custom colour is
+  darkened for white / lightened for black until it reads), `accentFor(chosen, isDark)`, `accentWarnings`. `AppColors.withAccent`;
+  `NativeAutoTheme(mode, accent)`; `MainActivity` collects `SettingsRepository.accentColor` (read once up front so
+  the first frame is right). The map's vehicle dot stays cyan.
+- **Fresh install vs existing install:** `SettingsRepository.initialiseDefaults(freshInstall)` runs in
+  `NativeAutoApp.onCreate` (before anything else writes). `initialiseAccent`: nothing stored + no saved preferences + a
+  fresh install = **green**; anything else = **cyan** (`LEGACY_ACCENT_ARGB`); a stored accent is never touched.
+  Unit-tested on a temp DataStore (`AccentColorTest`). Pattern for later settings: give the interface member a
+  default getter equal to the old behaviour, so the test fakes stay untouched.
+- **Colours dialog (`ColoursDialog`):** accent presets + hex field (`accent_hex`, error `accent_hex_error`, warning
+  `accent_hex_warning` when hard to see on black or white), route line: "Follow the accent" switch (`route_follow`),
+  else presets + hex (`route_hex`, `route_preset_<key>`). `SettingsRepository.routeColor` (null follows the accent);
+  `MapLook.withRoute` carries it into both map engines through `MapPane`.
 
 ## Known issues (deferred)
 

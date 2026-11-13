@@ -1,5 +1,11 @@
 # What's new in Native Auto
 
+## 3.4.3 (21) · 2026-11-14
+- Settings are sorted into categories along the top: Display, Layout, Navigation, Trip and Garage, Audio and Backup.
+- Colours (Settings, Display): choose the accent from presets or type your own hex code. New installs start green; yours stays cyan until you change it. The route line on the map can follow the accent or have its own colour.
+- Backup and restore are in Settings too, not only in the trip history.
+- Auto-start has its own place under Trip and Garage; the hold-to-move time is under Layout.
+
 ## 3.4.2 (20) · 2026-11-14
 - Auto-start (Settings, Trip options): off, odometer only, or start the trip by itself after 30 seconds at 15 km/h. It only works while the app is open and starts fresh each time you open the app.
 - When a trip starts by itself the speed card slides in "Trip started", with a short buzz. Swipe it away, or it goes after 3 seconds.

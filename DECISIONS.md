@@ -404,3 +404,37 @@ Unattended run (rider's "start 13a", 2026-11-14). Each entry: the question, what
   13c's categories give it a proper place.
 - **MAX lag fixed** in `TripReducer` (first fix applies the accurate-speed max rule); moved from "Known issues" to the
   deviations list. The stale "TomTom key pending" known issue was removed too (the rider confirmed search works).
+
+### 13c
+
+- **Which control went where.** Display: theme, Colours, Screen options (refresh rate, battery), What's new. Layout: map
+  width (Duo) and the hold-to-move time (moved out of Screen options, it is a layout gesture). Navigation: speed unit
+  and Auto layout ("map on screen while navigating"). Trip and Garage: history, Garage, reset, Trip options and
+  auto-start. Audio: voice guidance (the only audio setting today; media is controlled on its card). Backup: new,
+  Back up / Import. Debug: the debug tools. The plan's "Navigation (units, voice)" and a separate "Audio" overlap on
+  voice; Audio won because the rider listed it as its own category.
+- **Layout of the settings sheet.** Categories are chips on the title line (title, chips, Done on one row in landscape),
+  not a side rail: seven 56 dp rail items don't fit a 411 dp tall landscape screen. Each page has at most four
+  rows, in two columns, so no page scrolls on the emulator's landscape size (checked by tests that tap every
+  control without scrolling). Below 600 dp wide the chips go under the title and the columns stack.
+- **Backup in settings reuses the history's `TripFiles`** (same ZIP, same share sheet); the history screen keeps its
+  own buttons (its tests, and it is where someone looks).
+- **Auto-start left the Trip options dialog** (13b put it at the bottom of the right column where it scrolled); it is
+  now plain rows on the Trip and Garage page.
+- **Accent defaults.** Fresh install = no stored accent, no saved preferences at the time of the first start, and a
+  first-install time equal to the last-update time. Everything else = cyan. Done once in `NativeAutoApp.onCreate`
+  (blocking, a few ms) so nothing else can write a preference first and flip the answer. The rider's phone has
+  saved preferences, so it stays cyan until they change it.
+- **Presets.** Green, cyan, ice blue, violet, magenta (the plan's list plus green, which is now the default). Each has a
+  hand-picked light variant; cyan's is the one 8c shipped, so an existing install looks identical in both themes.
+- **Custom colours are adjusted, not refused.** A hex that can't be read on black is lightened in the dark theme, one that
+  can't be read on white is darkened in the light theme (contrast 3:1 and 4.5:1 targets); the field says so. A
+  colour is applied only once it has six digits, so "#3DD" on the way to "#3DDC84" doesn't flash the shorthand colour.
+- **Route colour.** `null` = follows the accent (default); an override is a plain preset or hex and goes through the same
+  light / dark adjustment. The "you are here" dot on the map stays cyan: it marks the vehicle, not the UI, and
+  recolouring it means a style write while the map is live (the rule that bit us in 8c).
+- **Green rule.** CLAUDE.md's "no green anywhere" is changed: green may be the accent; amber and red stay status colours
+  (never offered as accents).
+- **Upgrade checked on the emulator:** the 3.3 release APK installed and opened (saving its layout), then the 3.4.3 APK
+  installed over it: the accent stayed cyan, and the "What's new" sheet showed 3.4.3, 3.4.2 and 3.4.1 once.
+  A clean install of 3.4.3 starts green.

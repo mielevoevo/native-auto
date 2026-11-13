@@ -7,7 +7,8 @@ import androidx.compose.ui.graphics.toArgb
 
 /**
  * The app's colour tokens (Rider-Feedback §11). Monochrome base, a navy that fills things in
- * (selected, active), a cyan that points at things (at most one per card), and status colours
+ * (selected, active), an accent that points at things (at most one per card; green by default,
+ * the rider's choice since 13c), and status colours
  * kept apart from the accent. The Material scheme is derived from these in Theme.kt; read the
  * tokens directly (`AppTheme.colors`) where Material has no matching role.
  */
@@ -35,8 +36,8 @@ data class AppColors(
     /** Active or selected backgrounds (traffic on, selected segment) and the text on them. */
     val navy: Color,
     val onNavy: Color,
-    /** Small highlights: progress, switch thumb, live dot, ETA. */
-    val cyan: Color,
+    /** Small highlights: progress, switch thumb, live dot, ETA. The rider's accent (13c); see [withAccent]. */
+    val accent: Color,
     /** Due soon, low fuel. */
     val amber: Color,
     /** Alerts and confirm states (reset, end, low battery). */
@@ -61,13 +62,13 @@ val OledDark = AppColors(
     onButtonQuiet = Color(0xFFE8EAED),
     navy = Color(0xFF0F2A4A),
     onNavy = Color(0xFFE8EAED),
-    cyan = Color(0xFF3FC8E0),
+    accent = Color(0xFF3FC8E0), // cyan, what every install had before 13c; the theme swaps in the chosen accent
     amber = Color(0xFFF2A93B),
     red = Color(0xFFE5484D),
     mapBackground = Color(0xFF000000),
 )
 
-/** For daylight. Same roles, inverted; the cyan is darker so it reads on white. */
+/** For daylight. Same roles, inverted; the accent is darker so it reads on white. */
 val Light = AppColors(
     isDark = false,
     bg = Color(0xFFF1F2F4),
@@ -82,10 +83,13 @@ val Light = AppColors(
     onButtonQuiet = Color(0xFF14171C),
     navy = Color(0xFFD5E3F5),
     onNavy = Color(0xFF0F2A4A),
-    cyan = Color(0xFF0A86A0),
+    accent = Color(0xFF0A86A0),
     amber = Color(0xFFB86E00),
     red = Color(0xFFC62828),
     mapBackground = Color(0xFFF2F3F0),
 )
 
 val LocalAppColors = staticCompositionLocalOf { OledDark }
+
+/** These colours with the rider's accent: a hand-picked preset keeps its light variant, anything else is adjusted for the theme. */
+fun AppColors.withAccent(chosen: Color): AppColors = copy(accent = accentFor(chosen, isDark))

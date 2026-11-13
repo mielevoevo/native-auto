@@ -3,6 +3,7 @@ package com.nativeauto.ui.map
 import androidx.compose.ui.graphics.toArgb
 import com.nativeauto.ui.theme.Light
 import com.nativeauto.ui.theme.OledDark
+import com.nativeauto.ui.theme.toHex
 import org.maplibre.android.style.layers.Layer
 import org.maplibre.android.style.layers.PropertyFactory
 
@@ -44,6 +45,9 @@ internal data class MapLook(
 
         fun of(dark: Boolean) = if (dark) Dark else Day
     }
+
+    /** 13c: the same look with the route line in [colour] (the rider's route colour, or the accent). */
+    fun withRoute(colour: androidx.compose.ui.graphics.Color) = copy(route = colour.toHex())
 
     /** Recolours the loaded style for the dashboard. Nothing to do for Positron. */
     fun applyTo(getLayer: (String) -> Layer?) {

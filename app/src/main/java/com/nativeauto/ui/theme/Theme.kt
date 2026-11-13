@@ -35,8 +35,8 @@ fun ThemeMode.palette(): AppColors = when (this) {
  * tokens, so a stock button or sheet already matches; the cards read the tokens directly.
  */
 @Composable
-fun NativeAutoTheme(mode: ThemeMode = ThemeMode.DARK, content: @Composable () -> Unit) {
-    val colors = mode.palette()
+fun NativeAutoTheme(mode: ThemeMode = ThemeMode.DARK, accent: Color = LegacyAccent.dark, content: @Composable () -> Unit) {
+    val colors = mode.palette().withAccent(accent)
     CompositionLocalProvider(LocalAppColors provides colors) {
         MaterialTheme(
             colorScheme = colors.toScheme(),
@@ -53,11 +53,11 @@ internal fun AppColors.toScheme(): ColorScheme {
     val onErrorContainer = if (isDark) Color(0xFFFFDAD8) else Color(0xFF7A1212)
     val base = if (isDark) darkColorScheme() else lightColorScheme()
     return base.copy(
-        primary = cyan,
+        primary = accent,
         onPrimary = bg,
         primaryContainer = navy,
         onPrimaryContainer = onNavy,
-        inversePrimary = cyan,
+        inversePrimary = accent,
         secondary = textDim,
         onSecondary = bg,
         // Tonal buttons are the quiet buttons; selection gets navy explicitly (segments, toggles).
@@ -88,14 +88,14 @@ internal fun AppColors.toScheme(): ColorScheme {
     )
 }
 
-/** Navy fills the track, the cyan thumb points at "on". */
+/** Navy fills the track, the accent thumb points at "on". */
 @Composable
 fun appSwitchColors(): SwitchColors {
     val c = AppTheme.colors
     return SwitchDefaults.colors(
-        checkedThumbColor = c.cyan,
+        checkedThumbColor = c.accent,
         checkedTrackColor = c.navy,
-        checkedBorderColor = c.cyan,
+        checkedBorderColor = c.accent,
         checkedIconColor = c.navy,
         uncheckedThumbColor = c.textDim,
         uncheckedTrackColor = c.bg,
@@ -103,7 +103,7 @@ fun appSwitchColors(): SwitchColors {
     )
 }
 
-/** Selected segment in navy, with a cyan tick. */
+/** Selected segment in navy, with an accent tick. */
 @Composable
 fun appSegmentedColors(): SegmentedButtonColors {
     val c = AppTheme.colors

@@ -82,6 +82,7 @@ class GarageScreenTest {
     private fun openGarage() {
         click("settings_open")
         await("settings_sheet")
+        click("settings_cat_TRIP_GARAGE")
         click("settings_garage")
         await("garage_screen")
     }
@@ -108,6 +109,7 @@ class GarageScreenTest {
         awaitGone("garage_screen")
         click("settings_open")
         await("settings_sheet")
+        click("settings_cat_TRIP_GARAGE")
         rule.waitUntil(5_000) { tag("settings_garage_bike").fetchText() == "Riding Gen 1" }
     }
 
@@ -358,6 +360,7 @@ class GarageScreenTest {
         }
         click("settings_open")
         await("settings_sheet")
+        click("settings_cat_TRIP_GARAGE")
         click("settings_history")
         await("history_bike_all")
         rule.waitUntil(5_000) { count("history_trip").fetchSemanticsNodes().size >= 3 }

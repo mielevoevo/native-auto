@@ -57,6 +57,7 @@ import com.nativeauto.ui.components.rememberHaptics
 import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
+import com.nativeauto.ui.theme.accentFor
 import com.nativeauto.ui.theme.AppTheme
 import java.util.WeakHashMap
 
@@ -218,7 +219,10 @@ private fun DashboardMap(
     var searching by rememberSaveable { mutableStateOf(false) }
     val stopFollowing = { onFollowingChange(false) }
     val navPhase = nav::class
-    val look = MapLook.of(AppTheme.colors.isDark)
+    // 13c: the route line is the rider's route colour, or follows the accent.
+    val routeArgb by actions.routeColor.collectAsStateWithLifecycle()
+    val routeColour = routeArgb?.let { androidx.compose.ui.graphics.Color(it) }?.let { accentFor(it, AppTheme.colors.isDark) } ?: AppTheme.colors.accent
+    val look = MapLook.of(AppTheme.colors.isDark).withRoute(routeColour)
 
     val overlay = remember(nav.routeGeometry, nav.destination, navPhase) {
         RouteOverlay(
@@ -361,7 +365,7 @@ private fun MapButtons(
                 },
                 // On: navy fill, cyan icon. Off: quiet like the others.
                 containerColor = if (showTraffic) AppTheme.colors.navy else AppTheme.colors.buttonQuiet,
-                contentColor = if (showTraffic) AppTheme.colors.cyan else AppTheme.colors.onButtonQuiet,
+                contentColor = if (showTraffic) AppTheme.colors.accent else AppTheme.colors.onButtonQuiet,
             ) {
                 Icon(AppIcons.Traffic, contentDescription = "Traffic")
             }
@@ -375,7 +379,7 @@ private fun MapButtons(
                 },
                 modifier = Modifier.testTag("map_recenter"),
                 containerColor = if (following) AppTheme.colors.navy else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (following) AppTheme.colors.cyan else MaterialTheme.colorScheme.onSurface,
+                contentColor = if (following) AppTheme.colors.accent else MaterialTheme.colorScheme.onSurface,
             ) {
                 Icon(AppIcons.Navigation, contentDescription = "Recenter map")
             }

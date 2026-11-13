@@ -7,6 +7,7 @@ import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.settings.ThemeMode
 import com.nativeauto.settings.RefreshMode
 import com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS
+import com.nativeauto.settings.LEGACY_ACCENT_ARGB
 import com.nativeauto.trip.AutoStartMode
 import com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S
 import com.nativeauto.trip.TripTracker
@@ -90,6 +91,20 @@ class SettingsViewModel @Inject constructor(
 
     fun setAutoStartHoldS(seconds: Int) {
         viewModelScope.launch { settings.setAutoStartHoldS(seconds) }
+    }
+
+    /** 13c: the accent (ARGB) and the route line's own colour (null follows the accent). */
+    val accentColor: StateFlow<Int> =
+        settings.accentColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LEGACY_ACCENT_ARGB)
+    val routeColor: StateFlow<Int?> =
+        settings.routeColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setAccentColor(argb: Int) {
+        viewModelScope.launch { settings.setAccentColor(argb) }
+    }
+
+    fun setRouteColor(argb: Int?) {
+        viewModelScope.launch { settings.setRouteColor(argb) }
     }
 
     fun setAutoPauseMinutes(minutes: Int) {

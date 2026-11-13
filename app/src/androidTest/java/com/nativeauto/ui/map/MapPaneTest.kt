@@ -69,6 +69,7 @@ class MapPaneTest {
         click("fullscreen_MAP")
         Espresso.pressBack(); rule.waitForIdle()
         click("settings_open")                 // map width presets live in settings
+        click("settings_cat_LAYOUT")
         listOf(40, 60, 50).forEach { click("settings_split_$it") }
         click("settings_done")
         rule.waitUntil(5_000) { count("settings_sheet") == 0 }

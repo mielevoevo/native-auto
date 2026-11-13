@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.percentOffset
@@ -253,9 +254,11 @@ class DashboardScreenTest {
 
     // ---------------------------------------------------------------- Phase 7
 
-    private fun openSettings() {
+    private fun openSettings(category: String? = null) {
         click("settings_open")
         awaitSheet("settings_sheet")
+        // 13c: the sheet opens on Display; the other pages are a category away.
+        if (category != null) click("settings_cat_$category")
     }
 
     private fun closeSettings() {
@@ -336,7 +339,7 @@ class DashboardScreenTest {
     @Test fun layoutChangesAreSavedForTheNextLaunch() {
         click("swap_MAP")
         drag(Pane.MEDIA, Pane.SPEED)
-        openSettings()
+        openSettings("LAYOUT")
         click("settings_split_60")
         closeSettings()
         val expected = SavedLayout(
@@ -380,7 +383,7 @@ class DashboardScreenTest {
 
     @Test fun speedUnitSwitchesTheSpeedCard() {
         rule.onNodeWithText("km/h", useUnmergedTree = true).assertIsDisplayed()
-        openSettings()
+        openSettings("NAVIGATION")
         click("settings_unit_MPH")
         closeSettings()
         rule.waitUntil(5_000) { rule.onAllNodesWithText("mph", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
@@ -405,7 +408,7 @@ class DashboardScreenTest {
         click("log_start")
         waitEnabled("log_pause", true)
         tag("log_start").assertIsNotEnabled()
-        openSettings()
+        openSettings("TRIP_GARAGE")
         click("settings_reset_trip")
         click("settings_reset_trip")
         closeSettings()
@@ -437,7 +440,7 @@ class DashboardScreenTest {
 
     @Test fun telemetrySettingsChooseTheLogFaceFigures() {
         // Defaults (9c): moving and stopped time hidden, the rest shown.
-        openSettings()
+        openSettings("TRIP_GARAGE")
         click("settings_trip_options")
         tag("settings_stat_moving_time").assertIsNotSelected()
         click("settings_stat_moving_time")
@@ -471,7 +474,7 @@ class DashboardScreenTest {
             )
         }
         try {
-            openSettings()
+            openSettings("TRIP_GARAGE")
             click("settings_history")
             rule.waitUntil(5_000) { count("history_day_${java.time.LocalDate.now()}").fetchSemanticsNodes().isNotEmpty() }
             rule.onNodeWithText("Today", useUnmergedTree = true).assertIsDisplayed()
@@ -531,7 +534,7 @@ class DashboardScreenTest {
     }
 
     @Test fun autoPauseAndAutoEndAreSettings() {
-        openSettings()
+        openSettings("TRIP_GARAGE")
         click("settings_trip_options")
         click("settings_auto_pause_10")
         click("settings_auto_end_0")
@@ -542,7 +545,7 @@ class DashboardScreenTest {
     }
 
     @Test fun resetTripAsksForASecondTap() {
-        openSettings()
+        openSettings("TRIP_GARAGE")
         click("settings_reset_trip")
         rule.onNodeWithText("Tap again to reset", useUnmergedTree = true).assertIsDisplayed()
         click("settings_reset_trip")
@@ -781,16 +784,13 @@ class DashboardScreenTest {
 
     @Test fun autoStartStaysOffByDefaultAndTheChoiceIsSaved() {
         assertEquals(com.nativeauto.trip.AutoStartMode.OFF, runBlocking { resetSettings.settings.autoStartMode.first() })
-        openSettings()
-        click("settings_trip_options")
-        // Below the figure chips in the dialog: it scrolls on a landscape phone (13c gives auto-start its own place).
-        tag("settings_auto_start_ODOMETER_ONLY").performScrollTo(); click("settings_auto_start_ODOMETER_ONLY")
-        tag("settings_auto_start_hold_45").performScrollTo(); click("settings_auto_start_hold_45")
+        openSettings("TRIP_GARAGE")
+        click("settings_auto_start_ODOMETER_ONLY")
+        click("settings_auto_start_hold_45")
         rule.waitUntil(5_000) {
             runBlocking { resetSettings.settings.autoStartMode.first() } == com.nativeauto.trip.AutoStartMode.ODOMETER_ONLY &&
                 runBlocking { resetSettings.settings.autoStartHoldS.first() } == 45
         }
-        click("settings_trip_options_done")
         closeSettings()
     }
 
@@ -853,6 +853,63 @@ class DashboardScreenTest {
         click("pick_fullscreen")
         awaitGone("picker_sheet")
         assertMode(Pane.SPEED, CardMode.Fullscreen)
+    }
+
+    // ---------------------------------------------------------------- Phase 13c
+
+    @Test fun everySettingsCategoryHasItsPage() {
+        openSettings()
+        listOf("DISPLAY", "LAYOUT", "NAVIGATION", "TRIP_GARAGE", "AUDIO", "BACKUP", "DEBUG").forEach { cat ->
+            click("settings_cat_$cat")
+            tag("settings_page_$cat").assertIsDisplayed()
+        }
+        // The controls that used to sit in one sheet are where the categories say.
+        click("settings_cat_LAYOUT"); tag("settings_split_50").assertIsDisplayed(); tag("settings_drag_hold_1").assertIsDisplayed()
+        click("settings_cat_NAVIGATION"); tag("settings_unit_KMH").assertIsDisplayed(); tag("settings_auto_layout").assertIsDisplayed()
+        click("settings_cat_AUDIO"); tag("settings_voice").assertIsDisplayed()
+        click("settings_cat_TRIP_GARAGE")
+        listOf("settings_history", "settings_garage", "settings_reset_trip", "settings_trip_options", "settings_auto_start_OFF").forEach { tag(it).assertIsDisplayed() }
+        click("settings_cat_BACKUP"); tag("backup_export").assertIsDisplayed(); tag("backup_import").assertIsDisplayed()
+        click("settings_cat_DEBUG"); tag("debug_fake_gps").assertIsDisplayed()
+        click("settings_cat_DISPLAY"); tag("settings_colours").assertIsDisplayed(); tag("settings_whats_new").assertIsDisplayed()
+    }
+
+    @Test fun theAccentCanBePickedByPresetOrHexAndTheRouteColourFollowsOrOverrides() {
+        fun accent() = runBlocking { resetSettings.settings.accentColor.first() }
+        fun route() = runBlocking { resetSettings.settings.routeColor.first() }
+        assertEquals(0xFF3DDC84.toInt(), accent())
+        openSettings()
+        click("settings_colours")
+        awaitSheet("colours_dialog")
+        click("accent_preset_violet")
+        rule.waitUntil(5_000) { accent() == 0xFFB794F6.toInt() }
+        // The hex field shows the colour, takes a new one, and complains about a bad one.
+        assertEquals("#B794F6", tag("accent_hex").fetchSemanticsNode().config[SemanticsProperties.EditableText].text)
+        tag("accent_hex").performTextReplacement("#FF00AA")
+        rule.waitUntil(5_000) { accent() == 0xFFFF00AA.toInt() }
+        tag("accent_hex").performTextReplacement("#12")
+        rule.waitForIdle()
+        assertEquals("a half-typed colour isn't applied", 0xFFFF00AA.toInt(), accent())
+        tag("accent_hex_error").assertIsDisplayed()
+        // A colour that vanishes on black: applied, with a warning.
+        tag("accent_hex").performTextReplacement("#101030")
+        rule.waitUntil(5_000) { accent() == 0xFF101030.toInt() }
+        tag("accent_hex_warning").assertIsDisplayed()
+        click("accent_preset_green")
+        rule.waitUntil(5_000) { accent() == 0xFF3DDC84.toInt() }
+
+        // Route line: follows the accent until overridden.
+        assertEquals(null, route())
+        click("route_follow")
+        rule.waitUntil(5_000) { route() != null }
+        click("route_preset_magenta")
+        rule.waitUntil(5_000) { route() == 0xFFFF6BCB.toInt() }
+        assertEquals("the accent is untouched", 0xFF3DDC84.toInt(), accent())
+        click("route_follow")
+        rule.waitUntil(5_000) { route() == null }
+        click("colours_done")
+        awaitGone("colours_dialog")
+        closeSettings()
     }
 
     // ---------------------------------------------------------------- Phase 8b: layouts
@@ -935,7 +992,7 @@ class DashboardScreenTest {
     }
 
     @Test fun autoLayoutCanBeTurnedOff() {
-        openSettings()
+        openSettings("NAVIGATION")
         click("settings_auto_layout")
         closeSettings()
         rule.waitUntil(5_000) { runBlocking { !resetSettings.settings.autoLayout.first() } }

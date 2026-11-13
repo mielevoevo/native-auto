@@ -37,6 +37,7 @@ import com.nativeauto.location.TripService
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -64,10 +65,13 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) autoStart.onAppOpened()
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { autoStart.watch() } }
 
+        // The accent is already stored (NativeAutoApp saw to it), so the first frame has the right colour.
+        val firstAccent = kotlinx.coroutines.runBlocking { settings.accentColor.first() }
         setContent {
             // Dark until DataStore answers (a few ms): the window is black anyway.
             val theme by settings.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.DARK)
-            NativeAutoTheme(theme) {
+            val accent by settings.accentColor.collectAsStateWithLifecycle(initialValue = firstAccent)
+            NativeAutoTheme(theme, androidx.compose.ui.graphics.Color(accent)) {
                 // Exposes testTags as resource ids, so the benchmarks (UiAutomator) can find buttons.
                 Box(Modifier.semantics { testTagsAsResourceId = true }) {
                     PermissionsGate(locationPermission) {

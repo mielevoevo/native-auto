@@ -126,7 +126,7 @@ private fun lerpAngle(from: Float, to: Float, t: Float): Float {
     return (from + d * t + 360f) % 360f
 }
 
-private const val VEHICLE_HEX = "#3FC8E0" // the theme cyan (ui/theme/Color.kt)
+private const val VEHICLE_HEX = "#3FC8E0" // the map dot stays cyan whatever the accent (13c)
 private const val OUTLINE_HEX = "#FFFFFF"
 private const val SHADOW_HEX = "rgba(0, 0, 0, 0.4)" // CSS colour: #66000000 would read as RRGGBBAA
 
