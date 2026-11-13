@@ -686,11 +686,11 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
 - Applies to `ui/dashboard/PaneDrag.kt` (a new `armedPicker` state), `DragOverlay`, haptics. Timing as a
   setting only if the default doesn't suit gloves.
 
-## Phase 13 (WIP, planned 2026-11-09, not started): call controls + portrait
+## Phase 14 (WIP, planned 2026-11-09, not started): call controls + portrait
 
-**Versions (rider):** 13a ships as **3.4.1**, 13b as **3.4.2** (versionCode 19, 20; 12c took 18).
+**Versions (rider, relabelled 2026-11-14):** 14a ships as **3.5.1**, 14b as **3.5.2** (versionCode 22, 23; Phase 13 takes 19-21).
 
-### 13a · Call controls (modular, any Android skin)
+### 14a · Call controls (modular, any Android skin)
 - **Goal:** works on HyperOS, near-stock (Motorola, Pixel), One UI and others: not tied to one dialer.
   - Modular: a `CallSource` interface with interchangeable backends, picked at runtime by what the phone allows:
     1. Notification listener (access already granted for media): read the call notification
@@ -708,7 +708,7 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
   while ringing: Answer / Decline. Big glove targets.
 - To check per skin: CallStyle actions present, HyperOS's full-screen incoming UI, One UI's dialer notification.
 
-### 13b · Portrait (for the bike mount)
+### 14b · Portrait (for the bike mount)
 - App still launches **landscape by default**; it may detect the phone's position from the rotation / gravity
   sensor and switch to portrait when mounted upright (plus a setting: Landscape / Portrait / Auto).
 - Portrait shapes for every preset (`computeRects` by orientation), pane order saved per orientation.
@@ -718,9 +718,9 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
 
 ## Later phases (planned 2026-11-09)
 
-- **Phase 14: feedback update** (collected 2026-11-14 after a week of riding v3.3 plus a second rider; details
-  in "Phase 14 plan" below). Build order proposed: 14a before Phase 13 (portrait rewrites the geometry that
-  14a touches). Version numbers not yet fixed (proposal 3.5.x, versionCode from 21).
+- **Phase 13: feedback update** (collected 2026-11-14 after a week of riding v3.3 plus a second rider; details
+  in "Phase 13 plan" below). Built before Phase 14 (portrait rewrites the geometry that
+  13a touches). Versions 3.4.1-3.4.3, versionCode 19-21.
 - **Phase 15: app logo** (its own phase). The rider supplies the artwork:
   - a square **SVG** (best) or a **1024×1024 PNG** with a transparent background, the mark kept inside the
     central ~66% (Android crops adaptive icons to circles, squircles etc.);
@@ -729,11 +729,11 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
     older launchers, the splash-screen icon, the notification icon (white silhouette), and a check on
     HyperOS / One UI / Pixel launcher shapes.
 
-## Phase 14 plan (collected 2026-11-14, WIP, not started)
+## Phase 13 plan (collected 2026-11-14, WIP, not started)
 
 Rider notes: the green pin at a pane's top-right in screenshots is Android's privacy indicator (location in use). Ignore it.
 
-### 14a · Fixes and tweaks
+### 13a · Fixes and tweaks
 - **Nav voice muted must not duck music.** Muted = no TTS and no audio-focus request at all (check the mute flag before taking focus).
 - **Speed card opens on the log face.** Code has speed as page 0; find what lands on page 1 (pager state restore, an Ended/Paused trip at launch) and make the speed face always the start.
 - **Nav card alignment** (screenshot 2026-11-09): ETA line starts at the far-left edge while the text above is indented; arrow sits low against the distance text. Align all text to one left edge and centre the arrow on the distance + road block. Header title is cut ("Next tu") by the corner clock.
@@ -746,14 +746,14 @@ Rider notes: the green pin at a pane's top-right in screenshots is Android's pri
 - **Rename the Next turn pane** (short, fits the header): candidates Route / Navigate / Guide. OPEN: rider to pick.
 - **Crowded controls (open):** proposals: drop the header swap button (drag + picker replace it; keep the accessibility action), fullscreen shows only exit, map controls move to small header buttons (below), optional "minimal headers". OPEN: rider to confirm.
 
-### 14b · Quad navigation, auto-start
+### 13b · Quad navigation, auto-start
 - **Compact map during navigation (option A, decided):** route line + one slim chip (turn arrow + distance); no banner, no ETA card. Header gets small buttons: **mute** and **End** (moved up from the bottom-right). The bottom-right big button becomes **recentre / follow my position** (replaces the X). Expanded/Fullscreen map keeps the full banner and ETA. No "Show navigation card" chip: Auto layout's snap already covers it.
 - **Auto-start logging (rider: important):** setting + first-run setup choice. **Only while the app is open** (never assume background running; no background location, no activity recognition). Two behaviours:
   1. odometer-only counting (km add to odometer, fuel level, services; no saved trip),
   2. auto-start trip once speed stays at or above a threshold (proposal 15 km/h) for a time (proposal 30 s); saved to history as usual; auto-pause / auto-end already exist.
   Battery: low-rate location while stationary, high accuracy only once moving. This reverses Phase 9a's "no auto-start", by the rider's request.
 
-### 14c · Settings
+### 13c · Settings
 - Categories: Display (theme, **accent colour**, screen), Layout, Navigation (units, voice), Trip and Garage, Audio, Backup, Debug.
 - **Accent colour: user-selectable (WIP, future QOL).** Replaces the cyan token; offer cyan, ice blue, violet, magenta; amber / red stay status-only, no green.
 
@@ -762,13 +762,13 @@ Rider notes: the green pin at a pane's top-right in screenshots is Android's pri
 - Setup pages (skippable, re-runnable from settings): welcome, permissions, units + theme, bike + fuel prices, layout, auto-start choice, finish.
 
 ### Parked
-- **Rider chat:** needs a server, accounts, moderation; typing while riding is unsafe; voice apps cover it (Phase 13's call card helps). Possible later: one-tap "share my ETA" link.
+- **Rider chat:** needs a server, accounts, moderation; typing while riding is unsafe; voice apps cover it (Phase 14's call card helps). Possible later: one-tap "share my ETA" link.
 
-## Phase 14 decisions (rider answers, 2026-11-14; they supersede the plan above where they differ)
+## Phase 13 decisions (rider answers, 2026-11-14; they supersede the plan above where they differ)
 
-**Versions / order:** Phase 14 is built before Phase 13. 14a = 3.4.1 (vc 19), 14b = 3.4.2 (vc 20), 14c = 3.4.3 (vc 21). Phase 13 moves to 3.5.1 / 3.5.2 (vc 22 / 23).
+**Versions / order:** Phase 13 is built before Phase 14. 13a = 3.4.1 (vc 19), 13b = 3.4.2 (vc 20), 13c = 3.4.3 (vc 21). Phase 14 moves to 3.5.1 / 3.5.2 (vc 22 / 23).
 
-**14a**
+**13a**
 - Next turn pane is renamed **Navigation**. The header title must never be cut by the corner clock (width rule: title first, clock shifts or title shortens in Compact).
 - **Header swap button:** kept only in two-pane layouts (Side by side, Rows) and on Duo's tall pane; removed in Quad and on Duo's stacked panes (drag and picker stay). Compact headers: title plus at most two buttons, the rest in the hold menu. Header variants shown to the rider before building.
 - **Fullscreen:** the button stays the fullscreen button (no "exit" swap); only Maximize is hidden. Map keeps its X and recentre buttons in fullscreen.
@@ -776,21 +776,21 @@ Rider notes: the green pin at a pane's top-right in screenshots is Android's pri
 - **Two-step hold feedback** (the WIP "lifted = drag, held 0.7 s more = picker armed", double buzz) is built here.
 - **Refuel:** the Partial / Full choice becomes one toggle "Filled to the top" (default on). The litres input range is fixed 0 to the tank size (e.g. 0-6.1 L), never limited by the estimate. If the rider enters more than the estimated space left, the level after the fill is capped at a full tank, the fill counts as a measured full anchor, and the +-35% outlier rule decides whether that span teaches km/L.
 
-**14b**
+**13b**
 - **Auto-start (app open only; no service, no background location):** setting Off / Odometer only / Auto-start trip. Starts when speed stays at or above **15 km/h** for **30 s** (hold time adjustable, 20 / 30 / 45 / 60 s). The trip is backdated to the moment the hold completed (the first 30 s are not recorded: an auto-start is consent verified by "app open and already moving"). Works **only from a clean state** (app opened with no trip, no trip ended this session). After the rider presses End, auto-start is suppressed. Default Off (first-run setup asks later, Phase 16).
 - **Start announcement:** the speed card briefly slides in a banner over the speed face (same animation as speed to log face): "Trip started" with "Riding detected" below it, about 3 s, short buzz, swipe to dismiss. With no speed card on screen, a pill at the top centre (like the link status pill).
 - **MAX lag fixed here** (first fix after start/resume sets max too): auto-start begins mid-motion, so the lag would show on every auto-start.
 - Compact map during navigation, option A (as planned above).
 
-**14c**
+**13c**
 - **Colours (one settings section):** accent colour = presets plus a hex code field, **default green** (this deliberately drops the old "no green anywhere" rule; amber and red stay status colours). Map route line colour is adjustable in the same section (default: follows the accent, with an override). Light theme gets an auto-adjusted variant of the chosen colour for contrast; the hex field warns when a colour is hard to read on black or white.
 - Settings categories as listed above.
 
-**Phase 13 (portrait is for a vertically mounted phone on the bike, like delivery riders do)**
+**Phase 14 (portrait is for a vertically mounted phone on the bike, like delivery riders do)**
 - Portrait-only layouts derived from the originals: 1-4 cards stacked (Quad does not fit portrait as a grid). Rotating mid-ride keeps the same number of panes in the same order (2 landscape cards = 2 stacked).
 - Each orientation remembers its own last preset; a clean start in portrait with none saved derives it from the landscape one.
 - Portrait-only card forms: Map as it is; Speed with two cards = value on top, figures below; three or more cards = value left, figures right.
-- Open: the Phase 13 section gets rewritten as its own deep-dive before building.
+- Open: the Phase 14 section gets rewritten as its own deep-dive before building.
 
 **Later phases**
 - Phase 17: range adjusted by riding style (average speed, climbs, spirited riding), only if it proves suitable (complex; the cautious range is already safe).
@@ -800,5 +800,5 @@ Rider notes: the green pin at a pane's top-right in screenshots is Android's pri
 
 ### Addenda (rider, 2026-11-14)
 - **Existing installs keep their settings.** Every new setting gets a migration default that equals the old behaviour: an install with saved preferences and no accent key stays **cyan**; auto-start Off; Gauge tank icon; and so on. Only fresh installs get the new defaults (green accent), then Phase 16's setup asks. Implementation: a one-time check "preferences exist but this key doesn't" in `SettingsRepository`, with a test.
-- **Portrait 3 panes:** the plain stack is the first preset; "big pane on top, two side by side below" is added as a second 3-pane portrait preset in Phase 13 (it is just a preset in the layout model).
-- **Changelog (rider, 2026-11-14; first item of 14a):** `assets/changelog.md` (per version: number, date, plain-language bullets, backfilled from 2.0). Settings row "What's new" = full history, newest first. On the first open after an update a dismissible sheet shows only the new version's entries (last-seen versionCode in DataStore); deferred while a trip or navigation runs; none on a fresh install (Phase 16 welcome covers it); an upgrade from v3.3 sees it once on 3.4.1. Rule for CLAUDE.md: every sub-phase build adds its entry with the version bump.
+- **Portrait 3 panes:** the plain stack is the first preset; "big pane on top, two side by side below" is added as a second 3-pane portrait preset in Phase 14 (it is just a preset in the layout model).
+- **Changelog (rider, 2026-11-14; first item of 13a):** `assets/changelog.md` (per version: number, date, plain-language bullets, backfilled from 2.0). Settings row "What's new" = full history, newest first. On the first open after an update a dismissible sheet shows only the new version's entries (last-seen versionCode in DataStore); deferred while a trip or navigation runs; none on a fresh install (Phase 16 welcome covers it); an upgrade from v3.3 sees it once on 3.4.1. Rule for CLAUDE.md: every sub-phase build adds its entry with the version bump.
