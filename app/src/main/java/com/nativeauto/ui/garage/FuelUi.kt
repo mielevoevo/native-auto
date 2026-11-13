@@ -53,6 +53,11 @@ import com.nativeauto.garage.formatRupiah
 import com.nativeauto.garage.parseNumber
 import com.nativeauto.garage.priceOf
 import com.nativeauto.garage.refuelAmounts
+import com.nativeauto.garage.refuelLitresFit
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
+import androidx.compose.ui.semantics.Role
+import com.nativeauto.ui.theme.appSwitchColors
 import com.nativeauto.garage.spend
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
@@ -322,7 +327,7 @@ internal fun RefuelDialog(
 
     val amountValue = if (mode == AmountMode.RUPIAH) parseNumber(amount, thousands = true) else parseNumber(amount)
     val priceValue = parseNumber(price, thousands = true)?.takeIf { it in 1_000.0..100_000.0 }
-    val amounts = refuelAmounts(mode, amountValue, priceValue)?.takeIf { (litres, _) -> litres <= bike.tankLitres * 2 }
+    val amounts = refuelAmounts(mode, amountValue, priceValue)?.takeIf { (litres, _) -> refuelLitresFit(litres, bike.tankLitres) }
     val odoKm = parseNumber(odometer, thousands = true)
     val valid = amounts != null && odoKm != null
 
@@ -345,8 +350,17 @@ internal fun RefuelDialog(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Segments(listOf(true, false), full, { if (it) "Full tank" else "Partial" }, { if (it) "garage_refuel_full" else "garage_refuel_partial" }) {
-                    haptics.tick(); full = it
+                // 13a: one switch instead of Full tank / Partial. On by default: most fill-ups go to the top.
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .toggleable(value = full, role = Role.Switch) { haptics.toggle(it); full = it }
+                        .testTag("garage_refuel_full"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Filled to the top", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Switch(checked = full, onCheckedChange = null, colors = appSwitchColors())
                 }
                 Segments(FuelType.entries, fuel, { it.label }, { "garage_refuel_fuel_${it.name}" }, label = { FuelLabel(it) }) {
                     haptics.tick()
@@ -367,7 +381,8 @@ internal fun RefuelDialog(
                     NumberField(price, { price = it }, "Rp per litre", priceValue == null, "garage_refuel_price", Modifier.weight(1f), whole = true)
                 }
                 Text(
-                    amounts?.let { (litres, rp) -> if (mode == AmountMode.RUPIAH) "= ${formatLitres(litres)}" else "= ${formatRupiah(rp)}" } ?: " ",
+                    amounts?.let { (litres, rp) -> if (mode == AmountMode.RUPIAH) "= ${formatLitres(litres)}" else "= ${formatRupiah(rp)}" }
+                        ?: "Tank holds ${formatLitres(bike.tankLitres)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = AppTheme.colors.textDim,
                     modifier = Modifier.testTag("garage_refuel_result"),

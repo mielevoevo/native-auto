@@ -103,7 +103,7 @@ internal val DefaultAssignments: Map<LayoutPreset, List<Pane>> = mapOf(
     LayoutPreset.QUAD to listOf(Pane.MAP, Pane.SPEED, Pane.MEDIA, Pane.CLOCK),
 )
 
-/** Quad while navigating: map, next turn, speed, media (decided 2026-11-08). */
+/** Quad while navigating: map, navigation, speed, media (decided 2026-11-08). */
 internal val NavQuad = listOf(Pane.MAP, Pane.NAV, Pane.SPEED, Pane.MEDIA)
 
 /**

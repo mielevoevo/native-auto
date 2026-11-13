@@ -5,6 +5,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -305,7 +308,7 @@ class GarageScreenTest {
         // Put the Garage card in Media's slot.
         tag("header_MEDIA").performTouchInput {
             down(Offset(width * 0.1f, height / 2f))
-            advanceEventTime(1_300) // past the 12a hold: let go without moving = the picker
+            advanceEventTime(2_100) // past the 1 s hold and the 0.7 s arming (13a): let go without moving = the picker
             up()
         }
         await("picker_sheet")
@@ -363,5 +366,84 @@ class GarageScreenTest {
         rule.waitUntil(5_000) { count("history_trip").fetchSemanticsNodes().size == 1 }
         click("history_bike_all")
         rule.waitUntil(5_000) { count("history_trip").fetchSemanticsNodes().size == all }
+    }
+
+    // ---- 13a ----
+
+    @Test fun addBikeIsTheLastCardOfTheList() {
+        runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        openGarage()
+        await("garage_bike_Gen 1")
+        await("garage_add")
+        assert(tag("garage_add").getBoundsInRoot().top >= tag("garage_bike_Gen 1").getBoundsInRoot().bottom)
+        click("garage_add")
+        await("garage_editor")
+    }
+
+    @Test fun refuelHasOneFilledToTheTopSwitchAndLitresStopAtTheTank() {
+        runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        openGarage()
+        await("garage_bike_Gen 1")
+        click("garage_refuel")
+        await("garage_refuel_dialog")
+        count("garage_refuel_partial").assertCountEquals(0)
+        tag("garage_refuel_full").assertIsOn()
+        click("garage_refuel_full")
+        tag("garage_refuel_full").assertIsOff()
+        click("garage_refuel_full")
+        tag("garage_refuel_full").assertIsOn()
+
+        click("garage_refuel_mode_LITRES")
+        awaitText("Tank holds 6.6 L")
+        tag("garage_refuel_amount").performTextReplacement("6.7")
+        rule.waitForIdle()
+        assertEquals("over the tank: no result", "Tank holds 6.6 L", tag("garage_refuel_result").fetchText())
+        tag("garage_refuel_amount").performTextReplacement("6.6")
+        rule.waitUntil(5_000) { tag("garage_refuel_result").fetchText().startsWith("= Rp") }
+    }
+
+    @Test fun aBigFillBeyondTheEstimatedRoomCapsTheLevelAtFull() {
+        val gen1 = runBlocking {
+            val gen1 = entry.garage().addBike(nmax, odometerKm = 12_000.0)
+            entry.garage().logRefuel(gen1, com.nativeauto.garage.RefuelDraft(true, 5.0, 15_900.0, 79_500.0, FuelType.PERTAMAX, 12_000.0))
+            gen1
+        }
+        openGarage()
+        await("garage_bike_Gen 1")
+        rule.waitUntil(5_000) { tag("garage_range").fetchText() == "235 km" }
+        // Switch off "filled to the top", then enter 5 L although the tank was just filled.
+        click("garage_refuel")
+        await("garage_refuel_dialog")
+        click("garage_refuel_full")
+        tag("garage_refuel_full").assertIsOff()
+        click("garage_refuel_mode_LITRES")
+        tag("garage_refuel_amount").performTextReplacement("5")
+        click("garage_refuel_save")
+        awaitGone("garage_refuel_dialog")
+        // It still counts as a full anchor: the level is capped, the range stays that of a full tank.
+        rule.waitUntil(5_000) { count("garage_refuel_row").fetchSemanticsNodes().size == 2 }
+        assertEquals("235 km", tag("garage_range").fetchText())
+        val last = runBlocking { entry.garageDao().observeRefuels(gen1).first() }
+        assert(last.all { it.full })
+    }
+
+    @Test fun thePlainTankIconIsAFixedPumpAndTheChoiceIsRemembered() {
+        runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        tag("header_MEDIA").performTouchInput {
+            down(Offset(width * 0.1f, height / 2f))
+            advanceEventTime(2_100)
+            up()
+        }
+        await("picker_sheet")
+        click("pick_GARAGE")
+        awaitGone("picker_sheet")
+        await("garage_tank")
+        click("maximize_GARAGE")
+        await("garage_card_full")
+        scrollClick("garage_tank_icon_PLAIN")
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.tankIcon.first() } == com.nativeauto.settings.TankIcon.PLAIN }
+        await("garage_tank")
+        scrollClick("garage_tank_icon_GAUGE")
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.tankIcon.first() } == com.nativeauto.settings.TankIcon.GAUGE }
     }
 }

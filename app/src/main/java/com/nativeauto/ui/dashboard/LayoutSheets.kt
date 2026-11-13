@@ -53,7 +53,7 @@ internal val Pane.label: String
         Pane.MAP -> "Map"
         Pane.MEDIA -> "Media"
         Pane.SPEED -> "Speed"
-        Pane.NAV -> "Next turn"
+        Pane.NAV -> "Navigation"
         Pane.CLOCK -> "Clock"
         Pane.GARAGE -> "Garage"
     }

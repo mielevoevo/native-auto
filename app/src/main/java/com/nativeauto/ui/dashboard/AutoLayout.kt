@@ -5,7 +5,7 @@ package com.nativeauto.ui.dashboard
  * state changes the app already has, so it costs next to nothing.
  *
  * - **Navigation starts** (leaves idle: planning, preview, guidance): the map comes on screen.
- *   Quad switches to its navigation set ([NavQuad]: map, next turn, speed, media). Any other
+ *   Quad switches to its navigation set ([NavQuad]: map, navigation, speed, media). Any other
  *   layout without a visible map switches to Duo with the map in it. A visible map is left alone.
  * - **Navigation ends:** the user's layout comes back, unless they changed the arrangement by
  *   hand in the meantime (that ended the override already; see [DashboardLayoutState]).

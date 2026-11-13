@@ -156,4 +156,48 @@ class FuelTest {
         assertEquals("5.0 L", formatLitres(4.96))
         assertEquals("36.4 km/L", formatKmPerL(36.44))
     }
+
+    // ---- 13a: Filled to the top, litres range, overflow ----
+
+    @Test fun `litres run from zero to the tank size`() {
+        assertTrue(refuelLitresFit(0.1, 6.6))
+        assertTrue(refuelLitresFit(6.6, 6.6))
+        assertFalse(refuelLitresFit(0.0, 6.6))
+        assertFalse(refuelLitresFit(6.7, 6.6))
+        assertFalse(refuelLitresFit(-1.0, 6.6))
+    }
+
+    @Test fun `the switch makes a full anchor, a smaller entry stays partial`() {
+        assertTrue(countsAsFull(filledToTop = true, litres = 2.0, spaceLeftL = 4.0))
+        assertFalse(countsAsFull(filledToTop = false, litres = 2.0, spaceLeftL = 4.0))
+    }
+
+    @Test fun `more than the room left counts as full, within the tolerance it does not`() {
+        assertTrue(countsAsFull(false, litres = 4.5, spaceLeftL = 3.0))
+        assertFalse(countsAsFull(false, litres = 3.1, spaceLeftL = 3.0))
+        // Unknown room (no level yet): the rider's switch decides.
+        assertFalse(countsAsFull(false, litres = 5.0, spaceLeftL = null))
+    }
+
+    @Test fun `an overflow fill caps the level at a full tank`() {
+        val tank = 6.6
+        // Full at 1000, 40 km later 4 L are added although only ~1 L fits: stored as a full anchor.
+        val fills = listOf(fill(1_000.0, 5.0), fill(1_040.0, 4.0, full = countsAsFull(false, 4.0, 1.1)))
+        val level = fuelLevel(tank, 40.0, fills, emptyList(), 1_040.0)
+        assertEquals(tank, level.litres!!, 1e-9)
+    }
+
+    @Test fun `an overflow span teaches km per litre only if the outlier rule allows it`() {
+        // Two sane tanks first (40 km/L), then an overflow fill whose span reads 15 km/L: dropped.
+        val fills = listOf(
+            fill(1_000.0, 5.0), fill(1_200.0, 5.0), fill(1_400.0, 5.0),
+            fill(1_450.0, 3.3, full = countsAsFull(false, 3.3, 0.5)),
+        )
+        val c = learnConsumption(40.0, fills, emptyList())
+        assertEquals(2, c.tanksUsed)
+        assertFalse(c.measures.last().used)
+        // And one that fits the estimate is used.
+        val ok = learnConsumption(40.0, fills.dropLast(1) + fill(1_600.0, 5.0, full = countsAsFull(false, 5.0, 0.5)), emptyList())
+        assertEquals(3, ok.tanksUsed)
+    }
 }

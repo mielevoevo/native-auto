@@ -37,4 +37,6 @@ interface SettingsEntryPoint {
     fun garageDao(): com.nativeauto.garage.GarageDao
     /** 11b: no leftover trip checkpoint is recovered into a test. */
     fun liveTripDao(): com.nativeauto.history.LiveTripDao
+    /** 13a: tests mark the changelog seen, so its sheet never covers the UI under test. */
+    fun changelogStore(): com.nativeauto.changelog.ChangelogStore
 }

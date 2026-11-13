@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -123,10 +127,15 @@ internal fun <S> AnimatedContentTransitionScope<S>.cardModeTransition(): Content
         .using(null)
 
 /**
- * Card header: title plus maximize (where the pane shares a column), fullscreen and swap,
- * wired straight to [layout]. Swap trades places with the pane above or below, or moves the
- * whole column across when the pane is alone in it. A tap on the header acts like a tap on
- * the body; holding it lifts the card (12a), as anywhere else on the card.
+ * Card header: title plus maximize (where the pane shares a column), fullscreen and, where it is
+ * the clearest way to rearrange, swap ([DashboardLayoutState.canSwap]). Swap trades places with the
+ * pane above or below, or moves the whole column across when the pane is alone in it. A tap on
+ * the header acts like a tap on the body; holding it lifts the card (12a), as anywhere else.
+ *
+ * 13a: the title comes first. Whatever the corner adds (clock, battery) yields when the header is
+ * too narrow, the clock before the battery ([HeaderRow]); a pane's own buttons are at most
+ * maximize + fullscreen in a Compact card (swap lives only on Expanded and Wide panes), and a
+ * fullscreen pane drops maximize.
  */
 @Composable
 fun CardChrome(
@@ -139,7 +148,9 @@ fun CardChrome(
     val haptics = rememberHaptics()
     val picker = LocalPanePicker.current
     val canMaximize = layout.canMaximize(pane)
-    Row(
+    val fullscreen = layout.fullscreen == pane
+    val corner = if (layout.statusPane == pane) LocalStatusCorner.current else null
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .clickable {
@@ -152,51 +163,113 @@ fun CardChrome(
             .semantics { customActions = listOf(CustomAccessibilityAction("Choose what this pane shows") { picker?.invoke(pane); true }) }
             .testTag("header_${pane.name}")
             .padding(start = 16.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = title,
-            style = PaneTitle,
-            color = AppTheme.colors.textDim,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Clip,
-            modifier = Modifier.weight(1f),
-        )
-        if (layout.statusPane == pane) StatusCluster()
-        if (canMaximize) {
-            val maximized = layout.maximized == pane
-            ChromeButton(
-                icon = if (maximized) AppIcons.Restore else AppIcons.Maximize,
-                description = if (maximized) "Restore $title" else "Maximize $title",
-                tag = "maximize_${pane.name}",
-            ) {
-                layout.toggleMaximized(pane)
-                haptics.toggle(on = layout.maximized == pane)
-            }
-        }
-        val fullscreen = layout.fullscreen == pane
-        ChromeButton(
-            icon = if (fullscreen) AppIcons.FullscreenExit else AppIcons.Fullscreen,
-            description = if (fullscreen) "Exit fullscreen" else "Fullscreen $title",
-            tag = "fullscreen_${pane.name}",
+        HeaderRow(
+            title = {
+                Text(
+                    text = title,
+                    style = PaneTitle,
+                    color = AppTheme.colors.textDim,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("header_title_${pane.name}"),
+                )
+            },
+            clock = corner?.time?.let { time -> { StatusClock(time) } },
+            battery = corner?.battery?.let { battery -> { BatteryIndicator(battery) } },
         ) {
-            layout.toggleFullscreen(pane)
-            haptics.toggle(on = layout.fullscreen == pane)
-        }
-        if (!fullscreen) {
-            val vertical = layout.swapsVertically(pane)
+            if (corner != null) StatusButtons(corner)
+            if (canMaximize && !fullscreen) {
+                val maximized = layout.maximized == pane
+                ChromeButton(
+                    icon = if (maximized) AppIcons.Restore else AppIcons.Maximize,
+                    description = if (maximized) "Restore $title" else "Maximize $title",
+                    tag = "maximize_${pane.name}",
+                ) {
+                    layout.toggleMaximized(pane)
+                    haptics.toggle(on = layout.maximized == pane)
+                }
+            }
             ChromeButton(
-                icon = if (vertical) AppIcons.SwapVert else AppIcons.SwapHoriz,
-                description = if (vertical) "Swap cards" else "Swap sides",
-                tag = "swap_${pane.name}",
+                icon = if (fullscreen) AppIcons.FullscreenExit else AppIcons.Fullscreen,
+                description = if (fullscreen) "Exit fullscreen" else "Fullscreen $title",
+                tag = "fullscreen_${pane.name}",
             ) {
-                layout.swap(pane)
-                haptics.tap()
+                layout.toggleFullscreen(pane)
+                haptics.toggle(on = layout.fullscreen == pane)
+            }
+            if (layout.canSwap(pane)) {
+                val vertical = layout.swapsVertically(pane)
+                ChromeButton(
+                    icon = if (vertical) AppIcons.SwapVert else AppIcons.SwapHoriz,
+                    description = if (vertical) "Swap cards" else "Swap sides",
+                    tag = "swap_${pane.name}",
+                ) {
+                    layout.swap(pane)
+                    haptics.tap()
+                }
             }
         }
     }
 }
+
+private const val SLOT_TITLE = "title"
+private const val SLOT_CLOCK = "clock"
+private const val SLOT_BATTERY = "battery"
+private const val SLOT_BUTTONS = "buttons"
+
+/**
+ * The header's one-line layout (13a). The buttons sit at the right end and always fit; the title
+ * takes what it needs next to them (shortened with an ellipsis only when even that is too wide);
+ * the battery and then the clock use what is left and are left out when there is no room. A plain
+ * Row would have given the title only the leftovers, and the corner clock cut it ("Next tu").
+ */
+@Composable
+private fun HeaderRow(
+    title: @Composable () -> Unit,
+    clock: (@Composable () -> Unit)?,
+    battery: (@Composable () -> Unit)?,
+    buttons: @Composable RowScope.() -> Unit,
+) {
+    Layout(
+        content = {
+            Box(Modifier.layoutId(SLOT_TITLE)) { title() }
+            if (clock != null) Box(Modifier.layoutId(SLOT_CLOCK)) { clock() }
+            if (battery != null) Box(Modifier.layoutId(SLOT_BATTERY)) { battery() }
+            Row(Modifier.layoutId(SLOT_BUTTONS), verticalAlignment = Alignment.CenterVertically) { buttons() }
+        },
+    ) { measurables, constraints ->
+        val loose = Constraints(maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight)
+        fun find(id: String) = measurables.firstOrNull { it.layoutId == id }
+
+        val buttonsP = find(SLOT_BUTTONS)!!.measure(loose)
+        var room = (constraints.maxWidth - buttonsP.width).coerceAtLeast(0)
+
+        val titleM = find(SLOT_TITLE)!!
+        val titleWidth = minOf(titleM.maxIntrinsicWidth(constraints.maxHeight.coerceAtMost(MAX_HEADER_H)), room)
+        val titleP = titleM.measure(Constraints(maxWidth = titleWidth, maxHeight = constraints.maxHeight))
+        room -= titleP.width
+
+        // Natural size; dropped (never squeezed) when it doesn't fit beside the title.
+        fun fit(id: String) = find(id)?.measure(loose)?.takeIf { it.width <= room }?.also { room -= it.width }
+        val batteryP = fit(SLOT_BATTERY)
+        val clockP = fit(SLOT_CLOCK)
+
+        val height = maxOf(buttonsP.height, titleP.height, batteryP?.height ?: 0, clockP?.height ?: 0)
+            .coerceIn(constraints.minHeight, constraints.maxHeight)
+        val width = constraints.maxWidth
+        layout(width, height) {
+            titleP.place(0, (height - titleP.height) / 2)
+            var x = width - buttonsP.width
+            buttonsP.place(x, (height - buttonsP.height) / 2)
+            batteryP?.let { x -= it.width; it.place(x, (height - it.height) / 2) }
+            clockP?.let { x -= it.width; it.place(x, (height - it.height) / 2) }
+        }
+    }
+}
+
+private const val MAX_HEADER_H = 4096
 
 /** Opens the pane picker for a slot (by the pane in it). Provided by DashboardScreen; null in isolation. */
 val LocalPanePicker = compositionLocalOf<((Pane) -> Unit)?> { null }

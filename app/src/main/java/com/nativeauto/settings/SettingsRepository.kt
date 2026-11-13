@@ -66,6 +66,10 @@ interface SettingsRepository {
     val garageValue: Flow<GarageValue>
     suspend fun setGarageValue(value: GarageValue)
 
+    /** 13a: the Garage card's tank icon. Gauge by default (and for installs from before it existed). */
+    val tankIcon: Flow<TankIcon>
+    suspend fun setTankIcon(icon: TankIcon)
+
     /** 12b: the period of the log face's distance total. */
     val totalPeriod: Flow<TotalPeriod>
     suspend fun setTotalPeriod(period: TotalPeriod)
@@ -118,7 +122,7 @@ data class SavedLayout(
     }
 }
 
-private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+internal val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 @Singleton
 class DataStoreSettingsRepository @Inject constructor(
@@ -213,6 +217,13 @@ class DataStoreSettingsRepository @Inject constructor(
     override val garageValue: Flow<GarageValue> =
         prefs.map { enumOrDefault(it[GARAGE_VALUE], GarageValue.RANGE) }.distinctUntilChanged()
 
+    override val tankIcon: Flow<TankIcon> =
+        prefs.map { enumOrDefault(it[TANK_ICON], TankIcon.GAUGE) }.distinctUntilChanged()
+
+    override suspend fun setTankIcon(icon: TankIcon) {
+        store.edit { it[TANK_ICON] = icon.name }
+    }
+
     override val totalPeriod: Flow<TotalPeriod> =
         prefs.map { enumOrDefault(it[TOTAL_PERIOD], TotalPeriod.DAY) }.distinctUntilChanged()
 
@@ -288,6 +299,7 @@ class DataStoreSettingsRepository @Inject constructor(
         val CLOCK_FACE = stringPreferencesKey("clock_face")
         val GARAGE_VALUE = stringPreferencesKey("garage_value")
         val TOTAL_PERIOD = stringPreferencesKey("total_period")
+        val TANK_ICON = stringPreferencesKey("tank_icon")
         val REFRESH_MODE = stringPreferencesKey("refresh_mode")
         val DRAG_HOLD_MS = longPreferencesKey("drag_hold_ms")
         val CLOCK_SECONDS = booleanPreferencesKey("clock_seconds")

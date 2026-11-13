@@ -2,6 +2,7 @@ package com.nativeauto.ui.dashboard
 
 import android.Manifest
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -127,11 +128,11 @@ class DashboardScreenTest {
         pickFromSheet("preset_${preset.name}", "layouts_sheet")
     }
 
-    /** 12a: hold past the lift time and let go without moving: the pane picker. */
+    /** 12a/13a: hold past the lift time and the arming time, let go without moving: the pane picker. */
     private fun openPicker(pane: Pane) {
         tag("header_${pane.name}").performTouchInput {
             down(Offset(width * 0.1f, height / 2f))
-            advanceEventTime(HOLD_MS)
+            advanceEventTime(PICKER_MS)
             up()
         }
         awaitSheet("picker_sheet")
@@ -207,7 +208,7 @@ class DashboardScreenTest {
     @Test fun swapsReorderSlots() {
         click("swap_MAP")
         assertTrue("map moved right", slot(Pane.MAP).getBoundsInRoot().left > slot(Pane.MEDIA).getBoundsInRoot().left)
-        click("swap_MEDIA")
+        drag(Pane.MEDIA, Pane.SPEED)
         assertTrue("speed moved up", slot(Pane.SPEED).getBoundsInRoot().top < slot(Pane.MEDIA).getBoundsInRoot().top)
     }
 
@@ -281,7 +282,7 @@ class DashboardScreenTest {
         )
         for (mapOnLeft in listOf(true, false)) for (mediaOnTop in listOf(true, false)) {
             if (mapOnLeft != (slot(Pane.MAP).getBoundsInRoot().left < slot(Pane.MEDIA).getBoundsInRoot().left)) click("swap_MAP")
-            if (mediaOnTop != (slot(Pane.MEDIA).getBoundsInRoot().top < slot(Pane.SPEED).getBoundsInRoot().top)) click("swap_MEDIA")
+            if (mediaOnTop != (slot(Pane.MEDIA).getBoundsInRoot().top < slot(Pane.SPEED).getBoundsInRoot().top)) drag(Pane.MEDIA, Pane.SPEED)
 
             for ((name, enter) in modes) {
                 val label = "map ${if (mapOnLeft) "left" else "right"}, media ${if (mediaOnTop) "top" else "bottom"}, $name"
@@ -331,7 +332,7 @@ class DashboardScreenTest {
 
     @Test fun layoutChangesAreSavedForTheNextLaunch() {
         click("swap_MAP")
-        click("swap_MEDIA")
+        drag(Pane.MEDIA, Pane.SPEED)
         openSettings()
         click("settings_split_60")
         closeSettings()
@@ -571,7 +572,7 @@ class DashboardScreenTest {
         // On the body this time (the old long-press = fullscreen is gone).
         rule.onNodeWithTag("pane_SPEED").performTouchInput {
             down(percentOffset(0.1f, 0.85f))
-            advanceEventTime(HOLD_MS)
+            advanceEventTime(PICKER_MS)
             up()
         }
         awaitSheet("picker_sheet")
@@ -602,6 +603,138 @@ class DashboardScreenTest {
         tag("speed_faces").performTouchInput { swipeLeft() }
         rule.waitUntil(5_000) { count("log_start").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(count("picker_sheet").fetchSemanticsNodes().isEmpty())
+    }
+
+    // ---------------------------------------------------------------- Phase 13a
+
+    @Test fun liftedButNotArmedLettingGoDoesNothing() {
+        // Past the 1 s hold but well short of the 0.7 s more: the card lifts and settles back.
+        rule.onNodeWithTag("pane_SPEED").performTouchInput {
+            down(percentOffset(0.1f, 0.85f))
+            advanceEventTime(HOLD_MS)
+            up()
+        }
+        rule.waitForIdle()
+        assertTrue("no picker", count("picker_sheet").fetchSemanticsNodes().isEmpty())
+        assertMode(Pane.SPEED, CardMode.Compact)
+    }
+
+    @Test fun movingAfterArmingDragsInsteadOfOpeningThePicker() {
+        val tallLeft = slot(Pane.MAP).getBoundsInRoot().left
+        val end = slot(Pane.MAP).fetchSemanticsNode().boundsInRoot
+        val start = slot(Pane.SPEED).fetchSemanticsNode().boundsInRoot
+        slot(Pane.SPEED).performTouchInput {
+            val p = Offset(width * 0.15f, height * 0.8f)
+            down(p)
+            advanceEventTime(PICKER_MS) // armed
+            val target = end.center - start.topLeft
+            repeat(10) { i -> moveTo(p + (target - p) * ((i + 1) / 10f)) }
+            up()
+        }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.waitForIdle()
+        assertTrue("no picker after a drag", count("picker_sheet").fetchSemanticsNodes().isEmpty())
+        assertNear("speed took the tall slot", tallLeft, slot(Pane.SPEED).getBoundsInRoot().left)
+    }
+
+    @Test fun droppingACardStraightOnItsNeighbourSwapsThemByOverlap() {
+        // The finger ends in the gutter between the two stacked cards; the lifted card covers the other one.
+        val start = slot(Pane.MEDIA).fetchSemanticsNode().boundsInRoot
+        val speed = slot(Pane.SPEED).fetchSemanticsNode().boundsInRoot
+        slot(Pane.MEDIA).performTouchInput {
+            val p = Offset(width * 0.5f, height * 0.5f)
+            down(p)
+            advanceEventTime(HOLD_MS)
+            val dy = speed.top - start.top
+            repeat(10) { i -> moveTo(p + Offset(0f, dy * ((i + 1) / 10f))) }
+            up()
+        }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.waitForIdle()
+        assertTrue("speed moved up", slot(Pane.SPEED).getBoundsInRoot().top < slot(Pane.MEDIA).getBoundsInRoot().top)
+    }
+
+    @Test fun duoShowsSwapOnlyOnTheTallPane() {
+        tag("swap_MAP").assertIsDisplayed()
+        assertEquals(0, count("swap_MEDIA").fetchSemanticsNodes().size)
+        assertEquals(0, count("swap_SPEED").fetchSemanticsNodes().size)
+        switchLayout(LayoutPreset.QUAD)
+        listOf(Pane.MAP, Pane.SPEED, Pane.MEDIA, Pane.CLOCK).forEach {
+            assertEquals("quad $it", 0, count("swap_${it.name}").fetchSemanticsNodes().size)
+        }
+        switchLayout(LayoutPreset.SIDE_BY_SIDE)
+        listOf(Pane.SPEED, Pane.MEDIA).forEach { tag("swap_${it.name}").assertIsDisplayed() }
+        switchLayout(LayoutPreset.ROWS)
+        listOf(Pane.SPEED, Pane.MEDIA).forEach { tag("swap_${it.name}").assertIsDisplayed() }
+    }
+
+    @Test fun fullscreenHidesMaximizeAndKeepsTheFullscreenButton() {
+        tag("maximize_SPEED").assertIsDisplayed()
+        click("fullscreen_SPEED")
+        assertMode(Pane.SPEED, CardMode.Fullscreen)
+        assertEquals(0, count("maximize_SPEED").fetchSemanticsNodes().size)
+        tag("fullscreen_SPEED").assertIsDisplayed()
+        click("fullscreen_SPEED")
+        assertMode(Pane.SPEED, CardMode.Compact)
+        tag("maximize_SPEED").assertIsDisplayed()
+    }
+
+    @Test fun compactHeadersCarryAtMostTwoOwnButtons() {
+        listOf(Pane.MEDIA, Pane.SPEED).forEach { p ->
+            val own = listOf("maximize_", "fullscreen_", "swap_").count { count("$it${p.name}").fetchSemanticsNodes().isNotEmpty() }
+            assertTrue("$p has $own own buttons", own <= 2)
+        }
+    }
+
+    @Test fun theHeaderTitleIsNeverCutByTheCornerClock() {
+        // Quad's top-right pane is the narrowest header that carries the clock, battery and both corner buttons.
+        switchLayout(LayoutPreset.QUAD)
+        listOf(Pane.MAP, Pane.SPEED, Pane.MEDIA, Pane.CLOCK).forEach { p ->
+            val node = tag("header_title_${p.name}").fetchSemanticsNode()
+            val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+            assertTrue("$p title shows whole", results.isNotEmpty() && !results[0].hasVisualOverflow)
+        }
+    }
+
+    @Test fun theSpeedCardOpensOnTheSpeedFace() {
+        tag("speed_value").assertIsDisplayed()
+        // After a recreation too (the pager state isn't kept).
+        tag("speed_faces").performTouchInput { swipeLeft() }
+        rule.waitUntil(5_000) { count("log_start").fetchSemanticsNodes().isNotEmpty() }
+        rule.activityRule.scenario.recreate()
+        rule.waitForIdle()
+        tag("speed_value").assertIsDisplayed()
+    }
+
+    @Test fun theChangelogSheetShowsOnceAfterAnUpdateAndTheHistoryIsInSettings() {
+        val store = com.nativeauto.di.SettingsEntryPoint::class.java.let {
+            dagger.hilt.android.EntryPointAccessors.fromApplication(
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.applicationContext, it,
+            ).changelogStore()
+        }
+        // Pretend the rider last saw v3.3 (versionCode 18), then reopen.
+        runBlocking { store.markSeen(com.nativeauto.changelog.BEFORE_CHANGELOG) }
+        rule.activityRule.scenario.recreate()
+        rule.waitUntil(10_000) { count("changelog_sheet").fetchSemanticsNodes().isNotEmpty() }
+        tag("changelog_entry_${com.nativeauto.BuildConfig.VERSION_CODE}").assertIsDisplayed()
+        click("changelog_done")
+        rule.waitUntil(5_000) { count("changelog_sheet").fetchSemanticsNodes().isEmpty() }
+        assertEquals(com.nativeauto.BuildConfig.VERSION_CODE, runBlocking { store.lastSeen() })
+        // Not again on the next open.
+        rule.activityRule.scenario.recreate()
+        rule.waitForIdle()
+        assertTrue(count("changelog_sheet").fetchSemanticsNodes().isEmpty())
+
+        // The full history lives in settings.
+        openSettings()
+        click("settings_whats_new")
+        rule.waitUntil(5_000) { count("changelog_history").fetchSemanticsNodes().isNotEmpty() }
+        tag("changelog_entry_${com.nativeauto.BuildConfig.VERSION_CODE}").assertIsDisplayed()
+        click("changelog_history_done")
+        rule.waitUntil(5_000) { count("changelog_history").fetchSemanticsNodes().isEmpty() }
     }
 
     // ---------------------------------------------------------------- Phase 8b: layouts
@@ -734,3 +867,6 @@ class DashboardScreenTest {
 
 /** Past the default 1 s hold (12a), with room for the test clock. */
 private const val HOLD_MS = 1_300L
+
+/** Past the hold (1 s) and the second step that arms the picker (0.7 s), 13a. */
+private const val PICKER_MS = 2_100L

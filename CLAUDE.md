@@ -35,6 +35,11 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   (blocked in `.claude/settings.local.json`); the user decides on GitHub.
 - **Unattended phases (8d → 11c):** don't stop to ask. Take the recommended option and log it in
   `DECISIONS.md`. The user tests on the phone once, after 11c.
+- **Unattended again (user, 2026-11-14): 13a → 14a.** Same rule: on a roadblock take the recommended or
+  already-discussed option, log it in `DECISIONS.md` with the *reason* (the user reads it later). Each sub-phase
+  exports its **own** release APK to `.dev/apk/NativeAuto-<version>-<sub>-release.apk` (never overwrite an
+  earlier one: they are the fallback if 14b goes wrong), after the release smoke test. **14b (portrait) is not
+  part of this run.** Every sub-phase build also adds its entry to `assets/changelog.md` (from 13a on).
 
 ## Deliberate deviations from the handoff's reference code
 
@@ -241,7 +246,7 @@ bike the week of 2026-11-02 (speed, map, media, saved trips all fine; search too
   (`WAKE_FADE_MS`). A quick peek inside the grace period doesn't recreate it. Only the awake map
   collects `fix`, so a sleeping map's GPS read stops; the trip and navigation keep their own readers.
   Tests shorten the grace through `MapSleep.defaultGraceMs`.
-- **Next turn pane (`NextTurnCard`)**: big arrow, distance, road, ETA line ("arrive · left · km"),
+- **Next turn pane (`NextTurnCard`; renamed Navigation in 13a)**: big arrow, distance, road, ETA line ("arrive · left · km"),
   sized per mode; End button when Expanded/Fullscreen. Idle: a big "Where to?" button (the map's
   search sheet). Routing/preview/failure reuse the map's cards. When the Next turn pane is on screen,
   the map hides its own banner, status card and summary (`showNavPanels`).
@@ -593,6 +598,47 @@ Rider-Feedback "Revisions after the first look" R1 and R2.
   every Material style, `PaneTitle` and `TabularNumbers`. Bare `TextStyle(...)` doesn't inherit the theme, so
   the speed hero (`heroStyle`), clock digits and Garage card value set `fontFamily = Geist` themselves; any new
   bare `TextStyle` must too. All four faces have `tnum`. Map labels keep the map's own fonts.
+
+## Phase 13a: fixes and tweaks (built 2026-11-14, v3.4.1, versionCode 19)
+
+Rider feedback after a week on v3.3 (Rider-Feedback "Phase 13 decisions"). Choices and reasons: DECISIONS.md "Run 13a-14a".
+- **Changelog (`changelog/`, `ui/changelog/`):** `assets/changelog.md` (`## <name> (<code>) · <date>` + bullets, newest
+  first). **Every sub-phase build adds its entry** with the version bump; `ChangelogTest.theShippedChangelog…` fails
+  if the top entry isn't the current `versionName` / `versionCode`. `ChangelogStore` (own DataStore key
+  `changelog_seen_code`, outside `SettingsRepository` so the fakes stay as they are); `resolveLastSeen`: fresh install
+  (`InstallInfo.isFreshInstall`: first install time == last update time) counts as seen, an update from a build without
+  a changelog is `BEFORE_CHANGELOG` (18). `ChangelogSheet` (`changelog_sheet`) after an update: only entries newer than
+  last seen, at most 3, never while a trip runs / is paused or navigation is active (`ChangelogViewModel.pending`).
+  Settings "What's new" (`settings_whats_new` → `changelog_history`) shows the whole file. `ResetSettingsRule` marks
+  the current version seen.
+- **Navigation pane:** "Next turn" is now **Navigation** (title, picker; `NextTurnCard`, tags `next_turn_*` and
+  `Pane.NAV` kept). Compact / Wide: the arrow is centred on the distance + road block and the arrival line starts at
+  that block's left edge.
+- **Header (`CardChrome`, `HeaderRow`):** the title is measured first; the battery, then the corner clock, are left out
+  when there's no room (title never cut: tag `header_title_<PANE>`). `DashboardLayoutState.canSwap`: the swap button
+  exists only in Side by side, Rows and on Duo's tall pane (Quad and Duo's stacked panes: drag or the picker). A
+  fullscreen pane drops Maximize (its fullscreen button keeps toggling back). So a Compact header has at most
+  maximize + fullscreen of its own. Accessibility action "Choose what this pane shows" kept.
+- **Map hold:** the map's long-press pin only in fullscreen (`pinEnabled`); elsewhere the whole map card is held like
+  the others (and a pan still wins). A fullscreen map still lifts from its header only.
+- **Drag (`PaneDrag.kt`):** `pickDropTarget`: the card covered most (≥ 20% of the smaller of the two), else the card
+  under the finger, else the nearest centre once the lifted card travelled half the way to it. Two-step hold:
+  lifted (lit outline, one buzz; letting go does nothing) → `ARM_MS` 700 ms more without moving = picker armed
+  (second ring in the card's centre, card dims to 80%, double buzz; letting go opens the picker). Moving at any
+  time drops back to dragging. The arm timer is a coroutine in `PaneDragState`, not a pointer timeout.
+- **Speed card:** always opens on the speed face (the pager state is no longer saved; an Ended trip found at first
+  composition no longer jumps to the log face; one that ends while the card is up still lands on it). The dash
+  km/L button is on the Compact summary (beside the figures) and on the Wide one, as it already was on Expanded.
+- **Garage:** "+ Add bike" is the last card of the bike list (`garage_add`). `TankIcon` GAUGE (default) / PLAIN (fixed
+  pump icon, red in the last segment), chosen in the expanded Garage card (`garage_tank_icon_<NAME>`),
+  `SettingsRepository.tankIcon`.
+- **Refuel:** one switch "Filled to the top" (`garage_refuel_full`, default on). Litres run 0..tank size
+  (`refuelLitresFit`), never limited by the estimate. `countsAsFull`: an entry over the estimated room left (+0.2 L)
+  is stored as a full anchor, so the level caps at full and the ±35% rule decides whether that span teaches km/L.
+- **Muted voice no longer ducks music:** Ferrostar's `AndroidTtsObserver` asks for audio focus before it checks its
+  mute flag. `FerrostarNavigator` now detaches the observer while muted (and creates the TTS only when needed).
+- Device tests moved with this: stacked panes are swapped by dragging (`drag(from, to)`), pickers need
+  `PICKER_MS` (hold + arm), the refuel dialog uses the switch.
 
 ## Known issues (deferred)
 

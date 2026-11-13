@@ -77,4 +77,8 @@
     <string name="settings_debug">Debug</string>
     <string name="settings_fake_gps">Fake GPS (scripted drive)</string>
     <string name="settings_done">Done</string>
+    <string name="settings_whats_new">What\'s new</string>
+    <string name="settings_whats_new_hint">Changes in each version</string>
+    <string name="settings_open">Open</string>
+    <string name="changelog_title">What\'s new</string>
 </resources>

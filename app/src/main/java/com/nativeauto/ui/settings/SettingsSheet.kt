@@ -103,6 +103,8 @@ fun SettingsSheet(
     // 12a: battery, refresh rate and hold time share one dialog, so the sheet's three columns
     // still fit a landscape phone without scrolling.
     var screenOpen by rememberSaveable { mutableStateOf(false) }
+    var changelogOpen by rememberSaveable { mutableStateOf(false) }
+    if (changelogOpen) com.nativeauto.ui.changelog.ChangelogHistoryDialog(onDismiss = { changelogOpen = false })
     if (screenOpen) {
         Dialog(onDismissRequest = { screenOpen = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(
@@ -293,6 +295,23 @@ fun SettingsSheet(
                             onClick = { haptics.tap(); screenOpen = true },
                             modifier = Modifier.heightIn(min = 56.dp).testTag("settings_screen_options"),
                         ) { Text(stringResource(R.string.settings_telemetry_choose)) }
+                    }
+
+                    // 13a: the changelog's full history.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_whats_new), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                stringResource(R.string.settings_whats_new_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        FilledTonalButton(
+                            onClick = { haptics.tap(); changelogOpen = true },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("settings_whats_new"),
+                        ) { Text(stringResource(R.string.settings_open)) }
                     }
                 }
                 val layoutAndNav = @Composable {

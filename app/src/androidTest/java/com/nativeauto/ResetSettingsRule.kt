@@ -43,6 +43,8 @@ class ResetSettingsRule : ExternalResource() {
         // 11b: a checkpoint left by an earlier run would be recovered as a trip.
         entry.liveTripDao().clear()
         entry.garage().dismissPrompt()
+        // 13a: the "What's new" sheet must not cover a test.
+        entry.changelogStore().markSeen(com.nativeauto.BuildConfig.VERSION_CODE)
         settings.saveLayout(SavedLayout.Default)
         settings.setSpeedUnit(SpeedUnit.KMH)
         settings.setShowBattery(true)
@@ -51,6 +53,7 @@ class ResetSettingsRule : ExternalResource() {
         settings.setClockFace(ClockFace.DIGITAL)
         settings.setClockSeconds(false)
         settings.setGarageValue(com.nativeauto.settings.GarageValue.RANGE)
+        settings.setTankIcon(com.nativeauto.settings.TankIcon.GAUGE)
         settings.setTotalPeriod(com.nativeauto.settings.TotalPeriod.DAY)
         settings.setRefreshMode(com.nativeauto.settings.RefreshMode.AUTO)
         settings.setDragHoldMs(com.nativeauto.settings.DEFAULT_DRAG_HOLD_MS)

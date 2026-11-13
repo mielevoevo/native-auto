@@ -95,12 +95,6 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                     Icon(AppIcons.ArrowBack, contentDescription = "Back")
                 }
                 Text("Garage", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                if (!list.isNullOrEmpty()) {
-                    FilledTonalButton(
-                        onClick = { haptics.tap(); newModel = BikeModel.NMAX_GEN1; editing = "" },
-                        modifier = Modifier.heightIn(min = 56.dp).testTag("garage_add"),
-                    ) { Text("Add bike") }
-                }
                 Spacer(Modifier.width(16.dp))
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -112,6 +106,7 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                             list.forEach { bike ->
                                 BikeTile(bike, isSelected = bike.id == selected.id, viewModel) { haptics.tap(); selectedId = bike.id }
                             }
+                            AddBikeTile { haptics.tap(); newModel = BikeModel.NMAX_GEN1; editing = "" }
                         }
                         BikeDetail(
                             bike = selected,
@@ -295,6 +290,23 @@ private fun EmptyGarage(onAdd: (BikeModel) -> Unit) {
                     modifier = Modifier.heightIn(min = 64.dp).testTag("garage_add_${model.name}"),
                 ) { Text(model.label) }
             }
+        }
+    }
+}
+
+/** 13a: the last card of the bike list, in place of a button in the top bar. */
+@Composable
+private fun AddBikeTile(onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = colors.surface,
+        contentColor = colors.text,
+        border = BorderStroke(1.dp, colors.outline),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).testTag("garage_add"),
+    ) {
+        Box(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
+            Text("+ Add bike", style = MaterialTheme.typography.titleMedium, color = colors.textDim)
         }
     }
 }

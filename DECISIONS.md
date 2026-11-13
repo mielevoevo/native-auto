@@ -316,3 +316,63 @@ Things the emulator can't settle, or that I'm not sure of. None blocks 11c.
 
 - **Flaky under load (11c run):** `DashboardScreenTest.pauseResumeAndEndShowTheSummaryUntilDismissed` hit
   `AppNotIdleException` once late in the full emulator suite; it passed twice on its own. Watch it.
+
+## Run 13a-14a, choices made
+
+Unattended run (rider's "start 13a", 2026-11-14). Each entry: the question, what I picked, and why.
+
+### 13a
+
+- **Splitting 13a from 13b.** I started 13b's code before committing 13a, so the two were mixed in the working tree.
+  Picked: save the full tree, strip 13b back out, build / test / export 13a from that, commit it, then restore 13b.
+  Why: "one commit and one APK per sub-phase" is the fallback the rider wants if 14b goes wrong.
+- **Changelog version codes.** Only 3.0 (12) onward were checked in git; 2.0 = code 3 … 2.8 = 11 are counted back
+  from there (8c = 4 … 10b = 11). 3.3 is one entry (code 18) because 12a / 12b / 12c are one version name.
+- **Fresh install vs update.** `firstInstallTime == lastUpdateTime` means fresh (nothing shown, the version counts as
+  seen). No stored value on an update = "last seen 18" (v3.3), so the rider sees the 3.4.1 entry once, as agreed.
+  Why not "DataStore has other keys": a fresh install writes the layout within seconds, so that test flips quickly.
+- **Where the last-seen version lives.** `ChangelogStore`, same DataStore file, own key: the plan allowed it and it
+  keeps all four fakes of `SettingsRepository` untouched. The view model reads the stored value as a flow, so the
+  sheet follows it (found by a device test: an activity-scoped view model survives a recreation).
+- **Swap button rule.** `canSwap`: Side by side, Rows, Duo's tall pane. A maximized stacked pane has no swap either.
+- **"Fullscreen button stays the fullscreen button".** Read as: no new behaviour. Its icon already switched to "exit"
+  in 12a, and the rider's answer says it should not become a different control, so I left it and only hid Maximize.
+- **"Compact headers: title plus at most two buttons, the rest in the hold menu".** By construction a Compact pane now
+  has only maximize + fullscreen (swap exists only on Expanded / Wide panes), so nothing had to move in 13a. The hold
+  menu (picker) gets Fullscreen / Maximize buttons in 13b, where the compact map header is taken by mute + End.
+- **Header width rule.** Buttons always fit; title next; battery, then clock, only if they still fit. Title and
+  clock never overlap, and a too-narrow header loses the clock first (the battery matters more on the bike).
+- **Drop target thresholds.** Overlap ≥ 20% of the *smaller* of the two cards (so a big tall card dragged a little
+  over a small one doesn't need 20% of itself); finger-inside second; nearest centre only once the card has travelled
+  half the way to it, so a small nudge can never swap.
+- **Arming the picker.** 700 ms after the lift, by a coroutine timer in the drag state (not a pointer timeout: the
+  gesture loop keeps reading events). Moving at any time ends it. The double buzz is two `LongPress` haptics 110 ms
+  apart (the platform has no "double" constant).
+- **Speed card opens on the speed face.** Cause found: `rememberPagerState` is saved across recreation, and the
+  "trip Ended → log face" effect ran on the first composition too, so an ended trip left in memory (or a rotation
+  from the log face) reopened on page 1. Now: the pager isn't saved, and the jump to the log face happens only when
+  the trip *becomes* Ended while the card is up (dismissing the summary still lands on the log face, ready for Start).
+  I first also sent the card to the speed face on every Start; reverted, because the Start / Pause / End buttons are
+  on the log face and the rider presses Start there.
+- **Dash km/L on every size.** Compact: the button sits beside the figures (a column under them didn't fit the small
+  card). Wide: it was missing altogether, now under the figures.
+- **Tank icon setting lives in the expanded Garage card** (under "The small card shows"), not in settings: the settings
+  sheet is reorganised in 13c anyway and the choice is about that card.
+- **Refuel overflow tolerance 0.2 L.** "More than the estimated room left" is strict in the rider's words, but the
+  estimate has gauge-sized noise; 0.2 L stops a fill-up of exactly "the rest" from being re-labelled by rounding.
+  When the level is unknown (no full fill yet) the switch decides alone.
+- **Muted voice ducked the music (plan item, not in the unattended list).** Cause: Ferrostar's `AndroidTtsObserver`
+  calls `requestAudioFocus()` before it checks its mute flag (read from the bytecode). Picked: detach the observer
+  from the core while muted, create the TTS only when voice is on. Checked on the emulator only for "no crash":
+  ducking itself needs the phone (listed below).
+
+## Concerns to check at the phone test (run 13a-14a)
+
+- **Muted navigation and music:** with Spotify playing, mute the voice (map or header button), start a route, pass a
+  turn: the music must not dip at all. Unmuting mid-route should bring the voice back at the next instruction.
+- **Header fit on the Redmi:** the corner clock and battery now drop out when a header is too narrow. In Quad the top
+  right pane is the tightest; check that the clock still shows, and that the title reads in full.
+- **Drag by overlap:** drop a card straight onto a neighbour with a gloved thumb; and check 0.7 s after the lift feels
+  like a distinct second step (ring, dim, double buzz) and not like the lift itself.
+- **Nav card alignment** (Compact / Wide): the arrow is now centred on the distance + road block; the old screenshot
+  can't be reproduced on the emulator (no live route), so check it with a real route.

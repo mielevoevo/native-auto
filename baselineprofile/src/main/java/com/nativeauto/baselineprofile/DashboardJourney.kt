@@ -57,10 +57,10 @@ internal fun MacrobenchmarkScope.maximizeAndBack() {
     tapAndSettle("maximize_SPEED")
 }
 
-/** Swap the two stacked panes and back. */
+/** Swap the tall pane across and back (13a: the stacked panes no longer have a swap button). */
 internal fun MacrobenchmarkScope.swapAndBack() {
-    tapAndSettle("swap_MEDIA")
-    tapAndSettle("swap_MEDIA")
+    tapAndSettle("swap_MAP")
+    tapAndSettle("swap_MAP")
 }
 
 /** Open the settings sheet and close it. */

@@ -40,21 +40,22 @@ class StatusCorner(
 /** Provided by DashboardScreen; null in isolation (previews, card tests). */
 val LocalStatusCorner = compositionLocalOf<StatusCorner?> { null }
 
-/** Rendered by [CardChrome] in the header of `DashboardLayoutState.statusPane` only. */
+/** The corner's time ([CardChrome] places it where there is room). */
 @Composable
-internal fun StatusCluster() {
-    val corner = LocalStatusCorner.current ?: return
-    corner.time?.let {
-        Text(
-            text = it,
-            style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.padding(horizontal = 6.dp).testTag("corner_clock"),
-        )
-    }
-    corner.battery?.let { BatteryIndicator(it) }
+internal fun StatusClock(time: String) {
+    Text(
+        text = time,
+        style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier.padding(horizontal = 6.dp).testTag("corner_clock"),
+    )
+}
+
+/** The layout switcher and settings buttons: always shown in the top-right header. */
+@Composable
+internal fun StatusButtons(corner: StatusCorner) {
     val haptics = rememberHaptics()
     ChromeButton(AppIcons.Layouts, "Layouts", "layouts_open") {
         haptics.tap()
@@ -68,7 +69,7 @@ internal fun StatusCluster() {
 
 /** Small and glanceable: a battery glyph filled to the level, then the percentage. */
 @Composable
-private fun BatteryIndicator(battery: BatteryStatus) {
+internal fun BatteryIndicator(battery: BatteryStatus) {
     val low = !battery.charging && battery.percent <= LOW_BATTERY_PERCENT
     val tint = when {
         low -> MaterialTheme.colorScheme.error

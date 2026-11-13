@@ -62,6 +62,7 @@ import com.nativeauto.garage.dueText
 import com.nativeauto.garage.formatOdometer
 import com.nativeauto.garage.reminderText
 import com.nativeauto.settings.GarageValue
+import com.nativeauto.settings.TankIcon
 import com.nativeauto.settings.SettingsRepository
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.DashboardCard
@@ -110,6 +111,11 @@ class GarageCardViewModel @Inject constructor(
 
     fun setValue(value: GarageValue) = viewModelScope.launch { settings.setGarageValue(value) }
 
+    /** 13a: gauge (default) or a plain pump icon. */
+    val tankIcon: StateFlow<TankIcon> = settings.tankIcon.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TankIcon.GAUGE)
+
+    fun setTankIcon(icon: TankIcon) = viewModelScope.launch { settings.setTankIcon(icon) }
+
     fun ride(id: String) = viewModelScope.launch { garage.activate(id) }
 
     fun logRefuel(bikeId: String, draft: RefuelDraft) = viewModelScope.launch { garage.logRefuel(bikeId, draft) }
@@ -148,7 +154,7 @@ fun tankSegments(fraction: Double, previous: Int?): Int {
  * tank's shape is always there. Unknown fuel: all outlines.
  */
 @Composable
-fun TankGauge(fraction: Double?, modifier: Modifier = Modifier) {
+fun TankGauge(fraction: Double?, modifier: Modifier = Modifier, icon: TankIcon = TankIcon.GAUGE) {
     val colors = AppTheme.colors
     val held = remember { intArrayOf(-1) }
     val lit = fraction?.let { tankSegments(it, held[0].takeIf { h -> h >= 0 }) } ?: 0
@@ -156,6 +162,16 @@ fun TankGauge(fraction: Double?, modifier: Modifier = Modifier) {
     val fill = if (fraction != null && lit <= 1) colors.red else colors.text
     val outline = colors.outline
     val description = if (fraction == null) "Fuel unknown" else "Fuel $lit of $TANK_SEGMENTS"
+    if (icon == TankIcon.PLAIN) {
+        // 13a: a fixed pump icon, red in the last segment (like the gauge), no other states.
+        Icon(
+            AppIcons.Fuel,
+            contentDescription = description,
+            tint = if (fraction != null && lit <= 1) colors.red else colors.text,
+            modifier = modifier.testTag("garage_tank"),
+        )
+        return
+    }
     Canvas(modifier.semantics { contentDescription = description }.testTag("garage_tank")) {
         val stroke = size.width * 0.06f
         val capH = size.height * 0.08f
@@ -201,6 +217,7 @@ fun GarageCard(
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val value by viewModel.value.collectAsStateWithLifecycle()
+    val tankIcon by viewModel.tankIcon.collectAsStateWithLifecycle()
     val state = ui.state
     var refuelling by rememberSaveable { mutableStateOf(false) }
     var settingLevel by rememberSaveable { mutableStateOf(false) }
@@ -215,8 +232,8 @@ fun GarageCard(
             when {
                 !ui.loaded -> Box(Modifier.fillMaxSize())
                 state == null -> NoBike(onOpenGarage)
-                m == CardMode.Compact || m == CardMode.Wide -> SmallGarage(state, value, m)
-                else -> ExpandedGarage(state, value, viewModel, onRefuel = { refuelling = true }, onSetLevel = { settingLevel = true }, onOpenGarage)
+                m == CardMode.Compact || m == CardMode.Wide -> SmallGarage(state, value, m, tankIcon)
+                else -> ExpandedGarage(state, value, tankIcon, viewModel, onRefuel = { refuelling = true }, onSetLevel = { settingLevel = true }, onOpenGarage)
             }
         }
     }
@@ -300,7 +317,7 @@ private fun shortDue(d: ServiceDue): String = dueText(d)
     .replace("due today", "today")
 
 @Composable
-private fun SmallGarage(state: GarageCardState, value: GarageValue, mode: CardMode) {
+private fun SmallGarage(state: GarageCardState, value: GarageValue, mode: CardMode, tankIcon: TankIcon) {
     val big = bigValue(state, value)
     val wide = mode == CardMode.Wide
     Row(
@@ -309,7 +326,7 @@ private fun SmallGarage(state: GarageCardState, value: GarageValue, mode: CardMo
         horizontalArrangement = Arrangement.Center,
     ) {
         if (value == GarageValue.RANGE) {
-            TankGauge(state.fuel.level.fraction, Modifier.size(width = if (wide) 44.dp else 40.dp, height = if (wide) 80.dp else 72.dp))
+            TankGauge(state.fuel.level.fraction, Modifier.size(width = if (wide) 44.dp else 40.dp, height = if (wide) 80.dp else 72.dp), tankIcon)
             Spacer(Modifier.width(16.dp))
         }
         ValueText(big, if (wide) 56.sp else 48.sp)
@@ -335,6 +352,7 @@ private fun ValueText(big: BigValue, size: TextUnit) {
 private fun ExpandedGarage(
     state: GarageCardState,
     value: GarageValue,
+    tankIcon: TankIcon,
     viewModel: GarageCardViewModel,
     onRefuel: () -> Unit,
     onSetLevel: () -> Unit,
@@ -348,7 +366,7 @@ private fun ExpandedGarage(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TankGauge(state.fuel.level.fraction, Modifier.size(width = 48.dp, height = 88.dp))
+            TankGauge(state.fuel.level.fraction, Modifier.size(width = 48.dp, height = 88.dp), tankIcon)
             Spacer(Modifier.width(16.dp))
             ValueText(bigValue(state, GarageValue.RANGE), 48.sp)
             Spacer(Modifier.weight(1f))
@@ -388,6 +406,8 @@ private fun ExpandedGarage(
         }
         Text("The small card shows", style = MaterialTheme.typography.labelLarge, color = colors.textDim)
         ValueChoice(value) { haptics.tick(); viewModel.setValue(it) }
+        Text("Tank icon", style = MaterialTheme.typography.labelLarge, color = colors.textDim)
+        Segments(TankIcon.entries, tankIcon, { it.label }, { "garage_tank_icon_${it.name}" }) { haptics.tick(); viewModel.setTankIcon(it) }
         FilledTonalButton(onClick = { haptics.tap(); onOpenGarage() }, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_card_open")) {
             Text("Open Garage")
         }

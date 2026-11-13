@@ -263,21 +263,30 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
             .testTag("trip_summary"),
     ) {
         when (mode) {
+            // 13a: the compact form puts the dash km/L button beside the figures, not under them, so a
+            // small card still has room for it (and for the service badge below).
             CardMode.Compact -> Column(
                 Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                SummaryTitle()
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "$distanceText ${ui.unit.distanceLabel} · $timeText",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"),
-                    maxLines = 1,
-                    softWrap = false,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SummaryTitle()
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "$distanceText ${ui.unit.distanceLabel} · $timeText",
+                            style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"),
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                    if (saved != null && log.bikeName != null) {
+                        Spacer(Modifier.width(12.dp))
+                        DashPrompt(log, onAskDash)
+                    }
+                }
                 if (outcome == TripOutcome.TooShort) SummaryNote(R.string.summary_too_short)
-                if (saved != null) DashPrompt(log, onAskDash, Modifier.padding(top = 6.dp))
                 log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 6.dp)) }
             }
             CardMode.Wide -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -285,6 +294,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                     SummaryTitle()
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) { figures.take(4).forEach { InlineStat(it) } }
+                    if (saved != null) DashPrompt(log, onAskDash, Modifier.padding(top = 8.dp))
                 }
                 Spacer(Modifier.width(16.dp))
                 SummaryRoute(saved, outcome, Modifier.weight(1f).fillMaxHeight())

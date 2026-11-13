@@ -75,7 +75,7 @@ class NextTurnViewModel @Inject constructor(
 }
 
 /**
- * The Next turn pane (Phase 8b): navigation readable without the map. While guiding: a big
+ * The Navigation pane (Phase 8b; "Next turn" until 13a): navigation readable without the map. While guiding: a big
  * arrow, the distance to the turn, the road, and the arrival time. Idle, it's a big
  * "Where to?" button (the same search as the map's). Planning, the route preview and
  * failures show the same cards as on the map, so it works in a layout without one too.
@@ -86,7 +86,7 @@ fun NextTurnCard(mode: CardMode, layout: DashboardLayoutState, viewModel: NextTu
     val unit by viewModel.unit.collectAsStateWithLifecycle()
     var searching by rememberSaveable { mutableStateOf(false) }
 
-    DashboardCard(title = "Next turn", pane = Pane.NAV, mode = mode, layout = layout) {
+    DashboardCard(title = "Navigation", pane = Pane.NAV, mode = mode, layout = layout) {
         Box(
             modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
             contentAlignment = Alignment.Center,
@@ -151,9 +151,13 @@ private fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMode
 
     when (mode) {
         CardMode.Compact, CardMode.Wide -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+            // 13a: the arrow is centred on the distance + road block, and the arrival line starts
+            // at that block's left edge (not the card's), so all the text shares one edge.
+            val glyphSize = if (mode == CardMode.Wide) 84.dp else 72.dp
+            val glyphGap = 14.dp
             Row(verticalAlignment = Alignment.CenterVertically) {
-                state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(if (mode == CardMode.Wide) 84.dp else 72.dp)) }
-                Spacer(Modifier.width(14.dp))
+                state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(glyphSize)) }
+                Spacer(Modifier.width(glyphGap))
                 Column(Modifier.weight(1f)) {
                     DistanceText(distance, if (mode == CardMode.Wide) 48.sp else 40.sp)
                     RoadText(road, MaterialTheme.typography.titleMedium.fontSize, maxLines = if (mode == CardMode.Wide) 1 else 2)
@@ -165,7 +169,8 @@ private fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMode
             }
             if (mode == CardMode.Compact) {
                 Spacer(Modifier.height(6.dp))
-                EtaText(eta, MaterialTheme.typography.titleMedium.fontSize, TextAlign.Start)
+                val indent = if (state.instruction != null) glyphSize + glyphGap else 0.dp
+                EtaText(eta, MaterialTheme.typography.titleMedium.fontSize, TextAlign.Start, Modifier.padding(start = indent))
             }
         }
         CardMode.Expanded, CardMode.Fullscreen -> {
@@ -219,14 +224,14 @@ private fun RoadText(text: String, size: TextUnit, maxLines: Int, align: TextAli
 )
 
 @Composable
-private fun EtaText(text: String, size: TextUnit, align: TextAlign) = Text(
+private fun EtaText(text: String, size: TextUnit, align: TextAlign, modifier: Modifier = Modifier) = Text(
     text,
     fontSize = size,
     color = MaterialTheme.colorScheme.primary,
     fontWeight = FontWeight.SemiBold,
     maxLines = 1,
     textAlign = align,
-    modifier = Modifier.testTag("next_turn_eta"),
+    modifier = modifier.testTag("next_turn_eta"),
 )
 
 @Composable

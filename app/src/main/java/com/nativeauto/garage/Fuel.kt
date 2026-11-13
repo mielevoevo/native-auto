@@ -317,3 +317,23 @@ fun formatLitres(l: Double): String = String.format(Locale.US, "%.1f L", l)
 
 /** "36.4 km/L". */
 fun formatKmPerL(v: Double): String = String.format(Locale.US, "%.1f km/L", v)
+
+// ---- Refuel entry rules (13a) --------------------------------------------------------------
+
+/** An entry this much (L) over the estimated room in the tank is still taken as "to the top": the estimate isn't that exact. */
+const val OVERFLOW_TOLERANCE_L = 0.2
+
+/**
+ * 13a: the litres field runs from 0 to the tank's size, never limited by the estimate (which can be
+ * wrong; the pump is the truth).
+ */
+fun refuelLitresFit(litres: Double, tankLitres: Double): Boolean = litres > 0 && litres <= tankLitres
+
+/**
+ * 13a: whether a fill-up counts as a full-tank anchor. The rider's "Filled to the top" switch, or an
+ * entry that doesn't fit in the room the estimate says is left ([spaceLeftL], null when unknown): the
+ * tank must have been fuller than thought, so after it the tank is full (the level is capped at the
+ * tank). The ±35% outlier rule in [learnConsumption] then decides whether that span teaches km/L.
+ */
+fun countsAsFull(filledToTop: Boolean, litres: Double, spaceLeftL: Double?): Boolean =
+    filledToTop || (spaceLeftL != null && litres > spaceLeftL + OVERFLOW_TOLERANCE_L)

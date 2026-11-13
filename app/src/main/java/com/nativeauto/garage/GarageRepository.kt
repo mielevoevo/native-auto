@@ -213,6 +213,8 @@ class GarageRepository @Inject constructor(
      * the fuel type's price.
      */
     suspend fun logRefuel(bikeId: String, draft: RefuelDraft) {
+        // 13a: more than the estimated room left means the tank was fuller than thought: a full anchor.
+        val full = countsAsFull(draft.full, draft.litres, fuel(bikeId).first().level.toFillLitres)
         val estimate = estimateNow(bikeId)
         val odo = if (estimate != null && abs(draft.odometerKm - estimate) < REFUEL_SAME_KM) {
             estimate
@@ -225,7 +227,7 @@ class GarageRepository @Inject constructor(
             dao.insertRefuel(
                 RefuelRecord(
                     bikeId = bikeId, timeMs = now, odometerKm = odo, litres = draft.litres, pricePerL = draft.pricePerL,
-                    totalRp = draft.totalRp, full = draft.full, fuelType = draft.fuel.name,
+                    totalRp = draft.totalRp, full = full, fuelType = draft.fuel.name,
                 ),
             )
             dao.upsertPrice(FuelPrice(draft.fuel.name, draft.pricePerL, now))

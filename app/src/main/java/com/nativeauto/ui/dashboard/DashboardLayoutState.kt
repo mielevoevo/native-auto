@@ -93,6 +93,23 @@ class DashboardLayoutState(
     /** Its swap trades places with the pane above or below; otherwise it moves the whole column across. */
     fun swapsVertically(pane: Pane): Boolean = canMaximize(pane)
 
+    /**
+     * 13a: the header's swap button exists only where it is the clearest way to rearrange: the two
+     * panes of Side by side and Rows, and Duo's tall pane. Quad and Duo's stacked panes rearrange
+     * by holding a card (drag, or let go to pick); a fullscreen pane has no swap.
+     */
+    fun canSwap(pane: Pane): Boolean {
+        val v = view
+        if (v.fullscreen != null) return false
+        val slot = v.panes.indexOf(pane)
+        if (slot < 0) return false
+        return when (v.preset) {
+            LayoutPreset.SIDE_BY_SIDE, LayoutPreset.ROWS -> true
+            LayoutPreset.DUO -> slot == 0
+            LayoutPreset.QUAD -> false
+        }
+    }
+
     private fun columnOf(pane: Pane): LayoutColumn? {
         val slot = view.panes.indexOf(pane).takeIf { it >= 0 } ?: return null
         return columnsOf(view.preset, bigOnLeft, split).first { slot in it.slots }

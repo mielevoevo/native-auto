@@ -84,4 +84,6 @@ abstract class DataBindings {
     @Binds abstract fun bindActiveBike(impl: GarageRepository): ActiveBike
     // 11b: the trip in progress is checkpointed for recovery after a kill.
     @Binds abstract fun bindTripCheckpoints(impl: RoomTripCheckpoints): TripCheckpoints
+    // 13a: the changelog and the last version the rider has seen it for.
+    @Binds abstract fun bindChangelogStore(impl: com.nativeauto.changelog.DataStoreChangelogStore): com.nativeauto.changelog.ChangelogStore
 }

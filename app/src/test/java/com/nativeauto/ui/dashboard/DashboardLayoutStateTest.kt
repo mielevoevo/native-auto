@@ -316,3 +316,38 @@ class DashboardLayoutStateTest {
         return requireNotNull(saver.restore(saved)) { "Saver failed to restore" }
     }
 }
+
+/** 13a: where the header's swap button exists. */
+class CanSwapTest {
+    @Test fun `duo - only the tall pane swaps`() {
+        val s = DashboardLayoutState()
+        assertTrue(s.canSwap(Pane.MAP))
+        assertFalse(s.canSwap(Pane.MEDIA))
+        assertFalse(s.canSwap(Pane.SPEED))
+    }
+
+    @Test fun `side by side and rows - both panes swap`() {
+        listOf(LayoutPreset.SIDE_BY_SIDE, LayoutPreset.ROWS).forEach { p ->
+            val s = DashboardLayoutState(preset = p)
+            s.view.panes.forEach { assertTrue("$p $it", s.canSwap(it)) }
+        }
+    }
+
+    @Test fun `quad - nobody swaps, drag and the picker do it`() {
+        val s = DashboardLayoutState(preset = LayoutPreset.QUAD)
+        s.view.panes.forEach { assertFalse(s.canSwap(it)) }
+    }
+
+    @Test fun `a pane the layout doesn't show or a fullscreen pane has no swap`() {
+        val s = DashboardLayoutState()
+        assertFalse(s.canSwap(Pane.CLOCK))
+        s.toggleFullscreen(Pane.MAP)
+        assertFalse(s.canSwap(Pane.MAP))
+    }
+
+    @Test fun `with a card maximized the tall pane still swaps`() {
+        val s = DashboardLayoutState()
+        s.toggleMaximized(Pane.SPEED)
+        assertTrue(s.canSwap(Pane.MAP))
+    }
+}

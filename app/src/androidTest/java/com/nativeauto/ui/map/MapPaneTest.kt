@@ -65,7 +65,6 @@ class MapPaneTest {
         click("fullscreen_SPEED"); click("fullscreen_SPEED")
         click("maximize_MEDIA"); click("maximize_MEDIA")
         click("maximize_SPEED")
-        click("swap_SPEED")                    // card order flips while maximized
         click("maximize_SPEED")
         click("fullscreen_MAP")
         Espresso.pressBack(); rule.waitForIdle()

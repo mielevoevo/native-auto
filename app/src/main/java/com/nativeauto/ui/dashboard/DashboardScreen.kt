@@ -58,6 +58,7 @@ import com.nativeauto.ui.components.LocalPanePicker
 import com.nativeauto.ui.components.LocalStatusCorner
 import com.nativeauto.ui.components.StatusCorner
 import com.nativeauto.ui.history.TripHistoryScreen
+import com.nativeauto.ui.changelog.ChangelogSheet
 import com.nativeauto.ui.garage.GarageCard
 import com.nativeauto.ui.garage.GarageScreen
 import com.nativeauto.ui.garage.GaragePrompts
@@ -66,6 +67,8 @@ import com.nativeauto.ui.media.MediaCard
 import com.nativeauto.ui.nav.NextTurnCard
 import com.nativeauto.ui.settings.SettingsSheet
 import com.nativeauto.ui.speed.SpeedCard
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.roundToInt
 
@@ -192,9 +195,10 @@ fun DashboardScreen(
                                     state = drag,
                                     layout = layout,
                                     holdMs = { hold },
-                                    // The map's body keeps its long-press (a destination): it lifts from its header.
-                                    allowAt = { pane != Pane.MAP || it.y <= mapHeaderPx },
+                                    // A fullscreen map's body keeps its long-press (a destination): it lifts from its header.
+                                    allowAt = { pane != Pane.MAP || layout.fullscreen != Pane.MAP || it.y <= mapHeaderPx },
                                     onLift = { haptics.lift() },
+                                    onArm = { dragScope.launch { haptics.lift(); delay(ARM_BUZZ_GAP_MS); haptics.lift() } },
                                     onPick = { pickerFor = it },
                                     onSwap = { haptics.tap() },
                                 )
@@ -206,6 +210,7 @@ fun DashboardScreen(
                                     val s = if (drag.lifted == pane) LIFT_SCALE else 1f
                                     scaleX = s
                                     scaleY = s
+                                    alpha = if (drag.lifted == pane && drag.armed) ARMED_ALPHA else 1f
                                 },
                         ) {
                             PaneContent(pane, layout, covered = { historyOpen || garageOpen }, openGarage = openGarage)
@@ -229,6 +234,8 @@ fun DashboardScreen(
             LinkStatusPill()
             // 11a: the away-km question and (debug) "which bike?".
             GaragePrompts()
+            // 13a: what changed, once after an update (waits while a trip or navigation runs).
+            ChangelogSheet()
         }
     }
 
@@ -285,6 +292,12 @@ private fun paneMeasurePolicy(rects: List<State<Rect>>, zOf: (Int) -> Float) = M
 /** The lifted card is drawn a little bigger. */
 private const val LIFT_SCALE = 1.03f
 
+/** An armed card (letting go opens the picker) is dimmed a little. */
+private const val ARMED_ALPHA = 0.8f
+
+/** The double buzz of arming: two pulses this far apart. */
+private const val ARM_BUZZ_GAP_MS = 110L
+
 /** The map lifts from its header strip (gutter + header row). */
 private val MAP_DRAG_HEADER = 64.dp
 
@@ -307,6 +320,32 @@ private fun DragOverlay(drag: PaneDragState, layout: DashboardLayoutState) {
                 cornerRadius = CornerRadius(20.dp.toPx()),
                 style = Stroke(stroke),
             )
+        }
+        // 13a stage one: the lifted card has a lit outline; stage two adds a ring filling in its centre.
+        drag.lifted?.let { p ->
+            val r = layout.rectOf(p)
+            val o = drag.offset.value
+            val left = r.left * size.width + o.x
+            val top = r.top * size.height + o.y
+            val w = r.width * size.width
+            val h = r.height * size.height
+            val inset = 4.dp.toPx()
+            val stroke = 3.dp.toPx()
+            drawRoundRect(
+                color = colors.cyan,
+                topLeft = Offset(left + inset + stroke / 2, top + inset + stroke / 2),
+                size = Size(w - 2 * inset - stroke, h - 2 * inset - stroke),
+                cornerRadius = CornerRadius(20.dp.toPx()),
+                style = Stroke(stroke),
+            )
+            val arm = drag.armProgress.value
+            if (arm > 0f) {
+                val radius = 40.dp.toPx()
+                val ringStroke = 6.dp.toPx()
+                val centre = Offset(left + w / 2, top + h / 2)
+                drawCircle(colors.outline, radius, centre, style = Stroke(ringStroke))
+                drawArc(colors.cyan, -90f, 360f * arm, false, centre - Offset(radius, radius), Size(radius * 2, radius * 2), style = Stroke(ringStroke, cap = StrokeCap.Round))
+            }
         }
         val progress = drag.holdProgress.value
         if (drag.holding != null && progress > 0f) {

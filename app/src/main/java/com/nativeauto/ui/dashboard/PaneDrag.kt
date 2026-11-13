@@ -27,8 +27,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * 12a (Rider-Feedback R3): hold a card to lift it, drag it onto another card to swap the two, or
- * lift and let go without moving to choose what the slot shows.
+ * 12a (Rider-Feedback R3) + 13a two-step feedback: hold a card to lift it, drag it onto another
+ * card to swap the two, or keep holding without moving to choose what the slot shows.
+ *
+ * Two stages, each with its own buzz:
+ *  1. **Lifted** (after the hold time): the card scales up, its outline lights, one buzz. Moving
+ *     drags it; letting go without moving does nothing, the card settles back.
+ *  2. **Armed** ([ARM_MS] more without moving): a second ring fills in the card's centre, the card
+ *     dims a little, a double buzz. Letting go now opens the pane picker. Moving at any time drops
+ *     back to dragging, so a drag can't open the picker by accident.
  *
  * The gesture only *watches* touches until the hold completes (pointer pass Initial, nothing
  * consumed), so a tap, a swipe, a scroll or a button press inside the card works as before; any
@@ -46,6 +53,9 @@ class PaneDragState internal constructor(private val scope: CoroutineScope) {
     /** The lifted card, following the finger. */
     var lifted by mutableStateOf<Pane?>(null); private set
 
+    /** The lifted card has been held still long enough: letting go opens the picker. */
+    var armed by mutableStateOf(false); private set
+
     /** The card the lifted one would swap with if dropped now. */
     var target by mutableStateOf<Pane?>(null); private set
 
@@ -54,6 +64,9 @@ class PaneDragState internal constructor(private val scope: CoroutineScope) {
 
     /** 0..1 while holding: the ring. */
     val holdProgress = Animatable(0f)
+
+    /** 0..1 while lifted and still: the second ring, in the card's centre. */
+    val armProgress = Animatable(0f)
 
     /** The lifted (or settling) card's offset from its slot, in pixels. */
     val offset = Animatable(Offset.Zero, Offset.VectorConverter)
@@ -68,6 +81,8 @@ class PaneDragState internal constructor(private val scope: CoroutineScope) {
     internal var screen: Size = Size.Zero
 
     private var ring: Job? = null
+    private var armTimer: Job? = null
+    private var dragging = false
 
     internal fun startHold(pane: Pane, at: Offset, holdMs: Long) {
         holding = pane
@@ -87,30 +102,61 @@ class PaneDragState internal constructor(private val scope: CoroutineScope) {
         scope.launch { holdProgress.snapTo(0f) }
     }
 
-    internal fun lift(pane: Pane) {
+    /** The hold completed. [onArm] runs when the card has then been held still for [ARM_MS]. */
+    internal fun lift(pane: Pane, onArm: () -> Unit) {
         ring?.cancel()
         holding = null
         lifted = pane
+        armed = false
+        dragging = false
         settling = null
-        scope.launch {
+        armTimer?.cancel()
+        armTimer = scope.launch {
             holdProgress.snapTo(0f)
             offset.snapTo(Offset.Zero)
+            armProgress.snapTo(0f)
+            armProgress.animateTo(1f, tween(ARM_MS.toInt(), easing = LinearEasing))
+            if (lifted == pane) {
+                armed = true
+                onArm()
+            }
         }
+    }
+
+    /** Moving drops back to plain dragging: the picker is no longer armed. */
+    private fun disarm() {
+        armTimer?.cancel()
+        armed = false
+        scope.launch { armProgress.snapTo(0f) }
     }
 
     internal fun move(delta: Offset, fingerAt: Offset, layout: DashboardLayoutState) {
         finger = fingerAt
+        if (!dragging) {
+            dragging = true
+            disarm()
+        }
         scope.launch { offset.snapTo(delta) }
-        target = paneAt(fingerAt, layout)?.takeIf { it != lifted }
+        val pane = lifted
+        target = if (pane == null || screen.width <= 0f || screen.height <= 0f) null else {
+            val home = layout.rectOf(pane)
+            val shift = Offset(delta.x / screen.width, delta.y / screen.height)
+            val others = Pane.entries.filter { it != pane && layout.isOnScreen(it) }.associateWith { layout.rectOf(it) }
+            pickDropTarget(
+                liftedRect = home.translate(shift),
+                homeRect = home,
+                finger = Offset(fingerAt.x / screen.width, fingerAt.y / screen.height),
+                others = others,
+            )
+        }
     }
 
-    /** Finger up after a lift. Returns the pane swapped with, if any. */
+    /** Finger up after a drag. Returns the pane swapped with, if any. */
     internal fun drop(layout: DashboardLayoutState): Pane? {
         val pane = lifted ?: return null
         val swapWith = target
         if (swapWith != null) layout.assign(pane, swapWith)
-        lifted = null
-        target = null
+        clearLift()
         settling = pane
         // Its slot moves to the target's rectangle with the panes' spring; the offset springs back
         // to zero with the same spring, so the card glides from under the finger into place.
@@ -121,11 +167,18 @@ class PaneDragState internal constructor(private val scope: CoroutineScope) {
         return swapWith
     }
 
-    /** Lifted and let go without moving. */
+    /** Lifted and let go without moving (armed or not). */
     internal fun release() {
-        lifted = null
-        target = null
+        clearLift()
         scope.launch { offset.snapTo(Offset.Zero) }
+    }
+
+    private fun clearLift() {
+        armTimer?.cancel()
+        lifted = null
+        armed = false
+        target = null
+        scope.launch { armProgress.snapTo(0f) }
     }
 
     /** The on-screen pane whose target rectangle holds [at] (root pixels). */
@@ -137,15 +190,51 @@ class PaneDragState internal constructor(private val scope: CoroutineScope) {
 
     companion object {
         const val RING_DELAY_MS = 150L
+
+        /** Held still this long after the lift, the picker is armed. */
+        const val ARM_MS = 700L
+
+        /** The share of the smaller card that must be covered for an overlap to pick a target. */
+        const val OVERLAP_THRESHOLD = 0.2f
     }
 }
 
 private fun Rect.containsInclusive(o: Offset) = o.x >= left && o.x <= right && o.y >= top && o.y <= bottom
 
+private fun Rect.areaOrZero() = if (width <= 0f || height <= 0f) 0f else width * height
+
 /**
- * The hold-to-lift gesture on one pane's slot. [allowAt] limits where it may start (the map's body
- * keeps its own long-press for destinations, so the map lifts from its header). [onLift] is called
- * when the card lifts (haptics), [onPick] when it is let go without moving, [onSwap] after a swap.
+ * 13a: which card a dragged one would swap with. All rectangles are fractions of the screen.
+ *  1. The card the lifted one covers most, if that is at least [PaneDragState.OVERLAP_THRESHOLD]
+ *     of the smaller of the two (dropping a card straight onto its neighbour works).
+ *  2. Otherwise the card under the finger.
+ *  3. Otherwise the nearest card by centre, but only once the lifted card has travelled at least
+ *     half the way to it (a small nudge never swaps).
+ */
+internal fun pickDropTarget(liftedRect: Rect, homeRect: Rect, finger: Offset, others: Map<Pane, Rect>): Pane? {
+    if (others.isEmpty()) return null
+    val liftedArea = liftedRect.areaOrZero()
+    val byOverlap = others.entries
+        .map { (pane, r) ->
+            val overlap = liftedRect.intersect(r).areaOrZero()
+            val share = overlap / minOf(liftedArea, r.areaOrZero()).coerceAtLeast(1e-6f)
+            Triple(pane, overlap, share)
+        }
+        .filter { it.third >= PaneDragState.OVERLAP_THRESHOLD }
+        .maxByOrNull { it.second }
+    if (byOverlap != null) return byOverlap.first
+    others.entries.firstOrNull { it.value.containsInclusive(finger) }?.let { return it.key }
+    val nearest = others.entries.minBy { (it.value.center - liftedRect.center).getDistance() }
+    val travelled = (liftedRect.center - homeRect.center).getDistance()
+    val toNearest = (nearest.value.center - homeRect.center).getDistance()
+    return if (travelled >= toNearest / 2f) nearest.key else null
+}
+
+/**
+ * The hold-to-lift gesture on one pane's slot. [allowAt] limits where it may start (a fullscreen
+ * map keeps its own long-press for destinations, so it lifts from its header). [onLift] is called
+ * when the card lifts (haptics), [onArm] when it is armed for the picker, [onPick] when it is let
+ * go armed, [onSwap] after a swap.
  */
 internal fun Modifier.paneDrag(
     pane: Pane,
@@ -154,6 +243,7 @@ internal fun Modifier.paneDrag(
     holdMs: () -> Long,
     allowAt: (Offset) -> Boolean,
     onLift: () -> Unit,
+    onArm: () -> Unit,
     onPick: (Pane) -> Unit,
     onSwap: () -> Unit,
 ): Modifier {
@@ -182,7 +272,7 @@ internal fun Modifier.paneDrag(
                         return@awaitEachGesture
                     }
 
-                    state.lift(pane)
+                    state.lift(pane, onArm)
                     onLift()
                     var moved = false
                     while (true) {
@@ -194,11 +284,13 @@ internal fun Modifier.paneDrag(
                         if (!moved && delta.getDistance() > viewConfiguration.touchSlop) moved = true
                         if (moved) state.move(delta, origin + change.position, layout)
                     }
-                    if (moved) {
-                        if (state.drop(layout) != null) onSwap()
-                    } else {
-                        state.release()
-                        onPick(pane)
+                    when {
+                        moved -> if (state.drop(layout) != null) onSwap()
+                        state.armed -> {
+                            state.release()
+                            onPick(pane)
+                        }
+                        else -> state.release()
                     }
                 }
             }

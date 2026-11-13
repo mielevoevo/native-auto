@@ -53,3 +53,9 @@ enum class GarageValue(val label: String) {
     NEXT_SERVICE("Next service"),
     KM_PER_L("km/L"),
 }
+
+/** 13a: how the Garage card draws the tank: the five-bar gauge (default) or a fixed pump icon. */
+enum class TankIcon(val label: String) {
+    GAUGE("Gauge"),
+    PLAIN("Plain"),
+}

@@ -7,7 +7,7 @@ import com.nativeauto.history.TripOutcome
 import com.nativeauto.ui.garage.DashKmPerLDialog
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import com.nativeauto.ui.garage.GarageCardViewModel
@@ -142,9 +142,19 @@ fun SpeedCardContent(
     lowFuel: Boolean = false,
 ) {
     DashboardCard(title = "Speed", pane = Pane.SPEED, mode = mode, layout = layout) {
-        val pager = rememberPagerState { FACES }
+        // 13a: the card always opens on the speed face. Not saved across a recreation: a pager state
+        // that remembers page 1 brought the log face back after a rotation or a restart.
+        val pager = remember { PagerState(pageCount = { FACES }) }
         // After a trip ends, dismissing the summary lands on the log face, ready for the next Start.
-        LaunchedEffect(ui.tripState) { if (ui.tripState == TripState.Ended) pager.scrollToPage(LOG_FACE) }
+        // Only on a change: a card first composed with an Ended trip (the app reopened) stays on the speed face.
+        var shownState by remember { mutableStateOf(ui.tripState) }
+        LaunchedEffect(ui.tripState) {
+            val before = shownState
+            shownState = ui.tripState
+            when {
+                ui.tripState == TripState.Ended && before != TripState.Ended -> pager.scrollToPage(LOG_FACE)
+            }
+        }
         // Clip so content overflowing a still-small card never draws over the header.
         Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             HorizontalPager(pager, Modifier.fillMaxSize().testTag("speed_faces")) { page ->

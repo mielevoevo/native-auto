@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -128,10 +129,22 @@ class FerrostarNavigator @Inject constructor(
             if (BuildConfig.DEBUG && settings.simulateNavigation.first()) {
                 simulation.route.value = route.geometry.map { GeoPoint(it.lat, it.lng) }
             }
-            val tts = voice()
-            core.spokenInstructionObserver = tts
+            // 13a: muted means no TTS and no audio focus at all. Ferrostar's observer asks for audio
+            // focus *before* it checks its mute flag, so a muted observer still ducked the music;
+            // while muted it is detached from the core instead (and created only when needed).
+            fun applyVoice(on: Boolean) {
+                if (on) {
+                    val speaker = voice()
+                    speaker.setMuted(false)
+                    core.spokenInstructionObserver = speaker
+                } else {
+                    core.spokenInstructionObserver = null
+                    tts?.setMuted(true) // stops a sentence already being spoken
+                }
+            }
+            applyVoice(settings.voiceGuidance.first()) // before the first instruction can fire
             // The mute button can flip the setting mid-route.
-            val mute = launch { settings.voiceGuidance.collect { tts.setMuted(!it) } }
+            val mute = launch { settings.voiceGuidance.drop(1).collect(::applyVoice) }
             core.startNavigation(route)
             // Until arrival; then guidance stops and "Arrived" stays up until dismissed.
             core.state.first { nav ->

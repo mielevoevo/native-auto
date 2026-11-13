@@ -100,8 +100,10 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
                 nav = nav,
                 following = following,
                 onFollowingChange = { following = it },
-                // The Next turn pane shows the turn and the ETA; the map then shows just the route.
+                // The Navigation pane shows the turn and the ETA; the map then shows just the route.
                 showNavPanels = !layout.isOnScreen(Pane.NAV),
+                // 13a: a long-press drops a pin only in fullscreen; elsewhere the card is held like the others.
+                pinEnabled = layout.fullscreen == Pane.MAP,
                 fadeIn = slept,
                 modifier = area,
             )
@@ -119,6 +121,7 @@ private fun AwakeMap(
     following: Boolean,
     onFollowingChange: (Boolean) -> Unit,
     showNavPanels: Boolean,
+    pinEnabled: Boolean,
     fadeIn: Boolean,
     modifier: Modifier,
 ) {
@@ -140,6 +143,7 @@ private fun AwakeMap(
             following = following,
             onFollowingChange = onFollowingChange,
             showNavPanels = showNavPanels,
+            pinEnabled = pinEnabled,
             camera = viewModel.camera,
             actions = viewModel,
             modifier = Modifier.fillMaxSize(),
@@ -190,6 +194,7 @@ private fun DashboardMap(
     following: Boolean,
     onFollowingChange: (Boolean) -> Unit,
     showNavPanels: Boolean,
+    pinEnabled: Boolean,
     camera: MapCameraMemory,
     actions: MapViewModel,
     modifier: Modifier,
@@ -207,8 +212,8 @@ private fun DashboardMap(
             navigating = nav is NavState.Navigating,
         )
     }
-    // Long-press drops a destination pin, except mid-guidance (too easy to do by accident).
-    val onLongPress: (GeoPoint) -> Unit = { p -> if (nav !is NavState.Navigating) actions.routeToPoint(p) }
+    // Long-press drops a destination pin (fullscreen only, 13a), except mid-guidance (too easy to do by accident).
+    val onLongPress: (GeoPoint) -> Unit = { p -> if (pinEnabled && nav !is NavState.Navigating) actions.routeToPoint(p) }
 
     Box(modifier) {
         val motion = LocalPaneMotion.current

@@ -105,6 +105,11 @@ class ReleaseSmokeTest {
         tap("settings_period_DAY")
         tap("settings_trip_options_done")
         tap("settings_theme_DARK")
+        // 13a: the changelog history.
+        tap("settings_whats_new")
+        find("changelog_history")
+        tap("changelog_history_done")
+        gone("changelog_history")
         tap("settings_done")
         gone("settings_sheet")
 
@@ -193,8 +198,8 @@ class ReleaseSmokeTest {
         }
         find("header_MEDIA").let { header ->
             val b = header.visibleBounds
-            // A hold past 12a's 1 s lift (a swipe of ~5 ms per step), let go without moving: the picker.
-            device.swipe(b.left + b.width() / 10, b.centerY(), b.left + b.width() / 10, b.centerY(), 350)
+            // A hold past the 1 s lift and the 0.7 s arming of 13a (a swipe of ~5 ms per step, 3 s), let go without moving: the picker.
+            device.swipe(b.left + b.width() / 10, b.centerY(), b.left + b.width() / 10, b.centerY(), 600)
         }
         tap("pick_GARAGE")
         gone("picker_sheet")
