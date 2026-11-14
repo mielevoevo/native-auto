@@ -813,3 +813,11 @@ Rider notes: the green pin at a pane's top-right in screenshots is Android's pri
 - **Existing installs keep their settings.** Every new setting gets a migration default that equals the old behaviour: an install with saved preferences and no accent key stays **cyan**; auto-start Off; Gauge tank icon; and so on. Only fresh installs get the new defaults (green accent), then Phase 16's setup asks. Implementation: a one-time check "preferences exist but this key doesn't" in `SettingsRepository`, with a test.
 - **Portrait 3 panes:** the plain stack is the first preset; "big pane on top, two side by side below" is added as a second 3-pane portrait preset in Phase 14 (it is just a preset in the layout model).
 - **Changelog (rider, 2026-11-14; first item of 13a):** `assets/changelog.md` (per version: number, date, plain-language bullets, backfilled from 2.0). Settings row "What's new" = full history, newest first. On the first open after an update a dismissible sheet shows only the new version's entries (last-seen versionCode in DataStore); deferred while a trip or navigation runs; none on a fresh install (Phase 16 welcome covers it); an upgrade from v3.3 sees it once on 3.4.1. Rule for CLAUDE.md: every sub-phase build adds its entry with the version bump.
+
+## Phases 4.1 / 4.1.1 / 4.2 (rider decisions, 2026-11-14)
+
+- 4.1 logo: adaptive icon from `nativeauto.svg` (mark cyan #4adffc + white), black background, themed icon, Play Store 512 px.
+- 4.1.1: default accent cyan #3FC8E0; Settings tab order Trip and Garage, Display, Layout, Navigation, Audio, Backup, Privacy and data, Debug;
+  portrait maximize by pane count (2: none; 3-4: a card takes two cards' space); one Add bike button on an empty Garage; call-controls switch;
+  auto-start on/off merged; Privacy and data tab; more title space in portrait; portrait layout switcher rows.
+- 4.2: first-run setup pages (7), landscape first, no scrolling on any page. Details in `.dev/Phase-4.1-4.2-Unattended.md`.

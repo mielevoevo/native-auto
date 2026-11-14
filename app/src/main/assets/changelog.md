@@ -1,5 +1,8 @@
 # What's new in Native Auto
 
+## 4.1 (24) · 2026-11-14
+- New app icon: the Native Auto mark (white shape with two cyan stripes) on black. It also has a single-colour version, so Android 13+ themed icons work.
+
 ## 4.0 (23) · 2026-11-14
 - Portrait: mount the phone upright. Settings, Layout, Orientation: Landscape (as before), Portrait, or Auto, which follows the phone's rotation lock and turns only after a steady tilt. Everyone starts in Landscape.
 - Portrait layouts: one card, two, three, "big card + two side by side", or four stacked. Turning the phone keeps the same cards in the same order, and the map and your trip carry on without a reload.

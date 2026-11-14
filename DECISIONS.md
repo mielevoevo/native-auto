@@ -563,3 +563,22 @@ are logged below, each with its reason.
 5. **Bottom sheets:** the 90% height cap and the pinned Save / Done above the keyboard in the Garage dialogs.
 6. **Swipe on media** (Mini and Narrow): the 64 dp swipe distance, the cue, accidental changes while riding.
 7. **Rotation:** panes slide, the map keeps its camera and the trip / navigation carry on (activity is never recreated; first time on a real phone).
+
+## Run 4.1 -> 4.1.1 -> 4.2 (unattended, started 2026-11-14)
+
+Spec: `.dev/Phase-4.1-4.2-Unattended.md`. Order and versions chosen by the rider: logo = v4.1 (versionCode 24), follow-ups = v4.1.1 (25),
+first-run setup pages = v4.2 (26). Rule for failures: fix at once, narrowest re-test first. The uncommitted v4.0 follow-up draft in the working
+tree is stashed during build 1 so the logo APK is built from clean code, then restored for build 2.
+
+### 4.1 (logo), 2026-11-14/15
+- Icon built as vector drawables from `nativeauto.svg` by `.dev/scratch/icon.py` (adaptive foreground, separate single-colour monochrome layer,
+  solid black background). The mark is centred by its bounding box and scaled so its farthest point sits at 31.5 dp from the centre (safe circle
+  is 33 dp). It is a wide mark, so that rule makes it smaller than a "61% square" would; chose the circle rule so no launcher mask can cut it.
+  The user's "nudge up 12%" applied to the old PNG, whose mark sat low; with a tight cutout the bounding-box centre is right.
+- Stale Android-default webp launcher icons deleted (minSdk 26 uses the adaptive icon only). Play Store PNG: `app/src/main/ic_launcher-playstore.png`
+  (512 px, black square, no rounded corners).
+- Checked on the emulator launcher: icon renders; the cyan ring around it is that launcher's own styling (also seen with the themed layer on).
+- The first ReleaseSmokeTest run failed ("No settings_open") on a freshly booted emulator (cold first launch over the 30 s wait, no crash in the
+  log); the rerun passed both tests. Not a code problem.
+- Working-tree draft for 4.1.1 was stashed (`git stash`, "v4.0 follow-up draft") so the 4.1 APK is built from committed code; restored for 4.1.1.
+- Concern for the phone test: the icon's size inside the mask (mark ~55% of the icon width) and the themed-icon look on the rider's launcher.
