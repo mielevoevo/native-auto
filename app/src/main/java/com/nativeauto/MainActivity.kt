@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var recorder: TripRecorder
     @Inject lateinit var autoStart: com.nativeauto.location.AutoStartMonitor
     @Inject lateinit var calls: com.nativeauto.call.CallRepository
+    @Inject lateinit var setup: com.nativeauto.setup.SetupState
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -75,6 +76,8 @@ class MainActivity : ComponentActivity() {
 
         // The accent is already stored (NativeAutoApp saw to it), so the first frame has the right colour.
         val firstAccent = kotlinx.coroutines.runBlocking { settings.accentColor.first() }
+        // 4.2: decided in NativeAutoApp; read once so the first frame is the right screen.
+        val firstPending = kotlinx.coroutines.runBlocking { setup.pending.first() }
         setContent {
             // Dark until DataStore answers (a few ms): the window is black anyway.
             val theme by settings.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.DARK)
@@ -82,8 +85,14 @@ class MainActivity : ComponentActivity() {
             NativeAutoTheme(theme, androidx.compose.ui.graphics.Color(accent)) {
                 // Exposes testTags as resource ids, so the benchmarks (UiAutomator) can find buttons.
                 Box(Modifier.semantics { testTagsAsResourceId = true }) {
-                    PermissionsGate(locationPermission) {
-                        DashboardRoute()
+                    // 4.2: a new install starts with the setup pages (no permission gate behind them: they ask).
+                    val pending by setup.pending.collectAsStateWithLifecycle(initialValue = firstPending)
+                    when (pending) {
+                        true -> com.nativeauto.ui.setup.SetupScreen()
+                        false -> PermissionsGate(locationPermission) {
+                            DashboardRoute()
+                        }
+                        null -> Unit
                     }
                 }
             }

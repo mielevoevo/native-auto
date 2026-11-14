@@ -39,4 +39,6 @@ interface SettingsEntryPoint {
     fun liveTripDao(): com.nativeauto.history.LiveTripDao
     /** 13a: tests mark the changelog seen, so its sheet never covers the UI under test. */
     fun changelogStore(): com.nativeauto.changelog.ChangelogStore
+    /** 4.2: tests mark the first-run setup done, so its pages never cover the UI under test (one test reopens it). */
+    fun setupState(): com.nativeauto.setup.SetupState
 }

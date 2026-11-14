@@ -785,6 +785,24 @@ Major drop: a vertically mounted phone. Spec `.dev/Phase-14b-Portrait.md`; choic
 - **Portrait layout switcher:** one row per layout (thumbnail 54x96 dp, name beside it), scrolls if tall.
 - **Empty Garage:** one `garage_add` button (editor with the model menu opens); `garage_add_<MODEL>` buttons are gone.
 
+## Phase 4.2: first-run setup pages (built 2026-11-15, v4.2, versionCode 26)
+
+- **When:** only on a new install (or after Reset app). `setup/SetupState` (own key `setup_done` in the settings DataStore, outside
+  `SettingsRepository`): `start()` runs first thing in `NativeAutoApp.onCreate`, before `initialiseDefaults` writes anything; an empty DataStore
+  means pending (`setupPendingFor`), any saved preference means done, and the answer is stored so an update half-way keeps it. `MainActivity`
+  shows `SetupScreen` instead of `PermissionsGate { DashboardRoute() }` while pending; `SetupViewModel.finish()` completes it. The dashboard's
+  permission gate still asks for location afterwards if the rider continued without it.
+- **Pages (`ui/setup/SetupScreen.kt`, tags `setup_page_N`, `setup_next`, `setup_back`, `setup_finish`):** 0 Welcome (launcher mark, Next only),
+  1 Appearance (orientation / theme / units dropdown rows, `setup_orientation` etc.; Portrait turns the screen at once through the normal
+  setting), 2 Location + Notifications (toggles ask Android's prompt; Notifications = POST_NOTIFICATIONS then, if still missing, the notification
+  access screen; Next with either off asks "Go back / Continue", `setup_confirm_*`), 3 Calls (call controls setting, READ_PHONE_STATE,
+  ANSWER_PHONE_CALLS), 4 Bike (`setup_add_bike` opens the Garage's `BikeEditor`; then the bike card + "Add another bike"), 5 Riding (auto-start,
+  Start after, auto layout, voice), 6 Ready (check / dash summary, "Start riding"). Landscape is two columns, portrait one stack; rows 48 dp,
+  buttons 52 dp, title 28 sp, body 16 sp, no scrolling (fits 411 dp tall). A toggle that is already on opens the system screen to turn it off.
+- **Tests:** `SetupStateTest` (unit), `SetupFlowTest` (device: every page fits with Back / Next in view in both orientations, finishing leaves the
+  dashboard, Back, Portrait turns the screen, Riding writes settings, bike card). `ResetSettingsRule` marks the setup done; `ReleaseSmokeTest.launch()`
+  walks the pages when a cleared install shows them (UiAutomator can't see the empty container tag, so it keys on `setup_next`).
+
 ## Known issues (deferred)
 
 - **Visible map costs ~1 CPU core continuously on the emulator** (about 10% with the map hidden);

@@ -19,10 +19,13 @@ class NativeAutoApp : Application() {
     @Inject lateinit var autoTrip: AutoTrip
     @Inject lateinit var garage: GarageRepository
     @Inject lateinit var settings: com.nativeauto.settings.SettingsRepository
+    @Inject lateinit var setup: com.nativeauto.setup.SetupState
 
     override fun onCreate() {
         super.onCreate()
         // 13c: first-run defaults that differ between a fresh install and an update (accent). Before anything else writes.
+        // 4.2: decide first whether the setup pages show (an empty DataStore = a new install), before any default is written.
+        runBlocking { setup.start() }
         val fresh = com.nativeauto.changelog.InstallInfo.isFreshInstall(this)
         runBlocking { settings.initialiseDefaults(fresh) }
         recorder.start()

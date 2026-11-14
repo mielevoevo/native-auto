@@ -78,7 +78,19 @@ class ReleaseSmokeTest {
         val intent = instrumentation.context.packageManager.getLaunchIntentForPackage(PACKAGE)!!
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         instrumentation.context.startActivity(intent)
+        // 4.2: a cleared install starts with the setup pages; walk them (it also exercises them on the minified build).
+        if (has("setup_next", 45_000)) walkSetup()
         find("settings_open", 60_000)
+    }
+
+    /** Welcome to the summary: Next six times (the permissions are already granted), then Start riding. */
+    private fun walkSetup() {
+        repeat(6) {
+            tap("setup_next")
+            if (has("setup_confirm_continue", 1_000)) tap("setup_confirm_continue")
+        }
+        tap("setup_finish")
+        gone("setup_finish")
     }
 
     @Before fun freshInstall() {

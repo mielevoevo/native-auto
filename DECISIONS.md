@@ -598,3 +598,19 @@ tree is stashed during build 1 so the logo APK is built from clean code, then re
 - **Auto-start hint** shortened (the odometer sentence is gone, since that mode is gone) so the Trip page fits.
 - Tests changed: `PortraitLayoutTest` (3 new maximize cases), `PortraitDashboardTest`, `DashboardScreenTest` (settings tab order, switch, call-controls switch,
   cyan default), `GarageScreenTest` (one Add bike button), `AccentColorTest`, `ReleaseSmokeTest` (opens Display first, Privacy page visit).
+
+### 4.2 (setup pages), 2026-11-15
+- **When to show:** "DataStore empty at app start" (not install-time comparison) so a Reset app shows the pages again and an update from any build with saved
+  preferences never does. Stored once, so an update half-way through keeps the pending state.
+- **Permissions:** the Notifications toggle is two steps because the platform splits them (POST_NOTIFICATIONS prompt, then the notification-access
+  screen, which is a system settings screen, not a prompt). "Call controls" is a plain setting (no permission); Phone state and Answer and end calls ask.
+  A toggle already on opens the system app/notification screen (the app can't revoke itself).
+- **Gate afterwards:** a rider who continues without location is still asked by the dashboard's existing `PermissionsGate` (unchanged); judged better than
+  a dashboard with no speed and no explanation.
+- **Sizes:** the rev 2 mock's "2.3 em" rows became 48 dp rows / 52 dp buttons (Material's minimum touch target) at 16 sp body, 28 sp title; Riding, the
+  longest page, leaves ~80 dp spare on a 411 dp tall phone. Dropdown menus open under their row and cover the rows below while open (normal).
+- **Row colour:** first draft used the bright "main button" token and the text vanished (seen on the emulator); rows use `buttonQuiet`.
+- **Smoke test:** the first release run after a rebuild failed again on the cold first launch ("No settings_open") and the rerun passed (same as 4.1 and
+  4.1.1: emulator dex-opt after install). Not a code problem; if it recurs, run the smoke test twice.
+- **Concerns for the phone test:** (1) the notification-access screen opens in the middle of the setup on the Notifications toggle: check it returns to the
+  page and the toggle reads On; (2) Android 13+ shows the permission prompt as a dialog over the setup, check both orientations; (3) the confirm dialog wording.

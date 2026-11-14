@@ -122,7 +122,7 @@ private fun idleTrack() = NowPlaying(
  * Notification access can't be requested with a dialog (§10); it's a toggle in system
  * settings. Android 11+ can open our own toggle directly; older versions get the list.
  */
-private fun openNotificationAccessSettings(context: Context) {
+internal fun openNotificationAccessSettings(context: Context) {
     val component = ComponentName(context, MediaListenerService::class.java).flattenToString()
     val direct = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)

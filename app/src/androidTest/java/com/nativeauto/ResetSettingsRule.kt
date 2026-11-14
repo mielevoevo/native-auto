@@ -45,6 +45,8 @@ class ResetSettingsRule : ExternalResource() {
         entry.garage().dismissPrompt()
         // 13a: the "What's new" sheet must not cover a test.
         entry.changelogStore().markSeen(com.nativeauto.BuildConfig.VERSION_CODE)
+        // 4.2: a fresh install shows the setup pages; tests start past them (SetupFlowTest reopens them).
+        entry.setupState().complete()
         settings.saveLayout(SavedLayout.Default)
         settings.setSpeedUnit(SpeedUnit.KMH)
         settings.setShowBattery(true)

@@ -1,5 +1,8 @@
 # What's new in Native Auto
 
+## 4.2 (26) · 2026-11-15
+- First-run setup: a new install starts with seven short pages. Welcome, Appearance (orientation, theme, units), Location and notifications, Calls, Your bike, Riding, and a summary. Each switch asks Android for its permission right there, and nothing is asked before you tap. Updating from an older version never shows it; everything stays in Settings (and Settings, Privacy and data).
+
 ## 4.1.1 (25) · 2026-11-15
 - New installs start with the cyan accent. If you picked another colour in Settings, Display, Colours, it stays.
 - Settings now open on Trip and Garage, with the Garage button and Reset trip (its note under it) on the left; Trip history, Trip options and Auto-start on the right. Auto-start is a single on/off switch with "Start after" under it.
