@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -165,6 +166,13 @@ fun CardChrome(
             // Screen readers can't hold-and-release: the picker as an action.
             .semantics { customActions = listOf(CustomAccessibilityAction("Choose what this pane shows") { picker?.invoke(pane); true }) }
             .testTag("header_${pane.name}")
+            // 4.1.1: a portrait card's title sits lower, as it does in landscape: a little extra above it and the header at least as tall as
+            // a header with buttons (Narrow has none). Mini (85 dp cards) keeps a small lift only.
+            .then(
+                if (LocalPortrait.current) {
+                    if (mode == CardMode.Mini) Modifier.padding(top = 2.dp) else Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
+                } else Modifier,
+            )
             .padding(start = 16.dp, end = 4.dp),
     ) {
         HeaderRow(

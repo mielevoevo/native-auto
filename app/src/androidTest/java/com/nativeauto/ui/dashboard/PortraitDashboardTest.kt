@@ -160,14 +160,19 @@ class PortraitDashboardTest {
         val first = tag("pick_MAP").top()
         near("map and media share a row", first, tag("pick_MEDIA").top(), 1f)
         assertTrue("the third tile starts a new row", tag("pick_SPEED").top() > first + 10f)
-        assertEquals("no maximize in portrait", 0, count("pick_maximize"))
+        assertEquals("three stacked panes can be maximized", 1, count("pick_maximize"))
         click("pick_MAP") // swap places with the map
         awaitGone("picker_sheet")
     }
 
-    @Test fun fullscreenInPortraitHasNoMaximizeAndExitsByItsButton() {
+    @Test fun fullscreenInPortraitExitsByItsButtonAndATapMaximizes() {
         goPortrait()
-        assertEquals(0, count("maximize_SPEED"))
+        // Maximize takes the space of two of the three cards; a second press puts it back.
+        click("maximize_SPEED")
+        mode(Pane.SPEED, CardMode.Expanded)
+        rule.waitUntil(10_000) { abs(slot(Pane.SPEED).h().value - rule.onRoot().h().value * 2f / 3f) < 1.5f }
+        click("maximize_SPEED")
+        rule.waitUntil(10_000) { abs(slot(Pane.SPEED).h().value - rule.onRoot().h().value / 3f) < 1.5f }
         click("fullscreen_SPEED")
         mode(Pane.SPEED, CardMode.Fullscreen)
         near("fills the screen", rule.onRoot().h().value, slot(Pane.SPEED).h().value)

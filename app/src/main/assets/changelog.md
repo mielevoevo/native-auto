@@ -1,5 +1,14 @@
 # What's new in Native Auto
 
+## 4.1.1 (25) · 2026-11-15
+- New installs start with the cyan accent. If you picked another colour in Settings, Display, Colours, it stays.
+- Settings now open on Trip and Garage, with the Garage button and Reset trip (its note under it) on the left; Trip history, Trip options and Auto-start on the right. Auto-start is a single on/off switch with "Start after" under it.
+- Settings, Privacy and data (new): open the system screens for app permissions and notification access, or Reset app (tap twice) to delete everything and start over.
+- Settings, Audio: a switch to turn call controls off.
+- Portrait: with three or four cards, a maximized card takes the space of two cards and the others shrink to slim rows; with two cards use Fullscreen. The card titles sit a little lower.
+- Portrait layout picker: one row per layout, picture on the left and name beside it.
+- An empty Garage (new install or portrait) shows a single Add bike button. The model is chosen in the form it opens.
+
 ## 4.1 (24) · 2026-11-14
 - New app icon: the Native Auto mark (white shape with two cyan stripes) on black. It also has a single-colour version, so Android 13+ themed icons work.
 

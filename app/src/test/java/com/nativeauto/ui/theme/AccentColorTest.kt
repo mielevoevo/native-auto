@@ -81,8 +81,8 @@ class AccentColorTest {
         assertTrue(accentWarnings(Color(0xFF808080)).isEmpty() || accentWarnings(Color(0xFF808080)).size <= 1)
     }
 
-    @Test fun `a fresh install gets green, anything else keeps cyan`() {
-        assertEquals("green", initialAccent(hasSavedPreferences = false, freshInstall = true).key)
+    @Test fun `every install starts cyan`() {
+        assertEquals("cyan", initialAccent(hasSavedPreferences = false, freshInstall = true).key)
         assertEquals("cyan", initialAccent(hasSavedPreferences = true, freshInstall = true).key)
         assertEquals("cyan", initialAccent(hasSavedPreferences = false, freshInstall = false).key)
         assertEquals("cyan", initialAccent(hasSavedPreferences = true, freshInstall = false).key)
@@ -104,9 +104,10 @@ class AccentColorTest {
         assertEquals(LEGACY_ACCENT_ARGB, store2.data.first()[intPreferencesKey("accent_color")])
     }
 
-    @Test fun `a fresh install starts green`() = runTest {
+    @Test fun `a fresh install starts cyan`() = runTest {
         val store = TestStore("fresh")
         store.initialiseAccent(freshInstall = true)
+        assertEquals(0xFF3FC8E0.toInt(), DefaultAccent.dark.toArgb())
         assertEquals(DefaultAccent.dark.toArgb(), store.data.first()[intPreferencesKey("accent_color")])
     }
 

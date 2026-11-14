@@ -56,9 +56,10 @@ class ResetSettingsRule : ExternalResource() {
         settings.setClockSeconds(false)
         settings.setGarageValue(com.nativeauto.settings.GarageValue.RANGE)
         settings.setTankIcon(com.nativeauto.settings.TankIcon.GAUGE)
-        // 13c: the colours of a fresh install (green accent, route line following it).
-        settings.setAccentColor(0xFF3DDC84.toInt())
+        // 13c / 4.1.1: the colours of a fresh install (cyan accent, route line following it).
+        settings.setAccentColor(0xFF3FC8E0.toInt())
         settings.setRouteColor(null)
+        settings.setCallControls(true)
         settings.setAutoStartMode(com.nativeauto.trip.AutoStartMode.OFF)
         settings.setAutoStartHoldS(com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S)
         settings.setTotalPeriod(com.nativeauto.settings.TotalPeriod.DAY)

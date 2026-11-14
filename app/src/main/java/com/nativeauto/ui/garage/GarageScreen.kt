@@ -102,7 +102,7 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     list == null -> Unit
-                    list.isEmpty() -> EmptyGarage { model -> haptics.tap(); newModel = model; editing = "" }
+                    list.isEmpty() -> EmptyGarage { haptics.tap(); newModel = BikeModel.NMAX_GEN1; editing = "" }
                     selected != null -> {
                         val tiles = @Composable { tileModifier: Modifier ->
                             list.forEach { bike ->
@@ -287,8 +287,9 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
     }
 }
 
+/** 4.1.1: one Add bike button; the editor it opens has the model menu. Same on a fresh install and in portrait. */
 @Composable
-private fun EmptyGarage(onAdd: (BikeModel) -> Unit) {
+private fun EmptyGarage(onAdd: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -303,14 +304,7 @@ private fun EmptyGarage(onAdd: (BikeModel) -> Unit) {
             color = AppTheme.colors.textDim,
         )
         Spacer(Modifier.height(20.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BikeModel.entries.forEach { model ->
-                FilledTonalButton(
-                    onClick = { onAdd(model) },
-                    modifier = Modifier.heightIn(min = 64.dp).testTag("garage_add_${model.name}"),
-                ) { Text(model.label) }
-            }
-        }
+        FilledTonalButton(onClick = onAdd, modifier = Modifier.heightIn(min = 64.dp).testTag("garage_add")) { Text("Add bike") }
     }
 }
 

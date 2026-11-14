@@ -91,7 +91,7 @@ class GarageScreenTest {
 
     @Test fun addingTheFirstBikeSetsItsOdometerAndMakesItTheOneRidden() {
         openGarage()
-        click("garage_add_NMAX_GEN1")
+        click("garage_add")
         await("garage_editor")
         assertEquals("6.6", tag("garage_tank").fieldText())
         tag("garage_name").performTextReplacement("Gen 1")

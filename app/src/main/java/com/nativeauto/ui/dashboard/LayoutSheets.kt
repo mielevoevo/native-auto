@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -114,11 +116,10 @@ internal fun LayoutSwitcherSheet(layout: DashboardLayoutState, onDismiss: () -> 
                 }
             }
             if (layout.portrait) {
-                // 14b: five tall thumbnails wrap onto rows, so all of them are in view without scrolling sideways.
-                androidx.compose.foundation.layout.FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                // 4.1.1: one row per layout, thumbnail on the left and its name beside it; the sheet is as tall as the rows need.
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) { thumbs() }
             } else {
                 Row(
@@ -140,18 +141,13 @@ private fun PresetThumb(
     onClick: () -> Unit,
 ) {
     val outline = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    Column(
-        modifier = Modifier
-            .clip(ThumbShape)
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics { this.selected = selected }
-            .testTag("preset_${preset.name}")
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    // Portrait lists the layouts as rows (thumbnail, then the name beside it); landscape keeps the thumbnail over its name.
+    val sideBySide = preset.portrait
+    val labelColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+    val thumb: @Composable () -> Unit = {
         BoxWithConstraints(
             Modifier
-                .size(width = if (preset.portrait) 72.dp else 168.dp, height = if (preset.portrait) 128.dp else 96.dp)
+                .size(width = if (preset.portrait) 54.dp else 168.dp, height = if (preset.portrait) 96.dp else 96.dp)
                 .border(BorderStroke(if (selected) 3.dp else 1.dp, outline), ThumbShape)
                 .padding(5.dp),
         ) {
@@ -167,16 +163,29 @@ private fun PresetThumb(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(pane.icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(pane.icon, contentDescription = null, modifier = Modifier.size(if (preset.portrait) 14.dp else 22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            preset.label,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-        )
+    }
+    val modifier = Modifier
+        .clip(ThumbShape)
+        .clickable(role = Role.RadioButton, onClick = onClick)
+        .semantics { this.selected = selected }
+        .testTag("preset_${preset.name}")
+        .padding(8.dp)
+    if (sideBySide) {
+        Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            thumb()
+            Spacer(Modifier.width(20.dp))
+            Text(preset.label, style = MaterialTheme.typography.titleLarge, color = labelColor)
+        }
+    } else {
+        Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+            thumb()
+            Spacer(Modifier.height(8.dp))
+            Text(preset.label, style = MaterialTheme.typography.titleMedium, color = labelColor)
+        }
     }
 }
 

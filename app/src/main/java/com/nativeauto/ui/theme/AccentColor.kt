@@ -21,18 +21,18 @@ val AccentPresets: List<AccentPreset> = listOf(
     AccentPreset("magenta", "Magenta", Color(0xFFFF6BCB), Color(0xFFB0187E)),
 )
 
-/** The accent of a fresh install. */
-val DefaultAccent: AccentPreset = AccentPresets.first { it.key == "green" }
+/** The accent of every install, new or old: cyan (4.1.1; fresh installs were green from 13c to 4.1). */
+val DefaultAccent: AccentPreset = AccentPresets.first { it.key == "cyan" }
 
 /** What every install from before 13c has: its settings and look stay as they were. */
-val LegacyAccent: AccentPreset = AccentPresets.first { it.key == "cyan" }
+val LegacyAccent: AccentPreset = DefaultAccent
 
 /**
- * Which accent an install starts with: green on a fresh install, cyan for an existing one. "Existing" is any
- * install that already has saved preferences or was updated over an older build.
+ * Which accent an install starts with: cyan, whether fresh or existing (the arguments stay so the one caller and its
+ * tests keep their shape). An accent already stored is never touched.
  */
-fun initialAccent(hasSavedPreferences: Boolean, freshInstall: Boolean): AccentPreset =
-    if (!hasSavedPreferences && freshInstall) DefaultAccent else LegacyAccent
+@Suppress("UNUSED_PARAMETER")
+fun initialAccent(hasSavedPreferences: Boolean, freshInstall: Boolean): AccentPreset = DefaultAccent
 
 /** `#RRGGBB`, `RRGGBB` or `#RGB`, any case, spaces around ignored. Null when it isn't a colour. */
 fun parseHexColor(text: String): Color? {

@@ -582,3 +582,19 @@ tree is stashed during build 1 so the logo APK is built from clean code, then re
   log); the rerun passed both tests. Not a code problem.
 - Working-tree draft for 4.1.1 was stashed (`git stash`, "v4.0 follow-up draft") so the 4.1 APK is built from committed code; restored for 4.1.1.
 - Concern for the phone test: the icon's size inside the mask (mark ~55% of the icon width) and the themed-icon look on the rider's launcher.
+
+### 4.1.1 (follow-ups), 2026-11-15
+- **Portrait maximize:** the rider's rule by pane count, read as "two cards' worth of height" = 2/n (3 stacked: 2/3, 4 stacked: 1/2), others slim Mini
+  rows sharing the rest. "Big + two": the small cards get the same rule (the layout turns into rows while one is maximized); the big pane has no
+  button because it has nothing to grow into. Two panes: no button (fullscreen does the same).
+- **Accent default:** `#3FC8E0` (the rider's choice over the logo's `#4adffc`). Existing installs already had it, so nothing migrates.
+- **Auto-start:** the enum keeps ODOMETER_ONLY (the monitor and its tests still use it) but nothing writes it; read-mapping turns a stored one into TRIP.
+- **Portrait title spacing:** the rider asked for "a bit more space, like landscape" without numbers; chose 6 dp extra + 48 dp minimum header (landscape's
+  header is as tall as its 48 dp buttons). Mini cards (85 dp) get 2 dp only so their content doesn't lose room. Concern for the phone: judge the amount.
+- **Privacy page:** Reset app uses `clearApplicationUserData()` (kills the app, wipes DataStore, Room, permissions). Two taps within 3 s, like Reset
+  trip. Not exercised by a device test (it would wipe the test app); only the button's presence is checked.
+- **Settings tab strip:** eight tabs scroll sideways in landscape ("Privacy and data" is cut off at the right edge on the emulator). Kept the rider's label;
+  Debug is debug-builds only. Concern: check the strip on the phone.
+- **Auto-start hint** shortened (the odometer sentence is gone, since that mode is gone) so the Trip page fits.
+- Tests changed: `PortraitLayoutTest` (3 new maximize cases), `PortraitDashboardTest`, `DashboardScreenTest` (settings tab order, switch, call-controls switch,
+  cyan default), `GarageScreenTest` (one Add bike button), `AccentColorTest`, `ReleaseSmokeTest` (opens Display first, Privacy page visit).

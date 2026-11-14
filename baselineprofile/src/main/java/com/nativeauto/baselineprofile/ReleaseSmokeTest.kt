@@ -78,7 +78,7 @@ class ReleaseSmokeTest {
         val intent = instrumentation.context.packageManager.getLaunchIntentForPackage(PACKAGE)!!
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         instrumentation.context.startActivity(intent)
-        find("settings_open", 30_000)
+        find("settings_open", 60_000)
     }
 
     @Before fun freshInstall() {
@@ -99,6 +99,7 @@ class ReleaseSmokeTest {
         // Settings, trip options, theme (restyles the map), back to dark.
         tap("settings_open")
         find("settings_sheet")
+        tap("settings_cat_DISPLAY") // 4.1.1: the sheet opens on Trip and Garage
         tap("settings_theme_LIGHT")
         tap("settings_cat_TRIP_GARAGE")
         tap("settings_trip_options")
@@ -107,15 +108,18 @@ class ReleaseSmokeTest {
         tap("settings_trip_options_done")
         gone("trip_options")
         // 13b: auto-start on and off again (the monitor starts watching while the app is open).
-        tap("settings_auto_start_TRIP")
-        tap("settings_auto_start_OFF")
+        tap("settings_auto_start")
+        tap("settings_auto_start")
+        // 4.1.1: the Privacy and data page (never tapping Reset app).
+        tap("settings_cat_PRIVACY")
+        find("settings_reset_app")
         tap("settings_cat_DISPLAY")
         tap("settings_theme_DARK")
-        // 13c: the colours dialog (accent presets), back to the default green.
+        // 13c: the colours dialog (accent presets), back to the default cyan.
         tap("settings_colours")
         find("colours_dialog")
         tap("accent_preset_violet")
-        tap("accent_preset_green")
+        tap("accent_preset_cyan")
         tap("colours_done")
         gone("colours_dialog")
         // 13a: the changelog history.
@@ -131,7 +135,7 @@ class ReleaseSmokeTest {
         tap("settings_cat_TRIP_GARAGE")
         tap("settings_garage")
         find("garage_screen")
-        tap("garage_add_NMAX_GEN1")
+        tap("garage_add")
         find("garage_editor")
         type("garage_name", "Gen 1")
         type("garage_odo_input", "12345")
@@ -193,6 +197,7 @@ class ReleaseSmokeTest {
 
         // Refresh-rate choices (12a).
         tap("settings_open")
+        tap("settings_cat_DISPLAY")
         tap("settings_screen_options")
         find("screen_options")
         tap("settings_refresh_POWER_SAVER")

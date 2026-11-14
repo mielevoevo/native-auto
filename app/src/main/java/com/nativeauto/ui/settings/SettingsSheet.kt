@@ -95,7 +95,7 @@ fun SettingsSheet(
     onOpenGarage: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    var categoryName by rememberSaveable { mutableStateOf(SettingsCategory.DISPLAY.name) }
+    var categoryName by rememberSaveable { mutableStateOf(SettingsCategory.TRIP_GARAGE.name) }
     val category = SettingsCategory.entries.first { it.name == categoryName }
     var screenOpen by rememberSaveable { mutableStateOf(false) }
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
@@ -176,6 +176,7 @@ fun SettingsSheet(
                         SettingsCategory.TRIP_GARAGE -> TripGaragePage(viewModel, wide, onOpenHistory, onOpenGarage, onOptions = { optionsOpen = true })
                         SettingsCategory.AUDIO -> AudioPage(viewModel, wide)
                         SettingsCategory.BACKUP -> PageColumns(wide, left = { BackupSection() })
+                        SettingsCategory.PRIVACY -> PrivacyPage(viewModel, wide)
                         SettingsCategory.DEBUG -> DebugPage(viewModel, wide)
                     }
                 }
@@ -186,12 +187,13 @@ fun SettingsSheet(
 
 /** The settings categories, in the order of the header. */
 enum class SettingsCategory(val label: String) {
+    TRIP_GARAGE("Trip and Garage"),
     DISPLAY("Display"),
     LAYOUT("Layout"),
     NAVIGATION("Navigation"),
-    TRIP_GARAGE("Trip and Garage"),
     AUDIO("Audio"),
     BACKUP("Backup"),
+    PRIVACY("Privacy and data"),
     DEBUG("Debug"),
 }
 
@@ -365,13 +367,6 @@ private fun TripGaragePage(
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
-            ActionRow(
-                title = stringResource(R.string.settings_trip),
-                hint = null,
-                action = stringResource(R.string.settings_history),
-                tag = "settings_history",
-                icon = AppIcons.History,
-            ) { haptics.tap(); onOpenHistory() }
             // 11a: the Garage (bikes, odometer); the hint names the bike being ridden.
             ActionRow(
                 title = stringResource(R.string.settings_garage),
@@ -381,14 +376,8 @@ private fun TripGaragePage(
                 tag = "settings_garage",
                 icon = AppIcons.Bike,
             ) { haptics.tap(); onOpenGarage() }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.settings_reset_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(16.dp))
+            // 4.1.1: the reset button with its description under it.
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 FilledTonalButton(
                     onClick = { if (viewModel.onResetTripTapped()) haptics.confirm() else haptics.tap() },
                     modifier = Modifier.heightIn(min = 56.dp).testTag("settings_reset_trip"),
@@ -403,9 +392,21 @@ private fun TripGaragePage(
                 ) {
                     Text(stringResource(if (resetArmed) R.string.settings_reset_confirm else R.string.settings_reset_trip))
                 }
+                Text(
+                    stringResource(R.string.settings_reset_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         right = {
+            ActionRow(
+                title = stringResource(R.string.settings_trip),
+                hint = null,
+                action = stringResource(R.string.settings_history),
+                tag = "settings_history",
+                icon = AppIcons.History,
+            ) { haptics.tap(); onOpenHistory() }
             // 9a/9c: auto-pause, auto-end, the period total and the trip figures live in one dialog.
             ActionRow(
                 title = stringResource(R.string.settings_trip_options),
@@ -414,27 +415,91 @@ private fun TripGaragePage(
                 tag = "settings_trip_options",
             ) { haptics.tap(); onOptions() }
             // 13b: the app starts the logging by itself while it is open (never in the background).
-            ChoiceRow(
+            // 4.1.1: one on/off switch (the old "odometer only" mode is gone).
+            SwitchRow(
                 label = R.string.settings_auto_start,
-                options = AutoStartMode.entries,
-                selected = autoStartMode,
-                text = { it.label },
-                tag = { "settings_auto_start_${it.name}" },
-                stacked = true,
-            ) { haptics.tick(); viewModel.setAutoStartMode(it) }
-            ChoiceRow(
-                label = R.string.settings_auto_start_hold,
-                options = AUTO_START_HOLD_CHOICES_S,
-                selected = autoStartHold,
-                text = { "$it s" },
-                tag = { "settings_auto_start_hold_$it" },
-                stacked = true,
-            ) { haptics.tick(); viewModel.setAutoStartHoldS(it) }
+                hint = null,
+                checked = autoStartMode != AutoStartMode.OFF,
+                tag = "settings_auto_start",
+            ) { haptics.toggle(it); viewModel.setAutoStartMode(if (it) AutoStartMode.TRIP else AutoStartMode.OFF) }
+            if (autoStartMode != AutoStartMode.OFF) {
+                ChoiceRow(
+                    label = R.string.settings_auto_start_hold,
+                    options = AUTO_START_HOLD_CHOICES_S,
+                    selected = autoStartHold,
+                    text = { "$it s" },
+                    tag = { "settings_auto_start_hold_$it" },
+                    stacked = true,
+                ) { haptics.tick(); viewModel.setAutoStartHoldS(it) }
+            }
             Text(
                 stringResource(R.string.settings_auto_start_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        },
+    )
+}
+
+/** 4.1.1: where the system keeps the rider's permissions, plus a full reset of the app. */
+@Composable
+private fun PrivacyPage(viewModel: SettingsViewModel, wide: Boolean) {
+    val haptics = rememberHaptics()
+    val context = LocalContext.current
+    val armed by viewModel.resetAppArmed.collectAsStateWithLifecycle()
+    PageColumns(wide,
+        left = {
+            ActionRow(
+                title = stringResource(R.string.settings_privacy_permissions),
+                hint = stringResource(R.string.settings_privacy_permissions_hint),
+                action = stringResource(R.string.settings_open),
+                tag = "settings_privacy_permissions",
+            ) {
+                haptics.tap()
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            ActionRow(
+                title = stringResource(R.string.settings_privacy_notifications),
+                hint = stringResource(R.string.settings_privacy_notifications_hint),
+                action = stringResource(R.string.settings_open),
+                tag = "settings_privacy_notifications",
+            ) {
+                haptics.tap()
+                context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        },
+        right = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilledTonalButton(
+                    onClick = {
+                        if (viewModel.onResetAppTapped()) {
+                            haptics.confirm()
+                            (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager).clearApplicationUserData()
+                        } else {
+                            haptics.tap()
+                        }
+                    },
+                    modifier = Modifier.heightIn(min = 56.dp).testTag("settings_reset_app"),
+                    colors = if (armed) {
+                        ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    } else {
+                        ButtonDefaults.filledTonalButtonColors()
+                    },
+                ) {
+                    Text(stringResource(if (armed) R.string.settings_reset_confirm else R.string.settings_reset_app))
+                }
+                Text(
+                    stringResource(R.string.settings_reset_app_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
     )
 }
@@ -662,7 +727,7 @@ private fun <T> ChoiceRow(
 
 /** The whole row toggles, not just the switch: a much bigger target. */
 @Composable
-private fun SwitchRow(
+internal fun SwitchRow(
     @StringRes label: Int,
     @StringRes hint: Int?,
     checked: Boolean,

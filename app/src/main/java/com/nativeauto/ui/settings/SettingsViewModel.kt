@@ -185,6 +185,27 @@ class SettingsViewModel @Inject constructor(
         return false
     }
 
+    private val _resetAppArmed = MutableStateFlow(false)
+
+    /** True between the first and second tap of Reset app (Privacy and data). */
+    val resetAppArmed: StateFlow<Boolean> = _resetAppArmed.asStateFlow()
+    private var disarmApp: Job? = null
+
+    /** Two taps within [RESET_CONFIRM_MS], like Reset trip; true when the caller should now clear the app's data. */
+    fun onResetAppTapped(): Boolean {
+        disarmApp?.cancel()
+        if (_resetAppArmed.value) {
+            _resetAppArmed.value = false
+            return true
+        }
+        _resetAppArmed.value = true
+        disarmApp = viewModelScope.launch {
+            delay(RESET_CONFIRM_MS)
+            _resetAppArmed.value = false
+        }
+        return false
+    }
+
     private companion object {
         const val RESET_CONFIRM_MS = 3_000L
     }

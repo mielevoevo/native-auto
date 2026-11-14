@@ -151,10 +151,45 @@ class PortraitLayoutTest {
         assertEquals(LayoutPreset.STACK3, s.preset)
     }
 
-    @Test fun `portrait has no maximize, a swap only between two stacked panes`() {
+    @Test fun `portrait maximize takes two cards of the layout, the rest share slim rows`() {
+        val s = DashboardLayoutState().apply { setPortrait(true) } // STACK3
+        assertEquals(LayoutPreset.STACK3, s.preset)
+        s.view.panes.forEach { assertTrue(s.canMaximize(it)) }
+        val p = s.view.panes[1]
+        s.toggleMaximized(p)
+        assertEquals(CardMode.Expanded, s.modeOf(p))
+        val others = s.view.panes.filter { it != p }
+        others.forEach { assertEquals(CardMode.Mini, s.modeOf(it)) }
+        val rects = computeRects(s.view, true, 0.5f)
+        assertEquals(2f / 3f, rects.getValue(p).height, 0.001f)
+        others.forEach { assertEquals(1f / 6f, rects.getValue(it).height, 0.001f) }
+        s.toggleMaximized(p)
+        assertEquals(CardMode.Wide, s.modeOf(p))
+    }
+
+    @Test fun `four stack maximize takes half the height`() {
+        val s = DashboardLayoutState().apply { setPortrait(true); setPreset(LayoutPreset.STACK4) }
+        s.view.panes.forEach { assertTrue(s.canMaximize(it)) }
+        val p = s.view.panes[3]
+        s.toggleMaximized(p)
+        val rects = computeRects(s.view, true, 0.5f)
+        assertEquals(0.5f, rects.getValue(p).height, 0.001f)
+        s.view.panes.filter { it != p }.forEach { assertEquals(1f / 6f, rects.getValue(it).height, 0.001f) }
+    }
+
+    @Test fun `two panes have no maximize, the big pane of big plus two has none either`() {
+        val s = DashboardLayoutState().apply { setPortrait(true); setPreset(LayoutPreset.STACK2) }
+        s.view.panes.forEach { assertFalse(s.canMaximize(it)) }
+        s.setPreset(LayoutPreset.BIG_TWO)
+        val panes = s.view.panes
+        assertFalse(s.canMaximize(panes[0]))
+        assertTrue(s.canMaximize(panes[1]))
+        assertTrue(s.canMaximize(panes[2]))
+    }
+
+    @Test fun `portrait swap only between two stacked panes`() {
         val s = DashboardLayoutState().apply { setPortrait(true) }
         assertEquals(LayoutPreset.STACK3, s.preset)
-        s.view.panes.forEach { assertFalse(s.canMaximize(it)) }
         s.view.panes.forEach { assertFalse(s.canSwap(it)) }
         s.setPreset(LayoutPreset.STACK2)
         s.view.panes.forEach { assertTrue(s.canSwap(it)) }

@@ -76,6 +76,10 @@ interface SettingsRepository {
     val autoStartMode: Flow<AutoStartMode>
     suspend fun setAutoStartMode(mode: AutoStartMode)
 
+    /** 14b+: the call card and its takeover. On by default (what every install had); the rider can opt out. */
+    val callControls: Flow<Boolean> get() = flowOf(true)
+    suspend fun setCallControls(enabled: Boolean) {}
+
     /** 13b: seconds at 15 km/h before auto-start acts, one of [AUTO_START_HOLD_CHOICES_S]. */
     val autoStartHoldS: Flow<Int>
     suspend fun setAutoStartHoldS(seconds: Int)
@@ -263,7 +267,15 @@ class DataStoreSettingsRepository @Inject constructor(
         prefs.map { enumOrDefault(it[GARAGE_VALUE], GarageValue.RANGE) }.distinctUntilChanged()
 
     override val autoStartMode: Flow<AutoStartMode> =
-        prefs.map { enumOrDefault(it[AUTO_START_MODE], AutoStartMode.OFF) }.distinctUntilChanged()
+        // 14b+: "odometer only" was folded into one auto-start; an install that had it keeps starting trips.
+        prefs.map { enumOrDefault(it[AUTO_START_MODE], AutoStartMode.OFF).let { m -> if (m == AutoStartMode.ODOMETER_ONLY) AutoStartMode.TRIP else m } }
+            .distinctUntilChanged()
+
+    override val callControls: Flow<Boolean> = prefs.map { it[CALL_CONTROLS] ?: true }.distinctUntilChanged()
+
+    override suspend fun setCallControls(enabled: Boolean) {
+        store.edit { it[CALL_CONTROLS] = enabled }
+    }
 
     override suspend fun setAutoStartMode(mode: AutoStartMode) {
         store.edit { it[AUTO_START_MODE] = mode.name }
@@ -386,6 +398,7 @@ class DataStoreSettingsRepository @Inject constructor(
         val TANK_ICON = stringPreferencesKey("tank_icon")
         val ACCENT = intPreferencesKey("accent_color")
         val ROUTE_COLOR = intPreferencesKey("route_color")
+        val CALL_CONTROLS = booleanPreferencesKey("call_controls")
         val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
         val AUTO_START_HOLD_S = intPreferencesKey("auto_start_hold_s")
         val REFRESH_MODE = stringPreferencesKey("refresh_mode")

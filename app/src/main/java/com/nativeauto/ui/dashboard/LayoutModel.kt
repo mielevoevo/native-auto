@@ -133,6 +133,20 @@ private fun portraitRects(view: LayoutView, out: HashMap<Pane, Rect>): Map<Pane,
     val panes = view.panes
     val full = view.fullscreen?.let { panes.indexOf(it) }?.takeIf { it >= 0 }
     val n = panes.size
+    val max = view.maximized?.let { panes.indexOf(it) }?.takeIf { it >= 0 && n > 1 && full == null }
+    if (max != null) {
+        // 4.1.1: a maximized portrait pane takes the height of two cards of the layout it came from (2/n); the others share the rest
+        // as slim full-width rows, in order.
+        val big = 2f / n
+        val small = (1f - big) / (n - 1)
+        var y = 0f
+        panes.forEachIndexed { slot, pane ->
+            val h = if (slot == max) big else small
+            out[pane] = Rect(0f, y, 1f, y + h)
+            y += h
+        }
+        return out
+    }
     // x range and y range of each slot, unzoomed
     fun slotRect(slot: Int): Rect = when {
         view.preset == LayoutPreset.BIG_TWO -> when (slot) {

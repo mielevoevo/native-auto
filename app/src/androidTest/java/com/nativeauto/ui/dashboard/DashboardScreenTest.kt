@@ -257,8 +257,8 @@ class DashboardScreenTest {
     private fun openSettings(category: String? = null) {
         click("settings_open")
         awaitSheet("settings_sheet")
-        // 13c: the sheet opens on Display; the other pages are a category away.
-        if (category != null) click("settings_cat_$category")
+        // 4.1.1: the sheet opens on Trip and Garage; tests that mean Display (the old first page) ask for it.
+        click("settings_cat_${category ?: "DISPLAY"}")
     }
 
     private fun closeSettings() {
@@ -782,13 +782,23 @@ class DashboardScreenTest {
         }
     }
 
+    @Test fun callControlsAreOnByDefaultAndTheSwitchIsSaved() {
+        assertEquals(true, runBlocking { resetSettings.settings.callControls.first() })
+        openSettings("AUDIO")
+        click("settings_call_controls")
+        rule.waitUntil(5_000) { !runBlocking { resetSettings.settings.callControls.first() } }
+        click("settings_call_controls")
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.callControls.first() } }
+        closeSettings()
+    }
+
     @Test fun autoStartStaysOffByDefaultAndTheChoiceIsSaved() {
         assertEquals(com.nativeauto.trip.AutoStartMode.OFF, runBlocking { resetSettings.settings.autoStartMode.first() })
         openSettings("TRIP_GARAGE")
-        click("settings_auto_start_ODOMETER_ONLY")
+        click("settings_auto_start")
         click("settings_auto_start_hold_45")
         rule.waitUntil(5_000) {
-            runBlocking { resetSettings.settings.autoStartMode.first() } == com.nativeauto.trip.AutoStartMode.ODOMETER_ONLY &&
+            runBlocking { resetSettings.settings.autoStartMode.first() } == com.nativeauto.trip.AutoStartMode.TRIP &&
                 runBlocking { resetSettings.settings.autoStartHoldS.first() } == 45
         }
         closeSettings()
@@ -859,7 +869,8 @@ class DashboardScreenTest {
 
     @Test fun everySettingsCategoryHasItsPage() {
         openSettings()
-        listOf("DISPLAY", "LAYOUT", "NAVIGATION", "TRIP_GARAGE", "AUDIO", "BACKUP", "DEBUG").forEach { cat ->
+        listOf("TRIP_GARAGE", "DISPLAY", "LAYOUT", "NAVIGATION", "AUDIO", "BACKUP", "PRIVACY", "DEBUG").forEach { cat ->
+            tag("settings_cat_$cat").performScrollTo() // eight tabs scroll sideways
             click("settings_cat_$cat")
             tag("settings_page_$cat").assertIsDisplayed()
         }
@@ -868,7 +879,8 @@ class DashboardScreenTest {
         click("settings_cat_NAVIGATION"); tag("settings_unit_KMH").assertIsDisplayed(); tag("settings_auto_layout").assertIsDisplayed()
         click("settings_cat_AUDIO"); tag("settings_voice").assertIsDisplayed()
         click("settings_cat_TRIP_GARAGE")
-        listOf("settings_history", "settings_garage", "settings_reset_trip", "settings_trip_options", "settings_auto_start_OFF").forEach { tag(it).assertIsDisplayed() }
+        listOf("settings_history", "settings_garage", "settings_reset_trip", "settings_trip_options", "settings_auto_start").forEach { tag(it).assertIsDisplayed() }
+        click("settings_cat_PRIVACY"); tag("settings_privacy_permissions").assertIsDisplayed(); tag("settings_reset_app").assertIsDisplayed()
         click("settings_cat_BACKUP"); tag("backup_export").assertIsDisplayed(); tag("backup_import").assertIsDisplayed()
         click("settings_cat_DEBUG"); tag("debug_fake_gps").assertIsDisplayed()
         click("settings_cat_DISPLAY"); tag("settings_colours").assertIsDisplayed(); tag("settings_whats_new").assertIsDisplayed()
@@ -877,7 +889,7 @@ class DashboardScreenTest {
     @Test fun theAccentCanBePickedByPresetOrHexAndTheRouteColourFollowsOrOverrides() {
         fun accent() = runBlocking { resetSettings.settings.accentColor.first() }
         fun route() = runBlocking { resetSettings.settings.routeColor.first() }
-        assertEquals(0xFF3DDC84.toInt(), accent())
+        assertEquals(0xFF3FC8E0.toInt(), accent())
         openSettings()
         click("settings_colours")
         awaitSheet("colours_dialog")

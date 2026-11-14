@@ -107,15 +107,20 @@ class DashboardLayoutState(
             v.fullscreen == pane && slot >= 0 -> CardMode.Fullscreen
             v.fullscreen != null || slot < 0 -> CardMode.Compact // hidden
             v.maximized == pane -> CardMode.Expanded
+            v.maximized != null && v.preset.portrait -> CardMode.Mini
             else -> naturalMode(v.preset, slot)
         }
     }
 
     /**
-     * A pane can be maximized when it shares its column (it then takes the whole column). Never in portrait:
-     * a stack's column is the whole screen, so fullscreen is the only zoom there.
+     * A pane can be maximized when it shares its column (it then takes the whole column). In portrait (4.1.1) only with three or
+     * more panes: it takes the space of two cards and the others become slim rows. With two panes fullscreen does the same, so
+     * there is no button; the big pane of "big + two" has nothing to grow into.
      */
-    fun canMaximize(pane: Pane): Boolean = !view.preset.portrait && (columnOf(pane)?.let { it.slots.size > 1 } ?: false)
+    fun canMaximize(pane: Pane): Boolean =
+        if (view.preset.portrait) view.panes.size >= 3 && pane in view.panes &&
+            !(view.preset == LayoutPreset.BIG_TWO && view.panes.first() == pane)
+        else columnOf(pane)?.let { it.slots.size > 1 } ?: false
 
     /** Its swap trades places with the pane above or below; otherwise it moves the whole column across. */
     fun swapsVertically(pane: Pane): Boolean = view.preset.portrait || canMaximize(pane)

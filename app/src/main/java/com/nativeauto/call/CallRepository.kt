@@ -33,6 +33,7 @@ class CallRepository @Inject constructor(
     private val notifications: NotificationCallSource,
     private val phone: PhoneCallSource,
     private val audio: CallAudio,
+    settings: com.nativeauto.settings.SettingsRepository,
     @ApplicationScope scope: CoroutineScope,
 ) {
     /** Bumped after an audio action so [state] reads the audio manager again. */
@@ -40,8 +41,8 @@ class CallRepository @Inject constructor(
     private var activeSince: Long? = null
 
     val state: StateFlow<CallState?> =
-        combine(notifications.call, phone.state, phone.canControl, audioTick) { observed, cellular, control, _ ->
-            val info = mergeCall(observed?.info, cellular)
+        combine(notifications.call, phone.state, phone.canControl, audioTick, settings.callControls) { observed, cellular, control, _, enabled ->
+            val info = if (enabled) mergeCall(observed?.info, cellular) else null
             if (info == null) {
                 activeSince = null
                 audio.newCall()
