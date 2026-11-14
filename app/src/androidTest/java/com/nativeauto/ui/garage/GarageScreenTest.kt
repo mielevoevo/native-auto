@@ -414,7 +414,7 @@ class GarageScreenTest {
         openGarage()
         await("garage_bike_Gen 1")
         rule.waitUntil(5_000) { tag("garage_range").fetchText() == "235 km" }
-        // Switch off "filled to the top", then enter 5 L although the tank was just filled.
+        // Switch off "Full refill", then enter 5 L although the tank was just filled.
         click("garage_refuel")
         await("garage_refuel_dialog")
         click("garage_refuel_full")

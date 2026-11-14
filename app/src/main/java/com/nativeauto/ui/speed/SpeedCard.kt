@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import com.nativeauto.ui.components.LocalPortrait
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -171,13 +172,20 @@ fun SpeedCardContent(
                     label = "speedMode",
                     modifier = Modifier.fillMaxSize(),
                 ) { m ->
+                    val portrait = LocalPortrait.current
                     if (page == LOG_FACE) {
                         LogFace(m, ui, log, actions)
                     } else when (m) {
                         CardMode.Compact -> SpeedCompact(ui)
-                        CardMode.Wide -> SpeedWide(ui)
-                        CardMode.Expanded -> SpeedExpanded(ui)
-                        CardMode.Fullscreen -> SpeedFullscreen(ui)
+                        // 14b: three stacked rows and four stacked cards: the value centred on the left, the figures
+                        // aligned to one left edge on the right (two figures in a Mini card, four in a row).
+                        CardMode.Wide -> if (portrait) SpeedBeside(ui, figures = 4, heroSize = 72.sp) else SpeedWide(ui)
+                        CardMode.Mini -> SpeedBeside(ui, figures = 2, heroSize = 64.sp)
+                        // A half-width card: the value centred on top, the figures below, left-aligned.
+                        CardMode.Narrow -> SpeedBelow(ui, figures = 4, heroSize = 56.sp)
+                        // Two stacked panes or one big one: the value on top, the figures below in two columns.
+                        CardMode.Expanded -> if (portrait) SpeedBelowGrid(ui, heroSize = 120.sp, tileHeight = 60.dp) else SpeedExpanded(ui)
+                        CardMode.Fullscreen -> if (portrait) SpeedBelowGrid(ui, heroSize = 150.sp, tileHeight = 76.dp) else SpeedFullscreen(ui)
                     }
                 }
             }
@@ -220,6 +228,86 @@ private fun SpeedWide(ui: SpeedometerUiState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ui.inlineStats().forEach { InlineStat(it) }
+        }
+    }
+}
+
+/**
+ * 14b: value on the left, centred in its column; the figures on the right, one per line, all starting at the same left
+ * edge ([StatLine]). The one-axis rule: each column has its own axis, the figures share a left edge.
+ */
+@Composable
+private fun SpeedBeside(ui: SpeedometerUiState, figures: Int, heroSize: TextUnit) {
+    Row(
+        modifier = Modifier.requiredHeightIn(min = 96.dp).fillMaxSize().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1.1f), contentAlignment = Alignment.Center) { HeroArea(ui, size = heroSize, explain = false) }
+        Spacer(Modifier.width(12.dp))
+        StatLines(ui.inlineStats().take(figures), Modifier.weight(1f).testTag("speed_inline_stats"))
+    }
+}
+
+/** 14b: the value centred on top, the figures under it aligned to one left edge. */
+@Composable
+private fun SpeedBelow(ui: SpeedometerUiState, figures: Int, heroSize: TextUnit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { HeroArea(ui, size = heroSize, explain = false) }
+        Spacer(Modifier.height(12.dp))
+        StatLines(ui.inlineStats().take(figures), Modifier.align(Alignment.CenterHorizontally).testTag("speed_inline_stats"))
+    }
+}
+
+/** 14b: value on top, the figures in tiles below in two columns (a two-card stack, a big pane, portrait fullscreen). */
+@Composable
+private fun SpeedBelowGrid(ui: SpeedometerUiState, heroSize: TextUnit, tileHeight: Dp) {
+    Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            HeroArea(ui, size = heroSize)
+        }
+        TelemetryGrid(ui, columns = 2, tileHeight = tileHeight)
+    }
+}
+
+/**
+ * Figures as lines, "Max 88 km/h": the labels share a left edge and a fixed width, so the values line up under each
+ * other too. Tags `inline_<stat tag>`, as the inline strip's, so tests find either.
+ */
+@Composable
+internal fun StatLines(stats: List<Stat>, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = Alignment.Start) {
+        stats.forEach { stat ->
+            Row(Modifier.testTag("inline_${stat.tag}"), verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = stat.label.lowercase().replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.width(72.dp).alignByBaseline(),
+                )
+                Text(
+                    text = stat.value,
+                    style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.alignByBaseline(),
+                )
+                if (stat.unit != null) {
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = stat.unit,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                }
+            }
         }
     }
 }

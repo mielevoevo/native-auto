@@ -48,6 +48,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.nativeauto.ui.components.AppDialogSurface
+import com.nativeauto.ui.components.DialogTwoColumns
 import com.nativeauto.ui.components.rememberHaptics
 import com.nativeauto.ui.components.sheetTag
 import com.nativeauto.ui.theme.AccentPreset
@@ -72,19 +74,13 @@ internal fun ColoursDialog(
     onDismiss: () -> Unit,
 ) {
     val haptics = rememberHaptics()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = AppTheme.colors.surface,
-            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 1000.dp).sheetTag("colours_dialog"),
-        ) {
-            Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    AppDialogSurface("colours_dialog", onDismiss, maxWidth = 1000.dp) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Colours", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                     FilledTonalButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp).testTag("colours_done")) { Text("Done") }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DialogTwoColumns {
+                    Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Accent", style = MaterialTheme.typography.titleMedium)
                         Text("The one highlight on a card: progress, switches, the lit outline.", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim)
                         ColourPicker(
@@ -93,7 +89,7 @@ internal fun ColoursDialog(
                             onPick = { haptics.tick(); onAccent(it.toArgb()) },
                         )
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Route line on the map", style = MaterialTheme.typography.titleMedium)
                         Row(
                             Modifier
@@ -118,8 +114,6 @@ internal fun ColoursDialog(
                         }
                     }
                 }
-            }
-        }
     }
 }
 

@@ -54,6 +54,7 @@ import com.nativeauto.garage.parseNumber
 import com.nativeauto.garage.priceOf
 import com.nativeauto.garage.refuelAmounts
 import com.nativeauto.garage.refuelLitresFit
+import com.nativeauto.ui.components.DialogTwoColumns
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Switch
 import androidx.compose.ui.semantics.Role
@@ -348,8 +349,8 @@ internal fun RefuelDialog(
             ) { Text("Save") }
         },
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DialogTwoColumns {
+            Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 13a: one switch instead of Full tank / Partial. On by default: most fill-ups go to the top.
                 Row(
                     Modifier
@@ -359,7 +360,7 @@ internal fun RefuelDialog(
                         .testTag("garage_refuel_full"),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Filled to the top", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Text("Full refill", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     Switch(checked = full, onCheckedChange = null, colors = appSwitchColors())
                 }
                 Segments(FuelType.entries, fuel, { it.label }, { "garage_refuel_fuel_${it.name}" }, label = { FuelLabel(it) }) {
@@ -371,7 +372,7 @@ internal fun RefuelDialog(
                     haptics.tick(); mode = it; amount = ""
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     NumberField(
                         amount, { amount = it }, if (mode == AmountMode.RUPIAH) "Paid (Rp)" else "Litres",

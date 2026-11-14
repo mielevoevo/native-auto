@@ -23,11 +23,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.ui.semantics.Role
@@ -82,7 +88,12 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
     val nav by viewModel.nav.collectAsStateWithLifecycle()
     val mode = layout.modeOf(Pane.MAP)
     // 13b: a compact map that is guiding is just the route, one slim chip and two header buttons.
-    val compactNav = mode == CardMode.Compact && nav is NavState.Navigating
+    // 14b: portrait's small cards count as compact too: the four-stack (Mini), the half-width one (Narrow) and a row of three.
+    val portrait = com.nativeauto.ui.components.LocalPortrait.current
+    val narrow = mode == CardMode.Mini || mode == CardMode.Narrow
+    // 14b: a fullscreen map on a vertically mounted phone: search along the top, the buttons and the trip's figures along the bottom.
+    val portraitFull = portrait && mode == CardMode.Fullscreen
+    val compactNav = (mode == CardMode.Compact || narrow || (mode == CardMode.Wide && portrait)) && nav is NavState.Navigating
     val voice by viewModel.voiceGuidance.collectAsStateWithLifecycle()
 
     var following by rememberSaveable { mutableStateOf(true) }
@@ -103,7 +114,8 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
         color = AppTheme.colors.card,
         chromeOverContent = true,
         headerActions = if (compactNav) {
-            { NavHeaderButtons(voice = voice, onToggleVoice = { viewModel.setVoiceGuidance(!voice) }, onEnd = viewModel::stopNavigation) }
+            // A narrow card keeps End alone, and asks twice: a bump or a glove brush must not end the route.
+            { NavHeaderButtons(voice = voice, onToggleVoice = { viewModel.setVoiceGuidance(!voice) }, onEnd = viewModel::stopNavigation, narrow = narrow) }
         } else null,
     ) {
         val area = Modifier.weight(1f).fillMaxWidth()
@@ -118,6 +130,8 @@ fun MapPane(layout: DashboardLayoutState, onScreen: Boolean, viewModel: MapViewM
                 // 13a: a long-press drops a pin only in fullscreen; elsewhere the card is held like the others.
                 pinEnabled = layout.fullscreen == Pane.MAP,
                 compactNav = compactNav,
+                narrow = narrow,
+                portraitFull = portraitFull,
                 fadeIn = slept,
                 modifier = area,
             )
@@ -137,6 +151,8 @@ private fun AwakeMap(
     showNavPanels: Boolean,
     pinEnabled: Boolean,
     compactNav: Boolean,
+    narrow: Boolean,
+    portraitFull: Boolean,
     fadeIn: Boolean,
     modifier: Modifier,
 ) {
@@ -160,6 +176,8 @@ private fun AwakeMap(
             showNavPanels = showNavPanels,
             pinEnabled = pinEnabled,
             compactNav = compactNav,
+            narrow = narrow,
+            portraitFull = portraitFull,
             camera = viewModel.camera,
             actions = viewModel,
             modifier = Modifier.fillMaxSize(),
@@ -212,11 +230,14 @@ private fun DashboardMap(
     showNavPanels: Boolean,
     pinEnabled: Boolean,
     compactNav: Boolean,
+    narrow: Boolean,
+    portraitFull: Boolean,
     camera: MapCameraMemory,
     actions: MapViewModel,
     modifier: Modifier,
 ) {
     var searching by rememberSaveable { mutableStateOf(false) }
+    val bottomRow = portraitFull && nav is NavState.Navigating && showNavPanels && !compactNav
     val stopFollowing = { onFollowingChange(false) }
     val navPhase = nav::class
     // 13c: the route line is the rider's route colour, or follows the accent.
@@ -266,24 +287,74 @@ private fun DashboardMap(
                 onCancel = actions::stopNavigation,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = MapEngine.current.bottomClearance).widthIn(max = 560.dp),
             )
-            is NavState.Navigating -> if (showNavPanels && !compactNav) NavigationSummary(
+            is NavState.Navigating -> if (showNavPanels && !compactNav && !bottomRow) NavigationSummary(
                 nav, unit, nowMs = System.currentTimeMillis(),
                 modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = MapEngine.current.bottomClearance),
             )
             else -> Unit
         }
 
-        if (nav !is NavState.Preview) {
+        // 14b, fullscreen in portrait while guiding: the trip's figures with Mute and End on the left and the map
+        // buttons on the right, in one row whose items share a top edge, so the buttons line up with the info box.
+        if (bottomRow && nav is NavState.Navigating) {
+            Row(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = MapEngine.current.bottomClearance),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NavigationSummary(nav, unit, nowMs = System.currentTimeMillis())
+                    NavQuickButtons(voice, onToggleVoice = { actions.setVoiceGuidance(!voice) }, onEnd = actions::stopNavigation)
+                }
+                MapButtons(
+                    showTraffic = showTraffic,
+                    onToggleTraffic = onToggleTraffic.takeIf { MapEngine.current.hasTraffic },
+                    following = following,
+                    onRecenter = { onFollowingChange(true) },
+                    navigating = false,
+                    compactNav = false,
+                    narrow = false,
+                    voice = voice,
+                    onToggleVoice = {},
+                    onSearch = null,
+                    onEndNavigation = {},
+                    modifier = Modifier,
+                )
+            }
+        }
+
+        // Fullscreen in portrait, nothing planned: "Where to?" runs along the top, under the card's header.
+        if (portraitFull && (nav is NavState.Idle || nav is NavState.Arrived || nav is NavState.Failed)) {
+            val haptics = rememberHaptics()
+            androidx.compose.material3.Surface(
+                onClick = { haptics.tap(); searching = true },
+                modifier = Modifier.align(Alignment.TopCenter).padding(start = 12.dp, end = 12.dp, top = MAP_TOP_PADDING + 4.dp).fillMaxWidth().widthIn(max = 560.dp).heightIn(min = 56.dp).testTag("map_search"),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                color = AppTheme.colors.buttonQuiet,
+                contentColor = AppTheme.colors.onButtonQuiet,
+                shadowElevation = 4.dp,
+            ) {
+                Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(AppIcons.Search, contentDescription = null)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Where to?", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+
+        if (nav !is NavState.Preview && !bottomRow) {
             MapButtons(
                 showTraffic = showTraffic,
-                onToggleTraffic = onToggleTraffic.takeIf { MapEngine.current.hasTraffic },
+                onToggleTraffic = onToggleTraffic.takeIf { MapEngine.current.hasTraffic && !narrow },
                 following = following,
                 onRecenter = { onFollowingChange(true) }, // the follow effect restarts and glides to the latest fix
                 navigating = nav is NavState.Navigating && !compactNav,
                 compactNav = compactNav,
+                narrow = narrow,
                 voice = voice,
                 onToggleVoice = { actions.setVoiceGuidance(!voice) },
-                onSearch = { searching = true }.takeIf { nav is NavState.Idle || nav is NavState.Arrived || nav is NavState.Failed },
+                // A narrow card has room for one button: recentre. Search comes with a bigger card.
+                onSearch = { searching = true }.takeIf { !narrow && !portraitFull && (nav is NavState.Idle || nav is NavState.Arrived || nav is NavState.Failed) },
                 onEndNavigation = actions::stopNavigation,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
             )
@@ -301,6 +372,33 @@ private fun DashboardMap(
     }
 }
 
+/** 14b: Mute and End as two 56 dp buttons under the trip's figures (fullscreen map in portrait, guiding). */
+@Composable
+private fun NavQuickButtons(voice: Boolean, onToggleVoice: () -> Unit, onEnd: () -> Unit) {
+    val haptics = rememberHaptics()
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FloatingActionButton(
+            onClick = { haptics.toggle(on = !voice); onToggleVoice() },
+            modifier = Modifier.testTag("nav_voice").semantics {
+                role = Role.Switch
+                stateDescription = if (voice) "On" else "Off"
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            Icon(if (voice) AppIcons.VolumeUp else AppIcons.VolumeOff, contentDescription = "Voice guidance")
+        }
+        FloatingActionButton(
+            onClick = { haptics.confirm(); onEnd() },
+            modifier = Modifier.testTag("nav_end"),
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ) {
+            Icon(AppIcons.Close, contentDescription = "End navigation")
+        }
+    }
+}
+
 /** Full-size (56 dp) buttons, stacked bottom-right: big enough to hit with gloves on. */
 @Composable
 private fun MapButtons(
@@ -310,6 +408,7 @@ private fun MapButtons(
     onRecenter: () -> Unit,
     navigating: Boolean,
     compactNav: Boolean,
+    narrow: Boolean,
     voice: Boolean,
     onToggleVoice: () -> Unit,
     onSearch: (() -> Unit)?,
@@ -371,7 +470,8 @@ private fun MapButtons(
             }
         }
         // 13b: a compact map that guides always has the follow button (it replaces End, now in the header).
-        if (!following || compactNav) {
+        // 14b: a narrow card always has it (accent ring while following): it is the card's only button.
+        if (!following || compactNav || narrow) {
             FloatingActionButton(
                 onClick = {
                     haptics.tap()
@@ -420,22 +520,35 @@ internal const val MAP_MOTION = "map"
  * the two buttons a compact header keeps; maximize and fullscreen are in the pane picker then.
  */
 @Composable
-internal fun RowScope.NavHeaderButtons(voice: Boolean, onToggleVoice: () -> Unit, onEnd: () -> Unit) {
+internal fun RowScope.NavHeaderButtons(voice: Boolean, onToggleVoice: () -> Unit, onEnd: () -> Unit, narrow: Boolean = false) {
     val haptics = rememberHaptics()
-    IconButton(
-        onClick = { haptics.toggle(on = !voice); onToggleVoice() },
-        modifier = Modifier.testTag("nav_voice").semantics {
-            role = Role.Switch
-            stateDescription = if (voice) "On" else "Off"
-        },
-    ) {
-        Icon(if (voice) AppIcons.VolumeUp else AppIcons.VolumeOff, contentDescription = "Voice guidance")
+    if (!narrow) {
+        IconButton(
+            onClick = { haptics.toggle(on = !voice); onToggleVoice() },
+            modifier = Modifier.testTag("nav_voice").semantics {
+                role = Role.Switch
+                stateDescription = if (voice) "On" else "Off"
+            },
+        ) {
+            Icon(if (voice) AppIcons.VolumeUp else AppIcons.VolumeOff, contentDescription = "Voice guidance")
+        }
+    }
+    // 14b: on a narrow card End asks twice (the first tap arms it for 3 s and shows red), like Reset trip and End trip.
+    var armed by remember { mutableStateOf(false) }
+    if (narrow && armed) {
+        LaunchedEffect(Unit) { delay(END_ARM_MS); armed = false }
     }
     IconButton(
-        onClick = { haptics.confirm(); onEnd() },
+        onClick = {
+            if (narrow && !armed) { armed = true; haptics.tap() } else { armed = false; haptics.confirm(); onEnd() }
+        },
         modifier = Modifier.testTag("nav_end"),
-        colors = IconButtonDefaults.iconButtonColors(contentColor = AppTheme.colors.red),
+        colors = if (armed) IconButtonDefaults.filledIconButtonColors(containerColor = AppTheme.colors.red, contentColor = AppTheme.colors.bg)
+        else IconButtonDefaults.iconButtonColors(contentColor = AppTheme.colors.red),
     ) {
-        Icon(AppIcons.Close, contentDescription = "End navigation")
+        Icon(AppIcons.Close, contentDescription = if (armed) "Tap again to end navigation" else "End navigation")
     }
 }
+
+/** How long a narrow card's armed End waits for its second tap. */
+internal const val END_ARM_MS = 3_000L

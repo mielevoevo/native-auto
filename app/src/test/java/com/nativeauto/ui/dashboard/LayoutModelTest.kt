@@ -60,7 +60,8 @@ class LayoutModelTest {
         val custom = DefaultAssignments + (LayoutPreset.QUAD to listOf(Pane.NAV, Pane.MAP, Pane.CLOCK, Pane.SPEED))
         assertEquals(custom, LayoutCodec.decode(LayoutCodec.encode(custom)))
         assertEquals(
-            "DUO=MAP,MEDIA,SPEED;SIDE_BY_SIDE=SPEED,MEDIA;ROWS=SPEED,MEDIA;QUAD=MAP,SPEED,MEDIA,CLOCK",
+            "DUO=MAP,MEDIA,SPEED;SIDE_BY_SIDE=SPEED,MEDIA;ROWS=SPEED,MEDIA;QUAD=MAP,SPEED,MEDIA,CLOCK;" +
+                "STACK1=SPEED;STACK2=SPEED,MAP;STACK3=MAP,SPEED,MEDIA;BIG_TWO=MAP,SPEED,MEDIA;STACK4=MAP,SPEED,MEDIA,CLOCK",
             LayoutCodec.encode(DefaultAssignments),
         )
     }

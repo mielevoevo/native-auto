@@ -74,23 +74,43 @@ class DashboardViewModel @Inject constructor(
 /** A damaged or hand-edited preferences file must not produce an unusable layout. */
 internal fun SavedLayout.sanitized() = copy(
     split = split.takeIf { it.isFinite() }?.coerceIn(MIN_SPLIT, MAX_SPLIT) ?: 0.5f,
-    preset = LayoutCodec.preset(preset).name,
+    preset = LayoutCodec.preset(preset).takeUnless { it.portrait }?.name ?: LayoutPreset.DUO.name,
+    portraitPreset = LayoutCodec.portraitPreset(portraitPreset)?.name.orEmpty(),
     slots = LayoutCodec.encode(LayoutCodec.decode(slots)),
 )
 
-/** A fresh layout state from what was saved last time. */
-internal fun SavedLayout.toLayoutState() = DashboardLayoutState(
-    preset = LayoutCodec.preset(preset),
-    assignments = LayoutCodec.decode(slots),
-    bigOnLeft = bigOnLeft,
-    split = split,
-)
+/**
+ * A fresh layout state from what was saved last time, for the screen's current orientation ([portrait]).
+ * Each orientation remembers its own preset; a portrait start with none saved derives it from the landscape one
+ * ([rotatedView]: same panes, same order).
+ */
+internal fun SavedLayout.toLayoutState(portrait: Boolean = false): DashboardLayoutState {
+    val landscape = LayoutCodec.preset(preset)
+    val portraitSaved = LayoutCodec.portraitPreset(portraitPreset)
+    val assignments = LayoutCodec.decode(slots)
+    if (!portrait) {
+        return DashboardLayoutState(
+            preset = landscape, assignments = assignments, bigOnLeft = bigOnLeft, split = split,
+            lastPortraitPreset = portraitSaved,
+        )
+    }
+    val turned = rotatedView(LayoutView(landscape, assignments.getValue(landscape)), toPortrait = true, lastPortrait = portraitSaved)
+    val start = portraitSaved ?: turned.preset
+    // Nothing saved for portrait yet: it starts as the landscape arrangement turned (same panes, same order).
+    val withDerived = if (portraitSaved != null) assignments else assignments + (turned.preset to turned.panes)
+    return DashboardLayoutState(
+        preset = start, assignments = withDerived, bigOnLeft = bigOnLeft, split = split,
+        portrait = true, lastLandscapePreset = landscape, lastPortraitPreset = portraitSaved,
+    )
+}
 
 /** What to save: the user's own arrangement, never an auto-layout override. */
 internal fun DashboardLayoutState.toSaved() = SavedLayout(
     bigOnLeft = bigOnLeft,
     split = split,
-    preset = preset.name,
+    // The landscape preset stays the one saved under `preset` (it is what older versions read).
+    preset = (if (portrait) lastLandscapePreset ?: LayoutPreset.DUO else preset).name,
+    portraitPreset = (if (portrait) preset else lastPortraitPreset)?.name.orEmpty(),
     slots = LayoutCodec.encode(assignments),
 )
 

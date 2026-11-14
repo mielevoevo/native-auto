@@ -1,5 +1,14 @@
 # What's new in Native Auto
 
+## 4.0 (23) · 2026-11-14
+- Portrait: mount the phone upright. Settings, Layout, Orientation: Landscape (as before), Portrait, or Auto, which follows the phone's rotation lock and turns only after a steady tilt. Everyone starts in Landscape.
+- Portrait layouts: one card, two, three, "big card + two side by side", or four stacked. Turning the phone keeps the same cards in the same order, and the map and your trip carry on without a reload.
+- Small portrait cards: the speed unit always shows; media has art, title and one play button, and you swipe sideways to change track; navigation sits on one centre line (arrow, road, then distance, arrival and time left).
+- The small map shows just the recentre button; while guiding it has a small End (tap twice). A fullscreen map has "Where to?" on top and Mute, End, traffic and recentre along the bottom.
+- Settings, history, Garage and the forms (refuel, bike, service) now fit a tall screen: bottom sheets with Save kept at the bottom.
+- A call over a fullscreen card shows as a small pill at the top with Answer / Decline (or End while you talk).
+- "Filled to the top" is now called Full refill.
+
 ## 3.5.1 (22) · 2026-11-14
 - Calls: when a call rings or is on, a Call card takes the least important card's place (the media card first) and gives it back when the call ends. It never takes over a fullscreen card.
 - Answer, Decline, Mute, End and the audio output show only where your phone lets the app do them. It works through the call notification, so it covers the phone app on any brand and calls from WhatsApp, Teams, Zoom and similar.

@@ -20,6 +20,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.Layout
@@ -31,6 +33,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nativeauto.device.BatteryStatus
 import android.text.format.DateFormat
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import com.nativeauto.ui.clock.ClockCard
 import com.nativeauto.ui.clock.ClockViewModel
 import com.nativeauto.ui.clock.formatClockTime
@@ -93,7 +97,11 @@ fun DashboardRoute(viewModel: DashboardViewModel = hiltViewModel()) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
         return
     }
-    val layout = rememberSaveable(saver = DashboardLayoutState.Saver) { start.toLayoutState() }
+    // 14b: the screen's orientation (the activity handles rotation itself, so this changes without recreation).
+    val portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
+    val layout = rememberSaveable(saver = DashboardLayoutState.Saver) { start.toLayoutState(portrait) }
+    // The saved state may come from the other orientation (a rotation while the app was away): turn it, no animation lost.
+    LaunchedEffect(portrait) { layout.setPortrait(portrait) }
     LaunchedEffect(layout) {
         snapshotFlow { layout.toSaved() }
             .distinctUntilChanged()
@@ -137,6 +145,19 @@ fun DashboardScreen(
     battery: BatteryStatus? = null,
     refresh: RefreshMode = RefreshMode.AUTO,
     dragHoldMs: Long = DEFAULT_DRAG_HOLD_MS,
+) {
+    // 14b: everything below, sheets and dialogs included, knows the screen is portrait.
+    CompositionLocalProvider(com.nativeauto.ui.components.LocalPortrait provides layout.portrait) {
+        DashboardScreenBody(layout, battery, refresh, dragHoldMs)
+    }
+}
+
+@Composable
+private fun DashboardScreenBody(
+    layout: DashboardLayoutState,
+    battery: BatteryStatus?,
+    refresh: RefreshMode,
+    dragHoldMs: Long,
 ) {
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
@@ -185,6 +206,7 @@ fun DashboardScreen(
         LocalPanePicker provides picker,
         LocalPaneMotion provides motion,
         LocalMotionDemand provides demand,
+        com.nativeauto.ui.components.LocalPortrait provides layout.portrait,
     ) {
         Box(
             Modifier
@@ -234,6 +256,10 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxSize(),
             )
             DragOverlay(drag, layout)
+            // 14b: a call over a fullscreen pane is a slim pill (the card never takes a fullscreen slot).
+            if (layout.fullscreen != null && Pane.CALL !in layout.view.panes) {
+                com.nativeauto.ui.call.CallPill(Modifier.align(Alignment.TopCenter).padding(top = 6.dp))
+            }
             // Over the panes, never instead of them: the map stays composed underneath (rule #3).
             if (historyOpen) TripHistoryScreen(onClose = { historyOpen = false })
             if (garageOpen) GarageScreen(onClose = { garageOpen = false })

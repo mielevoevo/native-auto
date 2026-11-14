@@ -48,6 +48,8 @@ class ResetSettingsRule : ExternalResource() {
         settings.saveLayout(SavedLayout.Default)
         settings.setSpeedUnit(SpeedUnit.KMH)
         settings.setShowBattery(true)
+        // 14b: every test starts landscape; portrait tests ask for it.
+        settings.setOrientationMode(com.nativeauto.settings.OrientationMode.LANDSCAPE)
         settings.setAutoLayout(true)
         settings.setThemeMode(ThemeMode.DARK)
         settings.setClockFace(ClockFace.DIGITAL)

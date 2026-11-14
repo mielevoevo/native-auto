@@ -38,6 +38,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.nativeauto.ui.components.AppDialogSurface
+import com.nativeauto.ui.components.DialogTwoColumns
+import com.nativeauto.ui.components.LocalPortrait
+import com.nativeauto.ui.components.PinnedActionDialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nativeauto.garage.BikeDraft
@@ -62,20 +66,17 @@ internal fun GarageDialog(
     action: @Composable () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = AppTheme.colors.surface,
-            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 900.dp).sheetTag(tag),
-        ) {
-            Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    action()
-                }
-                content()
-            }
+    // 14b: in portrait the form is a bottom sheet with its action pinned underneath; landscape keeps the old card.
+    if (LocalPortrait.current) {
+        PinnedActionDialog(tag, title, onDismiss, action, content)
+        return
+    }
+    AppDialogSurface(tag, onDismiss, maxWidth = 900.dp) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            action()
         }
+        content()
     }
 }
 
@@ -123,8 +124,8 @@ internal fun BikeEditor(
             ) { Text("Save") }
         },
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DialogTwoColumns {
+            Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(16) },
@@ -143,7 +144,7 @@ internal fun BikeEditor(
                 Text("Fuel", style = MaterialTheme.typography.titleMedium)
                 Segments(FuelType.entries, fuel, { it.label }, { "garage_fuel_${it.name}" }, label = { FuelLabel(it) }) { haptics.tick(); fuel = it }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     NumberField(tank, { tank = it }, "Tank (L)", tankL == null, "garage_tank", Modifier.weight(1f))
                     NumberField(reserve, { reserve = it }, "Reserve (L)", reserveL == null, "garage_reserve", Modifier.weight(1f))

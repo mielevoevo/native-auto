@@ -54,7 +54,9 @@ import com.nativeauto.ui.garage.ServiceBadge
 import com.nativeauto.history.TripRecord
 import com.nativeauto.trip.TripState
 import com.nativeauto.settings.TelemetryStat
+import androidx.compose.ui.unit.Dp
 import com.nativeauto.ui.components.AppIcons
+import com.nativeauto.ui.components.LocalPortrait
 import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.history.TrackSketch
 import com.nativeauto.ui.history.formatDay
@@ -107,26 +109,25 @@ class TripLogActions(
  */
 @Composable
 internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, actions: TripLogActions) {
-    when (mode) {
-        CardMode.Compact -> Column(
-            Modifier.requiredHeightIn(min = 112.dp).fillMaxSize(),
+    val portrait = LocalPortrait.current
+    when {
+        // 14b: portrait rows, four-stack and half-width cards all use the small centred face (a Wide row is only
+        // 400 dp across there, too narrow for controls beside four figures).
+        mode == CardMode.Compact || mode == CardMode.Mini || mode == CardMode.Narrow || (mode == CardMode.Wide && portrait) ->
+            LogCompact(ui, log, actions, small = mode == CardMode.Narrow)
+        mode == CardMode.Fullscreen && portrait -> Column(
+            Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            LogControls(ui.tripState, log.endArmed, actions)
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "${formatElapsed(ui.elapsed)} · ${"%.1f".format(ui.distance)} ${ui.unit.distanceLabel}",
-                style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
-                color = AppTheme.colors.textDim,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.testTag("log_line"),
-            )
-            // A due service outranks the total on the small face: it's rare and it matters.
-            log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) } ?: PeriodTotal(log, ui, small = true)
+            Box(Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
+                LogControls(ui.tripState, log.endArmed, actions)
+            }
+            StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 2, tileHeight = 76.dp)
+            log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) }
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { PeriodTotal(log, ui, small = false) }
         }
-        CardMode.Wide -> Row(
+        mode == CardMode.Wide -> Row(
             Modifier.requiredHeightIn(min = 112.dp).fillMaxSize().padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -137,16 +138,16 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
                 ui.tripStats(log.visible, prefix = "log_").take(4).forEach { InlineStat(it) }
             }
         }
-        CardMode.Expanded -> Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+        mode == CardMode.Expanded -> Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
             Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                 LogControls(ui.tripState, log.endArmed, actions)
             }
             log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp)) }
-            StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 3, tileHeight = 76.dp)
+            StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = if (portrait) 2 else 3, tileHeight = 76.dp)
             Spacer(Modifier.height(12.dp))
             PeriodTotal(log, ui, small = false)
         }
-        CardMode.Fullscreen -> Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
+        else -> Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
             Column(Modifier.weight(1.1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
                 Box(Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
                     LogControls(ui.tripState, log.endArmed, actions)
@@ -160,24 +161,51 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
     }
 }
 
+/** The small log face: the controls, one line of figures, and the service badge or the period total. */
+@Composable
+private fun LogCompact(ui: SpeedometerUiState, log: TripLogUi, actions: TripLogActions, small: Boolean) {
+    Column(
+        Modifier.requiredHeightIn(min = 112.dp).fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        LogControls(ui.tripState, log.endArmed, actions, small = small)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "${formatElapsed(ui.elapsed)} · ${"%.1f".format(ui.distance)} ${ui.unit.distanceLabel}",
+            style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+            color = AppTheme.colors.textDim,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.testTag("log_line"),
+        )
+        // A due service outranks the total on the small face: it's rare and it matters.
+        log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) } ?: PeriodTotal(log, ui, small = true)
+    }
+}
+
 /**
  * ▶ is Start (no trip, or after an end) or Resume (paused); ⏸ only while running; ⏹ while
  * running or paused. Buttons that can't act are dimmed, never hidden, so they don't move.
  */
 @Composable
-private fun LogControls(state: TripState, endArmed: Boolean, actions: TripLogActions) {
+private fun LogControls(state: TripState, endArmed: Boolean, actions: TripLogActions, small: Boolean = false) {
     val running = state == TripState.Running
     val paused = state == TripState.Paused
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    // 14b: a half-width card (about 190 dp) takes 54 dp buttons; everywhere else they stay glove-sized (64 dp).
+    val size = if (small) 54.dp else 64.dp
+    Row(horizontalArrangement = Arrangement.spacedBy(if (small) 6.dp else 16.dp), verticalAlignment = Alignment.CenterVertically) {
         LogButton(
+            size = size,
             icon = AppIcons.Play,
             description = if (paused) R.string.log_resume else R.string.log_start,
             enabled = !running,
             tag = "log_start",
             onClick = if (paused) actions.resume else actions.start,
         )
-        LogButton(AppIcons.Pause, R.string.log_pause, enabled = running, tag = "log_pause", onClick = actions.pause)
+        LogButton(size = size, icon = AppIcons.Pause, description = R.string.log_pause, enabled = running, tag = "log_pause", onClick = actions.pause)
         LogButton(
+            size = size,
             icon = AppIcons.Stop,
             description = if (endArmed) R.string.log_end_confirm else R.string.log_end,
             enabled = running || paused,
@@ -190,6 +218,7 @@ private fun LogControls(state: TripState, endArmed: Boolean, actions: TripLogAct
 
 @Composable
 private fun LogButton(
+    size: Dp,
     icon: ImageVector,
     @StringRes description: Int,
     enabled: Boolean,
@@ -210,9 +239,9 @@ private fun LogButton(
         enabled = enabled,
         colors = colors,
         // Gloves: well over the 56 dp minimum.
-        modifier = Modifier.size(64.dp).testTag(tag),
+        modifier = Modifier.size(size).testTag(tag),
     ) {
-        Icon(icon, contentDescription = stringResource(description), modifier = Modifier.size(32.dp))
+        Icon(icon, contentDescription = stringResource(description), modifier = Modifier.size(if (size < 60.dp) 28.dp else 32.dp))
     }
 }
 
@@ -247,6 +276,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
     val distanceText = "%.1f".format(ui.distance * p)
     val timeText = formatElapsed((ui.elapsed.inWholeMilliseconds * p).roundToLong().milliseconds)
     val saved = (outcome as? TripOutcome.Saved)?.trip
+    val portrait = LocalPortrait.current
     val dragged = remember { floatArrayOf(0f) }
     Box(
         modifier = Modifier
@@ -262,25 +292,33 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
             .semantics { contentDescription = "Trip summary" }
             .testTag("trip_summary"),
     ) {
-        when (mode) {
+        when {
             // 13a: the compact form puts the dash km/L button beside the figures, not under them, so a
-            // small card still has room for it (and for the service badge below).
-            CardMode.Compact -> Column(
+            // small card still has room for it (and for the service badge below). 14b: portrait rows, the four-stack
+            // and half-width cards use it too (a half-width card puts the button under the figures).
+            mode == CardMode.Compact || mode == CardMode.Mini || mode == CardMode.Narrow || (mode == CardMode.Wide && portrait) -> Column(
                 Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                val stacked = mode == CardMode.Narrow
+                val figuresColumn = @Composable {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         SummaryTitle()
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "$distanceText ${ui.unit.distanceLabel} · $timeText",
-                            style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"),
+                            style = (if (stacked) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall).copy(fontFeatureSettings = "tnum"),
                             maxLines = 1,
                             softWrap = false,
                         )
                     }
+                }
+                if (stacked) {
+                    figuresColumn()
+                    if (saved != null && log.bikeName != null) DashPrompt(log, onAskDash, Modifier.padding(top = 8.dp))
+                } else Row(verticalAlignment = Alignment.CenterVertically) {
+                    figuresColumn()
                     if (saved != null && log.bikeName != null) {
                         Spacer(Modifier.width(12.dp))
                         DashPrompt(log, onAskDash)
@@ -289,7 +327,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                 if (outcome == TripOutcome.TooShort) SummaryNote(R.string.summary_too_short)
                 log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 6.dp)) }
             }
-            CardMode.Wide -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            mode == CardMode.Wide -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1.4f)) {
                     SummaryTitle()
                     Spacer(Modifier.height(8.dp))
@@ -299,10 +337,10 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                 Spacer(Modifier.width(16.dp))
                 SummaryRoute(saved, outcome, Modifier.weight(1f).fillMaxHeight())
             }
-            CardMode.Expanded, CardMode.Fullscreen -> Column(Modifier.fillMaxSize().padding(16.dp)) {
+            else -> Column(Modifier.fillMaxSize().padding(16.dp)) {
                 SummaryTitle()
                 Spacer(Modifier.height(12.dp))
-                StatGrid(figures, columns = if (mode == CardMode.Fullscreen) 4 else 3, tileHeight = 76.dp)
+                StatGrid(figures, columns = if (portrait) 2 else if (mode == CardMode.Fullscreen) 4 else 3, tileHeight = 76.dp)
                 Spacer(Modifier.height(12.dp))
                 SummaryRoute(saved, outcome, Modifier.weight(1f).fillMaxWidth())
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -57,6 +57,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.nativeauto.ui.components.AppDialogSurface
+import com.nativeauto.ui.components.DialogTwoColumns
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nativeauto.BuildConfig
@@ -260,9 +262,24 @@ private fun DisplayPage(
 @Composable
 private fun LayoutPage(viewModel: SettingsViewModel, layout: DashboardLayoutState, wide: Boolean) {
     val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
+    val orientation by viewModel.orientationMode.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
+            ChoiceRow(
+                label = R.string.settings_orientation,
+                options = com.nativeauto.settings.OrientationMode.entries,
+                selected = orientation,
+                text = { it.label },
+                tag = { "settings_orientation_${it.name}" },
+                stacked = true,
+            ) { haptics.tick(); viewModel.setOrientationMode(it) }
+            Text(
+                stringResource(R.string.settings_orientation_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = AppTheme.colors.textDim,
+                modifier = Modifier.testTag("settings_orientation_hint"),
+            )
             ChoiceRow(
                 label = R.string.settings_map_width,
                 options = SPLIT_PRESETS,
@@ -458,13 +475,7 @@ private fun ScreenOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> U
     val refresh by viewModel.refreshMode.collectAsStateWithLifecycle()
     val showBattery by viewModel.showBattery.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = AppTheme.colors.surface,
-            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 1000.dp).sheetTag("screen_options"),
-        ) {
-            Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    AppDialogSurface("screen_options", onDismiss, maxWidth = 1000.dp) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.settings_screen_options), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                     FilledTonalButton(
@@ -472,8 +483,8 @@ private fun ScreenOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> U
                         modifier = Modifier.heightIn(min = 56.dp).testTag("settings_screen_options_done"),
                     ) { Text(stringResource(R.string.settings_done)) }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                DialogTwoColumns {
+                    Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         ChoiceRow(
                             label = R.string.settings_refresh,
                             options = RefreshMode.entries,
@@ -488,7 +499,7 @@ private fun ScreenOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> U
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         SwitchRow(
                             label = R.string.settings_battery,
                             hint = R.string.settings_battery_hint,
@@ -497,8 +508,6 @@ private fun ScreenOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> U
                         ) { haptics.toggle(it); viewModel.setShowBattery(it) }
                     }
                 }
-            }
-        }
     }
 }
 
@@ -510,13 +519,7 @@ private fun TripOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> Uni
     val totalPeriod by viewModel.totalPeriod.collectAsStateWithLifecycle()
     val hiddenStats by viewModel.hiddenStats.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = AppTheme.colors.surface,
-            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 1000.dp).sheetTag("trip_options"),
-        ) {
-            Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    AppDialogSurface("trip_options", onDismiss, maxWidth = 1000.dp) {
                 // Done beside the title: the dialog fits a landscape phone without scrolling.
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.settings_trip_options), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
@@ -525,8 +528,8 @@ private fun TripOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> Uni
                         modifier = Modifier.heightIn(min = 56.dp).testTag("settings_trip_options_done"),
                     ) { Text(stringResource(R.string.settings_done)) }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                DialogTwoColumns {
+                    Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         // 9a: "forgot to close the app". 0 = off.
                         val off = stringResource(R.string.settings_off)
                         val minutes = { m: Int -> if (m == 0) off else "$m min" }
@@ -556,7 +559,7 @@ private fun TripOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> Uni
                             stacked = true,
                         ) { haptics.tick(); viewModel.setTotalPeriod(it) }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(stringResource(R.string.settings_telemetry), style = MaterialTheme.typography.titleMedium)
                         Text(stringResource(R.string.settings_telemetry_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -576,8 +579,6 @@ private fun TripOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> Uni
                         }
                     }
                 }
-            }
-        }
     }
 }
 

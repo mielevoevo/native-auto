@@ -33,6 +33,9 @@ class DashboardLayoutState(
     split: Float = 0.5f,
     override: LayoutView? = null,
     lastArrangedAtMs: Long = Long.MIN_VALUE / 2,
+    portrait: Boolean = false,
+    lastLandscapePreset: LayoutPreset? = null,
+    lastPortraitPreset: LayoutPreset? = null,
     private val clock: () -> Long = ::monotonicMs,
 ) {
     // As with split: the private setter would clash with setPreset(LayoutPreset) on the JVM.
@@ -44,6 +47,16 @@ class DashboardLayoutState(
     var bigOnLeft by mutableStateOf(bigOnLeft); private set
     // The setter's JVM name would clash with setSplit(Float) below; rename it on the JVM only.
     var split by mutableFloatStateOf(split); @JvmName("assignSplit") private set
+
+    /**
+     * 14b: the screen is portrait (the phone is mounted upright). Set from the window's orientation, never saved with
+     * the arrangement (it follows the phone). [setPortrait] swaps the preset for its counterpart.
+     */
+    var portrait by mutableStateOf(portrait); @JvmName("assignPortrait") private set
+
+    /** Each orientation remembers the preset it last showed (the current one is [preset]); null = never used. */
+    var lastLandscapePreset by mutableStateOf(lastLandscapePreset); private set
+    var lastPortraitPreset by mutableStateOf(lastPortraitPreset); private set
 
     /** The auto layout on screen, or null when the user's own layout shows. */
     var override by mutableStateOf(override); private set
@@ -98,11 +111,14 @@ class DashboardLayoutState(
         }
     }
 
-    /** A pane can be maximized when it shares its column (it then takes the whole column). */
-    fun canMaximize(pane: Pane): Boolean = columnOf(pane)?.let { it.slots.size > 1 } ?: false
+    /**
+     * A pane can be maximized when it shares its column (it then takes the whole column). Never in portrait:
+     * a stack's column is the whole screen, so fullscreen is the only zoom there.
+     */
+    fun canMaximize(pane: Pane): Boolean = !view.preset.portrait && (columnOf(pane)?.let { it.slots.size > 1 } ?: false)
 
     /** Its swap trades places with the pane above or below; otherwise it moves the whole column across. */
-    fun swapsVertically(pane: Pane): Boolean = canMaximize(pane)
+    fun swapsVertically(pane: Pane): Boolean = view.preset.portrait || canMaximize(pane)
 
     /**
      * 13a: the header's swap button exists only where it is the clearest way to rearrange: the two
@@ -118,6 +134,9 @@ class DashboardLayoutState(
             LayoutPreset.SIDE_BY_SIDE, LayoutPreset.ROWS -> true
             LayoutPreset.DUO -> slot == 0
             LayoutPreset.QUAD -> false
+            // Portrait: two stacked panes trade places; the other stacks rearrange by drag and the picker.
+            LayoutPreset.STACK2 -> true
+            LayoutPreset.STACK1, LayoutPreset.STACK3, LayoutPreset.BIG_TWO, LayoutPreset.STACK4 -> false
         }
     }
 
@@ -164,8 +183,9 @@ class DashboardLayoutState(
 
     // ---- arrangement: the user's own, ends an override ----
 
-    /** One tap in the switcher. Starts unzoomed: a new layout is a fresh view. */
+    /** One tap in the switcher. Starts unzoomed: a new layout is a fresh view. A layout of the other orientation is ignored. */
     fun setPreset(preset: LayoutPreset) {
+        if (preset.portrait != portrait) return
         arrangeByHand()
         this.preset = preset
         baseFullscreen = null
@@ -223,6 +243,26 @@ class DashboardLayoutState(
         lastArrangedAtMs = clock()
     }
 
+    // ---- orientation (14b) ----
+
+    /**
+     * The phone turned: show the counterpart of the current layout ([rotatedView]), same panes in the same order,
+     * and remember the preset left behind for its own orientation. Not an arrangement by hand: auto layout's hold
+     * timer is untouched, and an auto-layout override is rotated too.
+     */
+    fun setPortrait(portrait: Boolean) {
+        if (portrait == this.portrait) return
+        if (this.portrait) lastPortraitPreset = preset else lastLandscapePreset = preset
+        val shown = userView
+        val turned = rotatedView(shown, portrait, lastPortraitPreset, lastLandscapePreset)
+        this.portrait = portrait
+        preset = turned.preset
+        assignments = assignments + (turned.preset to turned.panes)
+        baseFullscreen = turned.fullscreen
+        baseMaximized = null
+        override = override?.let { rotatedView(it, portrait, lastPortraitPreset, lastLandscapePreset) }
+    }
+
     // ---- auto layout ----
 
     fun applyAuto(view: LayoutView) { override = view }
@@ -249,6 +289,9 @@ class DashboardLayoutState(
                     it.split,
                     it.override?.let(::encodeView),
                     it.lastArrangedAtMs,
+                    it.portrait,
+                    it.lastLandscapePreset?.name,
+                    it.lastPortraitPreset?.name,
                 )
             },
             restore = {
@@ -261,6 +304,9 @@ class DashboardLayoutState(
                     split = it[5] as Float,
                     override = (it[6] as String?)?.let(::decodeView),
                     lastArrangedAtMs = it[7] as Long,
+                    portrait = it[8] as Boolean,
+                    lastLandscapePreset = (it[9] as String?)?.let { n -> LayoutPreset.entries.firstOrNull { p -> p.name == n } },
+                    lastPortraitPreset = (it[10] as String?)?.let { n -> LayoutPreset.entries.firstOrNull { p -> p.name == n } },
                 )
             },
         )

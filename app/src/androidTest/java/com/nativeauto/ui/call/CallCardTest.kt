@@ -176,10 +176,37 @@ class CallCardTest {
         Thread.sleep(2_000)
         rule.waitForIdle()
         assertTrue("the fullscreen card stays", slotArea("CALL") < 1f)
-        // Leaving fullscreen while the call rings: now the card comes.
+        // 14b: the call shows as a slim pill over it instead.
+        tag("call_pill").assertIsDisplayed()
+        // Leaving fullscreen while the call rings: now the card comes, and the pill goes.
         click("fullscreen_SPEED")
         rule.waitUntil(10_000) { slotArea("CALL") > 1f }
         tag("call_answer").assertIsDisplayed()
+        assertEquals(0, count("call_pill"))
+    }
+
+    /** 14b: over a fullscreen pane the call is a pill: name, Decline / Answer, the card untouched, gone with the call. */
+    @Test fun theFullscreenPillAnswersWithoutMovingTheCard() {
+        click("fullscreen_SPEED")
+        val before = tag("slot_SPEED").getBoundsInRoot()
+        postIncoming()
+        await("call_pill")
+        assertEquals("Ayu Lestari", tag("call_pill_name").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString { it.text })
+        assertEquals("Incoming call", tag("call_pill_status").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString { it.text })
+        tag("call_pill_decline").assertIsDisplayed()
+        assertEquals("the fullscreen card did not move or resize", before, tag("slot_SPEED").getBoundsInRoot())
+        assertTrue("no call card over a fullscreen pane", slotArea("CALL") < 1f)
+        click("call_pill_answer")
+        rule.waitUntil(5_000) { received.contains(ANSWER) }
+
+        // On the call: the pill offers End (and Mute where it works) instead.
+        postOngoing()
+        await("call_pill_end")
+        assertEquals(0, count("call_pill_answer"))
+        click("call_pill_end")
+        rule.waitUntil(5_000) { received.contains(HANG_UP) }
+        manager.cancel(ID)
+        awaitGone("call_pill")
     }
 
     private companion object {

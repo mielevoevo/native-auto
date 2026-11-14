@@ -708,13 +708,24 @@ envisioned", and it feels much snappier. Four revisions, planned as one phase (1
   while ringing: Answer / Decline. Big glove targets.
 - To check per skin: CallStyle actions present, HyperOS's full-screen incoming UI, One UI's dialer notification.
 
-### 14b · Portrait (for the bike mount)
-- App still launches **landscape by default**; it may detect the phone's position from the rotation / gravity
-  sensor and switch to portrait when mounted upright (plus a setting: Landscape / Portrait / Auto).
-- Portrait shapes for every preset (`computeRects` by orientation), pane order saved per orientation.
-- Rotation handled in-activity (`configChanges`): map, trip and navigation never recreated; panes slide.
-- Settings / dialogs to 1–2 columns; card modes re-checked at narrow widths; status corner on the top pane.
-- Tests: every layout in both orientations, map survives rotation, release smoke in portrait.
+### 14b · Portrait (for the bike mount) — v4.0, versionCode 23 (major drop). Spec agreed 2026-11-14
+Full working spec: `.dev/Phase-14b-Portrait.md`. Mockups: https://claude.ai/artifact/BaRB7AspLDQUmtosnQbAkA
+- **Orientation setting** Landscape / Portrait / Auto. Fixed modes ignore the sensor and the system lock. Auto follows the
+  system rotation lock; when unlocked it switches only after a delay and a very tolerant tilt (a mount propped ~5 degrees
+  never flips). Everyone (existing and fresh) starts Landscape; no re-setup.
+- **Portrait presets:** 1 pane, 2 stacked, 3 stacked, 3 = big on top + two side by side (exact 50/50), 4 stacked. Each
+  orientation remembers its own preset and pane order; rotating keeps the pane count and order.
+- **Mini cards** (4-stack): title only, no header buttons (Fullscreen / Maximize through the hold picker); media = art +
+  title + play with a horizontal swipe for next / previous; speed unit always visible.
+- **Alignment:** one axis per card. Speed (3+ cards): value centred in its column, figures aligned left. Navigation (narrow):
+  arrow, route name, then navigation info (distance, arrival time, time remaining), all centred.
+- **Map:** narrow card = recentre only (End only, two taps, while guiding with no Navigation pane). Fullscreen portrait: top bar
+  close / search / layers, button column top edge aligned with the navigation info box.
+- **Dialogs and sheets** follow portrait (bottom sheets, one column, pinned primary action); Settings gets an Orientation row.
+- **Calls:** ringing Decline + Answer; on call name above duration, controls below; during fullscreen a slim Answer / Decline pill.
+- **Refuel:** "Filled to the top" becomes "Full refill" (logic unchanged).
+- Tablets and foldables: WIP, not designed for yet.
+- Tests: only changed features, plus a portrait journey in the release smoke test and baseline profile.
 
 ## Later phases (planned 2026-11-09)
 

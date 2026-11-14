@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -44,6 +45,7 @@ import com.nativeauto.call.CallState
 import com.nativeauto.call.formatCallDuration
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.DashboardCard
+import com.nativeauto.ui.components.LocalPortrait
 import com.nativeauto.ui.components.rememberHaptics
 import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.dashboard.DashboardLayoutState
@@ -114,19 +116,25 @@ fun CallCard(mode: CardMode, layout: DashboardLayoutState, viewModel: CallViewMo
 private fun CallBody(call: CallState, now: Long, mode: CardMode, vm: CallViewModel) {
     val haptics = rememberHaptics()
     val big = mode == CardMode.Expanded || mode == CardMode.Fullscreen
+    // 14b: a half-width card (about 190 dp) and a four-stack card take smaller buttons; in portrait the name and
+    // the duration sit above, and the controls in the lower part of the card.
+    val small = mode == CardMode.Narrow || mode == CardMode.Mini
+    val portrait = LocalPortrait.current
     val colors = AppTheme.colors
     val status = when (call.info.phase) {
         CallPhase.RINGING -> "Incoming call"
         CallPhase.ACTIVE -> call.activeSinceMs?.let { formatCallDuration(now - it) } ?: "On the call"
     }
     Column(
-        Modifier.fillMaxSize().requiredHeightIn(min = 112.dp).padding(horizontal = 16.dp).padding(bottom = 12.dp),
-        verticalArrangement = Arrangement.Center,
+        Modifier.fillMaxSize().requiredHeightIn(min = 112.dp).padding(horizontal = if (small) 8.dp else 16.dp).padding(bottom = 12.dp),
+        verticalArrangement = if (portrait && !big) Arrangement.SpaceBetween else Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // The who and how long: kept together so the controls can sit apart, in the lower part, in portrait.
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f, fill = portrait && !big), verticalArrangement = Arrangement.Center) {
         Text(
             call.info.caller,
-            style = TextStyleFor(if (big) 44.sp else 30.sp),
+            style = TextStyleFor(if (big) 44.sp else if (small) 22.sp else 30.sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
@@ -147,9 +155,10 @@ private fun CallBody(call: CallState, now: Long, mode: CardMode, vm: CallViewMod
             maxLines = 1,
             modifier = Modifier.testTag("call_status"),
         )
+        }
         Spacer(Modifier.height(if (big) 20.dp else 10.dp))
-        val size = if (big) 80.dp else 64.dp
-        Row(horizontalArrangement = Arrangement.spacedBy(if (big) 28.dp else 18.dp), verticalAlignment = Alignment.CenterVertically) {
+        val size = if (big) 80.dp else if (small) 52.dp else 64.dp
+        Row(horizontalArrangement = Arrangement.spacedBy(if (big) 28.dp else if (small) 8.dp else 18.dp), verticalAlignment = Alignment.CenterVertically) {
             when (call.info.phase) {
                 CallPhase.RINGING -> {
                     if (call.capabilities.canDecline) {
@@ -234,5 +243,64 @@ private fun CallButton(
         colors = IconButtonDefaults.filledIconButtonColors(containerColor = container, contentColor = content),
     ) {
         Icon(icon, contentDescription = description, modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+
+/**
+ * 14b: while a pane is fullscreen the call card never takes its slot (the rider chose that pane), so the call shows as a
+ * slim pill at the top instead: who, then Decline / Answer while it rings, or the duration with Mute and End while it
+ * is on. It floats over the fullscreen card without moving or resizing it and goes when the call ends. It covers the
+ * card's header meanwhile; Back and the hold menu still leave fullscreen.
+ */
+@Composable
+fun CallPill(modifier: Modifier = Modifier, viewModel: CallViewModel = hiltViewModel()) {
+    val call by viewModel.state.collectAsStateWithLifecycle()
+    val now by viewModel.nowMs.collectAsStateWithLifecycle()
+    val c = call ?: return
+    val haptics = rememberHaptics()
+    val colors = AppTheme.colors
+    val ringing = c.info.phase == CallPhase.RINGING
+    val status = if (ringing) "Incoming call" else c.activeSinceMs?.let { formatCallDuration(now - it) } ?: "On the call"
+    androidx.compose.material3.Surface(
+        modifier = modifier.testTag("call_pill"),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+        color = colors.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (ringing) colors.accent else colors.outline),
+        shadowElevation = 6.dp,
+    ) {
+        Row(
+            Modifier.padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(Modifier.widthIn(max = 160.dp)) {
+                Text(c.info.caller, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("call_pill_name"))
+                Text(
+                    status,
+                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                    color = if (ringing) colors.accent else colors.textDim,
+                    maxLines = 1,
+                    modifier = Modifier.testTag("call_pill_status"),
+                )
+            }
+            if (ringing) {
+                if (c.capabilities.canDecline) CallButton(AppIcons.CallEnd, "Decline", "call_pill_decline", 52.dp, container = colors.red, content = Color.White) { haptics.confirm(); viewModel.decline() }
+                if (c.capabilities.canAnswer) CallButton(AppIcons.Call, "Answer", "call_pill_answer", 52.dp, container = colors.accent, content = colors.bg) { haptics.confirm(); viewModel.answer() }
+            } else {
+                if (c.capabilities.canMute) {
+                    CallButton(
+                        if (c.micMuted) AppIcons.MicOff else AppIcons.Mic,
+                        if (c.micMuted) "Unmute microphone" else "Mute microphone",
+                        "call_pill_mute",
+                        52.dp,
+                        container = if (c.micMuted) colors.navy else colors.buttonQuiet,
+                        content = if (c.micMuted) colors.accent else colors.onButtonQuiet,
+                        toggled = c.micMuted,
+                    ) { haptics.toggle(!c.micMuted); viewModel.toggleMute() }
+                }
+                if (c.capabilities.canEnd) CallButton(AppIcons.CallEnd, "End call", "call_pill_end", 52.dp, container = colors.red, content = Color.White) { haptics.confirm(); viewModel.hangUp() }
+            }
+        }
     }
 }

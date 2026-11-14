@@ -28,16 +28,19 @@ internal object AutoLayout {
 
     /** The layout to show while navigating, or null when the user's already shows the map. */
     internal fun navigationView(user: LayoutView, assignments: Map<LayoutPreset, List<Pane>>): LayoutView? {
-        if (user.preset == LayoutPreset.QUAD) {
-            return LayoutView(LayoutPreset.QUAD, NavQuad).takeIf { it != user }
+        if (user.preset == LayoutPreset.QUAD || user.preset == LayoutPreset.STACK4) {
+            // 14b: the portrait four-stack takes the same navigation set, in reading order from the top.
+            return LayoutView(user.preset, NavQuad).takeIf { it != user }
         }
         val mapShown = Pane.MAP in user.panes && (user.fullscreen == null || user.fullscreen == Pane.MAP) &&
             (user.maximized == null || user.maximized == Pane.MAP || !sharesColumn(user, Pane.MAP, user.maximized))
         if (mapShown) return null
-        val duo = assignments.getValue(LayoutPreset.DUO)
-        // The map goes in the tall slot when Duo doesn't hold it; whatever was there leaves.
+        // Landscape: Duo; portrait (14b): the big pane over two, its counterpart.
+        val target = if (user.preset.portrait) LayoutPreset.BIG_TWO else LayoutPreset.DUO
+        val duo = assignments.getValue(target)
+        // The map goes in the big slot when the layout doesn't hold it; whatever was there leaves.
         val panes = if (Pane.MAP in duo) duo else listOf(Pane.MAP) + duo.drop(1)
-        return LayoutView(LayoutPreset.DUO, panes)
+        return LayoutView(target, panes)
     }
 
     private fun sharesColumn(view: LayoutView, a: Pane, b: Pane): Boolean {

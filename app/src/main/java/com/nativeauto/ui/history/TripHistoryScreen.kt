@@ -92,6 +92,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.foundation.horizontalScroll
 import com.nativeauto.ui.components.AppIcons
+import com.nativeauto.ui.components.LocalPortrait
 import com.nativeauto.ui.components.rememberHaptics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -254,24 +255,41 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.testTag("history_message"))
                     Spacer(Modifier.width(16.dp))
                 }
+                val portrait = LocalPortrait.current
                 if (selected == null) {
                     trips?.let {
                         Text("${it.size} ${if (it.size == 1) "trip" else "trips"}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.width(16.dp))
-                    // 9d: ZIP backup (share sheet: save to Drive / Files) and import from one.
+                    // 14b: in portrait the two buttons get their own line under the title (see below).
+                    if (!portrait) {
+                        Spacer(Modifier.width(16.dp))
+                        // 9d: ZIP backup (share sheet: save to Drive / Files) and import from one.
+                        FilledTonalButton(
+                            onClick = { haptics.tap(); pickBackup.launch(arrayOf("application/zip", "application/octet-stream")) },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("history_import"),
+                        ) { Text("Import") }
+                        Spacer(Modifier.width(8.dp))
+                        FilledTonalButton(
+                            onClick = { haptics.tap(); viewModel.backup() },
+                            enabled = !trips.isNullOrEmpty(),
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("history_backup"),
+                        ) { Text("Back up") }
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+            }
+            if (selected == null && LocalPortrait.current) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FilledTonalButton(
                         onClick = { haptics.tap(); pickBackup.launch(arrayOf("application/zip", "application/octet-stream")) },
-                        modifier = Modifier.heightIn(min = 56.dp).testTag("history_import"),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("history_import"),
                     ) { Text("Import") }
-                    Spacer(Modifier.width(8.dp))
                     FilledTonalButton(
                         onClick = { haptics.tap(); viewModel.backup() },
                         enabled = !trips.isNullOrEmpty(),
-                        modifier = Modifier.heightIn(min = 56.dp).testTag("history_backup"),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("history_backup"),
                     ) { Text("Back up") }
                 }
-                Spacer(Modifier.width(16.dp))
             }
             if (selected == null && bikeNames.isNotEmpty()) {
                 BikeFilter(bikes, bikeFilter) { haptics.tick(); viewModel.filterBike(it) }
@@ -428,59 +446,83 @@ private fun TripDetail(
     onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        TripMapImage(trip, maps, width = 520.dp, height = 300.dp, modifier = Modifier.weight(1.3f).fillMaxHeight())
-        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
-            Text(
-                "${formatTime(trip.startedAtMs)} – ${formatTime(trip.endedAtMs)}" + (bikeName?.let { " · $it" } ?: ""),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-            Endpoints(trip, maxLines = 2, large = true)
-            Spacer(Modifier.height(16.dp))
-            val stats = TelemetryStat.entries.filter { it in visible }.map { s ->
-                s.label to when (s) {
-                    TelemetryStat.DISTANCE -> formatDistance(trip.distanceM, unit)
-                    TelemetryStat.TIME -> formatDuration(trip.durationMs)
-                    TelemetryStat.AVERAGE -> formatSpeed(trip.averageSpeedMps, unit)
-                    TelemetryStat.MAX -> formatSpeed(trip.maxSpeedMps, unit)
-                    TelemetryStat.MOVING_AVG -> formatSpeed(trip.movingAverageMps, unit)
-                    TelemetryStat.MOVING_TIME -> formatDuration(trip.movingMs)
-                    TelemetryStat.STOPPED_TIME -> formatDuration(trip.stoppedMs)
-                }
+    // 14b: landscape puts the map beside the figures; portrait stacks them: the map on top, the figures scrolling under it,
+    // and Export / Delete pinned along the bottom.
+    val portrait = LocalPortrait.current
+    val info = @Composable {
+        Text(
+            "${formatTime(trip.startedAtMs)} – ${formatTime(trip.endedAtMs)}" + (bikeName?.let { " · $it" } ?: ""),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Endpoints(trip, maxLines = 2, large = true)
+        Spacer(Modifier.height(16.dp))
+        val stats = TelemetryStat.entries.filter { it in visible }.map { st ->
+            st.label to when (st) {
+                TelemetryStat.DISTANCE -> formatDistance(trip.distanceM, unit)
+                TelemetryStat.TIME -> formatDuration(trip.durationMs)
+                TelemetryStat.AVERAGE -> formatSpeed(trip.averageSpeedMps, unit)
+                TelemetryStat.MAX -> formatSpeed(trip.maxSpeedMps, unit)
+                TelemetryStat.MOVING_AVG -> formatSpeed(trip.movingAverageMps, unit)
+                TelemetryStat.MOVING_TIME -> formatDuration(trip.movingMs)
+                TelemetryStat.STOPPED_TIME -> formatDuration(trip.stoppedMs)
             }
-            stats.chunked(2).forEach { row ->
-                Row(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                    row.forEach { (label, value) ->
-                        Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
-                            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                        }
+        }
+        stats.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                row.forEach { (label, value) ->
+                    Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
+                        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            FilledTonalButton(
-                onClick = onExport,
-                modifier = Modifier.heightIn(min = 56.dp).testTag("history_export"),
-            ) { Text("Export GPX") }
+        }
+    }
+    val export = @Composable { modifier: Modifier ->
+        FilledTonalButton(
+            onClick = onExport,
+            modifier = modifier.heightIn(min = 56.dp).testTag("history_export"),
+        ) { Text("Export GPX") }
+    }
+    val delete = @Composable { modifier: Modifier ->
+        FilledTonalButton(
+            onClick = onDelete,
+            modifier = modifier.heightIn(min = 56.dp).testTag("history_delete"),
+            colors = if (deleteArmed) {
+                ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            } else {
+                ButtonDefaults.filledTonalButtonColors()
+            },
+        ) {
+            Icon(AppIcons.Delete, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (deleteArmed) "Tap again to delete" else "Delete trip", maxLines = 1)
+        }
+    }
+    if (portrait) {
+        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+            TripMapImage(trip, maps, width = 520.dp, height = 300.dp, modifier = Modifier.fillMaxWidth().height(220.dp))
             Spacer(Modifier.height(12.dp))
-            FilledTonalButton(
-                onClick = onDelete,
-                modifier = Modifier.heightIn(min = 56.dp).testTag("history_delete"),
-                colors = if (deleteArmed) {
-                    ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                } else {
-                    ButtonDefaults.filledTonalButtonColors()
-                },
-            ) {
-                Icon(AppIcons.Delete, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (deleteArmed) "Tap again to delete" else "Delete trip")
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) { info() }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                export(Modifier.weight(1f))
+                delete(Modifier.weight(1f))
+            }
+        }
+    } else {
+        Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            TripMapImage(trip, maps, width = 520.dp, height = 300.dp, modifier = Modifier.weight(1.3f).fillMaxHeight())
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                info()
+                Spacer(Modifier.height(4.dp))
+                export(Modifier)
+                Spacer(Modifier.height(12.dp))
+                delete(Modifier)
             }
         }
     }

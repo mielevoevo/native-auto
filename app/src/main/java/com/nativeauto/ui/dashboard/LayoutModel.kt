@@ -15,7 +15,15 @@ enum class Pane {
  * How a card draws itself, chosen from the slot it's in, never from its measured size (rule #6).
  * [Wide] is a full-width, half-height row (the Rows layout).
  */
-enum class CardMode { Compact, Wide, Expanded, Fullscreen }
+enum class CardMode {
+    Compact, Wide, Expanded, Fullscreen,
+
+    /** 14b: a portrait 4-stack slot (about 85 dp tall): one line of essentials, title-only header. */
+    Mini,
+
+    /** 14b: a portrait half-width slot under the big pane ([LayoutPreset.BIG_TWO]): about 190 dp wide. */
+    Narrow,
+}
 
 /**
  * The layouts in the switcher. Slots are numbered; [columnsOf] says where each one sits.
@@ -23,8 +31,15 @@ enum class CardMode { Compact, Wide, Expanded, Fullscreen }
  * - [SIDE_BY_SIDE]: two tall panes, 0 left and 1 right.
  * - [ROWS]: two full-width rows, 0 above 1.
  * - [QUAD]: 2×2, read like a page: 0 1 / 2 3.
+ * - Portrait (14b): [LayoutPreset.STACK1]..[LayoutPreset.STACK4] are full-width rows, 0 on top;
+ *   [LayoutPreset.BIG_TWO] is slot 0 over slots 1 and 2 side by side ([BIG_TWO_TOP] of the height for slot 0).
  */
-enum class LayoutPreset(val slots: Int) { DUO(3), SIDE_BY_SIDE(2), ROWS(2), QUAD(4) }
+enum class LayoutPreset(val slots: Int, val portrait: Boolean = false) {
+    DUO(3), SIDE_BY_SIDE(2), ROWS(2), QUAD(4),
+
+    /** 14b portrait (vertically mounted phone): 1 to 4 panes stacked, or one big pane over two side by side. */
+    STACK1(1, true), STACK2(2, true), STACK3(3, true), BIG_TWO(3, true), STACK4(4, true),
+}
 
 /** One column of the layout: its share of the width, and its slots from top to bottom. */
 internal data class LayoutColumn(val weight: Float, val slots: List<Int>)
@@ -39,7 +54,13 @@ internal fun columnsOf(preset: LayoutPreset, bigOnLeft: Boolean, split: Float): 
     LayoutPreset.SIDE_BY_SIDE -> listOf(LayoutColumn(0.5f, listOf(0)), LayoutColumn(0.5f, listOf(1)))
     LayoutPreset.ROWS -> listOf(LayoutColumn(1f, listOf(0, 1)))
     LayoutPreset.QUAD -> listOf(LayoutColumn(0.5f, listOf(0, 2)), LayoutColumn(0.5f, listOf(1, 3)))
+    // Portrait: one column of rows. BIG_TWO's real geometry is in [portraitRects]; this is only "who shares a column".
+    LayoutPreset.STACK1, LayoutPreset.STACK2, LayoutPreset.STACK3, LayoutPreset.BIG_TWO, LayoutPreset.STACK4 ->
+        listOf(LayoutColumn(1f, (0 until preset.slots).toList()))
 }
+
+/** Portrait [LayoutPreset.BIG_TWO]: the big pane's share of the height. */
+internal const val BIG_TWO_TOP = 0.55f
 
 /**
  * How a pane draws in a slot when nothing is maximized or fullscreen. A tall slot (Duo's big
@@ -50,6 +71,11 @@ internal fun naturalMode(preset: LayoutPreset, slot: Int): CardMode = when (pres
     LayoutPreset.SIDE_BY_SIDE -> CardMode.Expanded
     LayoutPreset.ROWS -> CardMode.Wide
     LayoutPreset.QUAD -> CardMode.Compact
+    // Portrait: one or two panes have the room of a tall card; three stacked are full-width rows; four are Mini.
+    LayoutPreset.STACK1, LayoutPreset.STACK2 -> CardMode.Expanded
+    LayoutPreset.STACK3 -> CardMode.Wide
+    LayoutPreset.BIG_TWO -> if (slot == 0) CardMode.Expanded else CardMode.Narrow
+    LayoutPreset.STACK4 -> CardMode.Mini
 }
 
 /** What's on screen: the layout, which pane is in each slot, and the zoom modes. */
@@ -74,6 +100,7 @@ internal val ParkedRect = Rect(0f, 0f, 0f, 1f)
 internal fun computeRects(view: LayoutView, bigOnLeft: Boolean, split: Float): Map<Pane, Rect> {
     val out = HashMap<Pane, Rect>(Pane.entries.size)
     Pane.entries.forEach { out[it] = ParkedRect }
+    if (view.preset.portrait) return portraitRects(view, out)
     val columns = columnsOf(view.preset, bigOnLeft, split)
     val slotOf = view.panes.withIndex().associate { (i, p) -> p to i }
     val full = view.fullscreen?.let { slotOf[it] }
@@ -98,6 +125,38 @@ internal fun computeRects(view: LayoutView, bigOnLeft: Boolean, split: Float): M
 }
 
 /**
+ * 14b: portrait geometry. Stacks split the height evenly; [LayoutPreset.BIG_TWO] puts slot 0 over slots 1 and 2.
+ * No maximize here (a stack's column is the whole screen already): a fullscreen pane takes everything, and the
+ * others fold into the screen's top or bottom edge as zero-height rows, so they slide away instead of vanishing.
+ */
+private fun portraitRects(view: LayoutView, out: HashMap<Pane, Rect>): Map<Pane, Rect> {
+    val panes = view.panes
+    val full = view.fullscreen?.let { panes.indexOf(it) }?.takeIf { it >= 0 }
+    val n = panes.size
+    // x range and y range of each slot, unzoomed
+    fun slotRect(slot: Int): Rect = when {
+        view.preset == LayoutPreset.BIG_TWO -> when (slot) {
+            0 -> Rect(0f, 0f, 1f, BIG_TWO_TOP)
+            1 -> Rect(0f, BIG_TWO_TOP, 0.5f, 1f)
+            else -> Rect(0.5f, BIG_TWO_TOP, 1f, 1f)
+        }
+        else -> Rect(0f, slot.toFloat() / n, 1f, (slot + 1).toFloat() / n)
+    }
+    panes.forEachIndexed { slot, pane ->
+        val r = slotRect(slot)
+        out[pane] = when {
+            full == null -> r
+            slot == full -> Rect(0f, 0f, 1f, 1f)
+            // Above the fullscreen slot (or, in BIG_TWO, the big one) folds to the top edge, the rest to the bottom.
+            slot < full && view.preset != LayoutPreset.BIG_TWO || (view.preset == LayoutPreset.BIG_TWO && slot == 0) ->
+                Rect(r.left, 0f, r.right, 0f)
+            else -> Rect(r.left, 1f, r.right, 1f)
+        }
+    }
+    return out
+}
+
+/**
  * The default panes per layout. Quad keeps the clock: the Garage card (11c) is shown on demand
  * (Rider-Feedback §6), picked for a slot with a header long-press.
  */
@@ -106,6 +165,11 @@ internal val DefaultAssignments: Map<LayoutPreset, List<Pane>> = mapOf(
     LayoutPreset.SIDE_BY_SIDE to listOf(Pane.SPEED, Pane.MEDIA),
     LayoutPreset.ROWS to listOf(Pane.SPEED, Pane.MEDIA),
     LayoutPreset.QUAD to listOf(Pane.MAP, Pane.SPEED, Pane.MEDIA, Pane.CLOCK),
+    LayoutPreset.STACK1 to listOf(Pane.SPEED),
+    LayoutPreset.STACK2 to listOf(Pane.SPEED, Pane.MAP),
+    LayoutPreset.STACK3 to listOf(Pane.MAP, Pane.SPEED, Pane.MEDIA),
+    LayoutPreset.BIG_TWO to listOf(Pane.MAP, Pane.SPEED, Pane.MEDIA),
+    LayoutPreset.STACK4 to listOf(Pane.MAP, Pane.SPEED, Pane.MEDIA, Pane.CLOCK),
 )
 
 /** Quad while navigating: map, navigation, speed, media (decided 2026-11-08). */
@@ -133,6 +197,9 @@ internal object LayoutCodec {
     }
 
     fun preset(name: String): LayoutPreset = LayoutPreset.entries.firstOrNull { it.name == name } ?: LayoutPreset.DUO
+
+    /** A saved portrait preset, or null (blank, unknown, or a landscape name). */
+    fun portraitPreset(name: String): LayoutPreset? = LayoutPreset.entries.firstOrNull { it.name == name && it.portrait }
 }
 
 /**
@@ -162,4 +229,38 @@ internal fun LayoutView.withCall(replaced: Pane?): LayoutView {
         fullscreen = if (fullscreen == replaced) Pane.CALL else fullscreen,
         maximized = if (maximized == replaced) Pane.CALL else maximized,
     )
+}
+
+
+/**
+ * 14b: what a rotation shows. The panes keep their count and order (2 landscape cards = 2 stacked, Duo = a stack of
+ * three), so the rider sees the same cards; only the geometry changes. Where an orientation has two shapes for a
+ * count (3: stack or "big + two"; 2: side by side or rows), the one the rider last used there wins ([lastPortrait],
+ * [lastLandscape]). A maximized pane has no portrait equivalent and is dropped; a fullscreen one stays.
+ * Landscape has no single-pane layout, so one pane gets a neighbour from [fillFrom].
+ */
+internal fun rotatedView(
+    view: LayoutView,
+    toPortrait: Boolean,
+    lastPortrait: LayoutPreset? = null,
+    lastLandscape: LayoutPreset? = null,
+    fillFrom: List<Pane> = listOf(Pane.MEDIA, Pane.SPEED, Pane.MAP),
+): LayoutView {
+    if (view.preset.portrait == toPortrait) return view
+    var panes = view.panes
+    val preset = if (toPortrait) when (panes.size) {
+        1 -> LayoutPreset.STACK1
+        2 -> LayoutPreset.STACK2
+        3 -> lastPortrait?.takeIf { it.portrait && it.slots == 3 } ?: LayoutPreset.STACK3
+        else -> LayoutPreset.STACK4
+    } else when (panes.size) {
+        1 -> {
+            panes = panes + fillFrom.first { it !in panes }
+            LayoutPreset.SIDE_BY_SIDE
+        }
+        2 -> lastLandscape?.takeIf { !it.portrait && it.slots == 2 } ?: LayoutPreset.SIDE_BY_SIDE
+        3 -> LayoutPreset.DUO
+        else -> LayoutPreset.QUAD
+    }
+    return LayoutView(preset, panes, view.fullscreen?.takeIf { it in panes }, maximized = null)
 }

@@ -97,6 +97,13 @@ interface SettingsRepository {
      */
     suspend fun initialiseDefaults(freshInstall: Boolean) {}
 
+    /**
+     * 14b: the dashboard's orientation. Landscape by default, and for every earlier install (no re-setup). The defaulted
+     * members need no change in the test fakes.
+     */
+    val orientationMode: Flow<OrientationMode> get() = flowOf(OrientationMode.LANDSCAPE)
+    suspend fun setOrientationMode(mode: OrientationMode) {}
+
     /** 13a: the Garage card's tank icon. Gauge by default (and for installs from before it existed). */
     val tankIcon: Flow<TankIcon>
     suspend fun setTankIcon(icon: TankIcon)
@@ -150,6 +157,8 @@ data class SavedLayout(
     val preset: String = "",
     /** Panes per layout, `DUO=MAP,MEDIA,SPEED;QUAD=…`; blank or missing entries mean defaults. */
     val slots: String = "",
+    /** 14b: the portrait layout last used; blank = none yet (a portrait start derives it from the landscape one). */
+    val portraitPreset: String = "",
 ) {
     companion object {
         val Default = SavedLayout(bigOnLeft = true, split = 0.5f)
@@ -212,6 +221,7 @@ class DataStoreSettingsRepository @Inject constructor(
                 bigOnLeft = it[MAP_ON_LEFT] ?: SavedLayout.Default.bigOnLeft,
                 split = it[SPLIT] ?: SavedLayout.Default.split,
                 preset = it[PRESET] ?: SavedLayout.Default.preset,
+                portraitPreset = it[PRESET_PORTRAIT] ?: "",
                 // Phase 7 kept only the Duo card order; carry it over until slots are first saved.
                 slots = it[SLOTS] ?: if (it[MEDIA_ON_TOP] == false) "DUO=MAP,SPEED,MEDIA" else SavedLayout.Default.slots,
             )
@@ -223,6 +233,7 @@ class DataStoreSettingsRepository @Inject constructor(
             it[MAP_ON_LEFT] = layout.bigOnLeft
             it[SPLIT] = layout.split
             it[PRESET] = layout.preset
+            it[PRESET_PORTRAIT] = layout.portraitPreset
             it[SLOTS] = layout.slots
             it.remove(MEDIA_ON_TOP)
         }
@@ -302,6 +313,13 @@ class DataStoreSettingsRepository @Inject constructor(
     override val refreshMode: Flow<RefreshMode> =
         prefs.map { enumOrDefault(it[REFRESH_MODE], RefreshMode.AUTO) }.distinctUntilChanged()
 
+    override val orientationMode: Flow<OrientationMode> =
+        prefs.map { enumOrDefault(it[ORIENTATION_MODE], OrientationMode.LANDSCAPE) }.distinctUntilChanged()
+
+    override suspend fun setOrientationMode(mode: OrientationMode) {
+        store.edit { it[ORIENTATION_MODE] = mode.name }
+    }
+
     override suspend fun setRefreshMode(mode: RefreshMode) {
         store.edit { it[REFRESH_MODE] = mode.name }
     }
@@ -358,6 +376,8 @@ class DataStoreSettingsRepository @Inject constructor(
         val SPLIT = floatPreferencesKey("layout_split")
         val PRESET = stringPreferencesKey("layout_preset")
         val SLOTS = stringPreferencesKey("layout_slots")
+        val PRESET_PORTRAIT = stringPreferencesKey("layout_preset_portrait")
+        val ORIENTATION_MODE = stringPreferencesKey("orientation_mode")
         val AUTO_LAYOUT = booleanPreferencesKey("auto_layout")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CLOCK_FACE = stringPreferencesKey("clock_face")

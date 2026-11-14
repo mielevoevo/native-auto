@@ -9,7 +9,7 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   `app/build.gradle.kts`, once that sub-phase's tests pass.
   **Phase 11 is a major version (user, 2026-11-09):** 11a ships as 3.0, then +0.1 again (11b → 3.1,
   11c → 3.2); `versionCode` keeps adding 1 (10b = 11, 11a = 12).
-  **Phase 13 = feedback update (user, 2026-11-14):** 13a ships as 3.4.1, 13b as 3.4.2, 13c as 3.4.3 (versionCode 19, 20, 21); 12c (fuel prices, v3.3) is versionCode 18. **Phase 14 = call controls + portrait:** 14a 3.5.1, 14b 3.5.2 (versionCode 22, 23). Plans (WIP, not started) in `Rider-Feedback.md` "Phase 13" / "Phase 14".
+  **Phase 13 = feedback update (user, 2026-11-14):** 13a ships as 3.4.1, 13b as 3.4.2, 13c as 3.4.3 (versionCode 19, 20, 21); 12c (fuel prices, v3.3) is versionCode 18. **Phase 14 = call controls + portrait:** 14a 3.5.1 (versionCode 22); **14b (portrait) is a major drop (user, 2026-11-14): v4.0, versionCode 23.** Plans (WIP, not started) in `Rider-Feedback.md` "Phase 13" / "Phase 14".
   **Phase 12 is one version (user, 2026-11-09):** 3.3 for the whole phase (12a, 12b); `versionCode` still +1
   per sub-phase build (3.2.1 = 15, Phase 12 starts at 16).
 - `MAPS_API_KEY` goes in `local.properties` only (fallback placeholder in `local.defaults.properties`).
@@ -38,8 +38,8 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
 - **Unattended again (user, 2026-11-14): 13a → 14a.** Same rule: on a roadblock take the recommended or
   already-discussed option, log it in `DECISIONS.md` with the *reason* (the user reads it later). Each sub-phase
   exports its **own** release APK to `.dev/apk/NativeAuto-<version>-<sub>-release.apk` (never overwrite an
-  earlier one: they are the fallback if 14b goes wrong), after the release smoke test. **14b (portrait) is not
-  part of this run.** Every sub-phase build also adds its entry to `assets/changelog.md` (from 13a on).
+  earlier one: they are the fallback if 14b goes wrong), after the release smoke test. **14b (portrait, v4.0) is its own
+  unattended run (user, 2026-11-14), spec in `.dev/Phase-14b-Portrait.md`; tests only what a change touches.** Every sub-phase build also adds its entry to `assets/changelog.md` (from 13a on).
 
 ## Deliberate deviations from the handoff's reference code
 
@@ -727,6 +727,35 @@ under "Concerns to check at the phone test (run 13a-14a)".
 - Device tests (`CallCardTest`): real CallStyle notifications posted from the test (needs the debug-only
   USE_FULL_SCREEN_INTENT permission and the app-op), answer / decline / hang-up arrive as broadcasts, the card takes
   media's slot and gives it back, never a fullscreen card, mute only where it takes effect.
+
+## Phase 14b: portrait (built 2026-11-14, v4.0, versionCode 23)
+
+Major drop: a vertically mounted phone. Spec `.dev/Phase-14b-Portrait.md`; choices and reasons in DECISIONS.md "14b".
+- **Orientation (`OrientationMode`, `SettingsRepository.orientationMode`, Settings, Layout):** LANDSCAPE (default for everyone, no re-setup), PORTRAIT,
+  AUTO. Fixed modes ask for sensor-landscape / sensor-portrait and ignore the lock. AUTO follows the phone's rotation lock (lock on: no request, the
+  system's orientation holds; unlocked: `device/OrientationPolicy` turns after a steady lean, `OrientationTuning` ZONE_DEG 30, STEADY_MS 1500, MIN_IN_PLANE 3;
+  rider tunes on the bike). `device/OrientationController` runs under `repeatOnLifecycle(STARTED)`; `MainActivity` requests a fixed mode before the first frame.
+  Manifest `configChanges`: a rotation never recreates the activity (map, trip, navigation carry on; panes slide).
+- **Layout model:** `LayoutPreset` gained `STACK1..STACK4` and `BIG_TWO` (`portrait = true`); `computeRects` has a portrait branch (`portraitRects`, `BIG_TWO_TOP`
+  0.55). `DashboardLayoutState.portrait` / `setPortrait` turn the layout with `rotatedView` (same panes, same order, by count; the last used shape wins);
+  each orientation's last preset is saved (`SavedLayout.portraitPreset`, key `layout_preset_portrait`; `preset` stays the landscape one). No Maximize in
+  portrait; swap only for two stacked panes. Auto layout: STACK4 takes `NavQuad`, a map-less portrait layout goes to BIG_TWO.
+- **Card modes:** new `Mini` (4-stack) and `Narrow` (half width under the big pane); a portrait row of three is `Wide`, one or two stacked panes `Expanded`.
+  `LocalPortrait` (provided around the whole dashboard, sheets included) shapes Wide / Expanded / Fullscreen for portrait. Mini / Narrow headers carry no pane
+  buttons (status corner and a map's own header actions aside); Fullscreen is in the hold menu.
+- **Cards:** speed `SpeedBeside` (value centred left, figures `StatLines` on one left edge) / `SpeedBelow` / `SpeedBelowGrid`, unit always visible; Navigation
+  `CenteredTurn` (glyph, road, distance, arrival line, one centre axis, tags `next_turn_glyph|road|distance|eta`); media `MediaSlim` / `MediaNarrow` with
+  `SwipeToChange` (64 dp, tag `media_swipe`, cue `media_swipe_cue`, no skip buttons), `MediaFullscreenTall`; log face / summary use the small centred form;
+  clock and Garage Mini / Narrow forms; call card controls in the lower part, name above the duration.
+- **Map:** narrow = recentre only; guiding adds End (two taps) in the header. Fullscreen portrait: `map_search` bar on top, guiding bottom row (figures + Mute +
+  End left, traffic + recentre right, tops aligned).
+- **Dialogs / sheets (`ui/components/AppDialog.kt`):** `AppDialogSurface` (portrait: bottom sheet up to 90% high), `DialogTwoColumns` (stacks in portrait),
+  `PinnedActionDialog` (footer action; used by `GarageDialog`). Pane picker is a 2-column grid (`picker_grid`), the layout switcher wraps its thumbnails,
+  history detail stacks (map, figures, pinned actions), Garage bikes are a sideways row. Settings gained the Orientation row.
+- **Call pill (`CallPill`, `call_pill*`):** over a fullscreen pane the call is a slim top pill (ringing: Decline + Answer; on the call: Mute, End).
+- **Refuel:** "Filled to the top" is now "Full refill" (logic unchanged).
+- Tests: `PortraitLayoutTest`, `OrientationPolicyTest` (unit); `PortraitCardsTest` (stateless alignment, units, swipe), `PortraitDashboardTest` (rotation keeps the
+  map, Mini headers, grid picker, bottom-sheet dialogs), pill cases in `CallCardTest`. `ResetSettingsRule` resets the orientation to Landscape.
 
 ## Known issues (deferred)
 

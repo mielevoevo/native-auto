@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.nativeauto.ui.components.AppDialogSurface
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nativeauto.R
@@ -69,24 +70,16 @@ fun ChangelogSheet(viewModel: ChangelogViewModel = hiltViewModel()) {
 @Composable
 fun ChangelogHistoryDialog(onDismiss: () -> Unit, viewModel: ChangelogViewModel = hiltViewModel()) {
     val entries by viewModel.history.collectAsStateWithLifecycle()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = AppTheme.colors.surface,
-            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 800.dp).sheetTag("changelog_history"),
-        ) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.changelog_title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    FilledTonalButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.heightIn(min = 56.dp).testTag("changelog_history_done"),
-                    ) { Text(stringResource(R.string.settings_done)) }
-                }
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-                    Entries(entries)
-                }
-            }
+    AppDialogSurface("changelog_history", onDismiss, maxWidth = 800.dp, scroll = false, spacing = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.changelog_title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            FilledTonalButton(
+                onClick = onDismiss,
+                modifier = Modifier.heightIn(min = 56.dp).testTag("changelog_history_done"),
+            ) { Text(stringResource(R.string.settings_done)) }
+        }
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            Entries(entries)
         }
     }
 }

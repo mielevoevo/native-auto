@@ -65,6 +65,13 @@ class MainActivity : ComponentActivity() {
         // 13b: auto-start watches only while the app is on screen; a fresh open starts a clean session.
         if (savedInstanceState == null) autoStart.onAppOpened()
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { autoStart.watch() } }
+        // 14b: the Orientation setting. A fixed mode is requested before the first frame, so a portrait rider never
+        // sees the landscape start; Auto follows the system's rotation lock and a steady tilt (device/OrientationController).
+        kotlinx.coroutines.runBlocking { settings.orientationMode.first() }.let { mode ->
+            com.nativeauto.device.RequestedOrientation.fixed(mode)?.let { requestedOrientation = it }
+        }
+        val orientation = com.nativeauto.device.OrientationController(this, settings.orientationMode)
+        lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { orientation.run() } }
 
         // The accent is already stored (NativeAutoApp saw to it), so the first frame has the right colour.
         val firstAccent = kotlinx.coroutines.runBlocking { settings.accentColor.first() }

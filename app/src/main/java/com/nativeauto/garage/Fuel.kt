@@ -330,7 +330,7 @@ const val OVERFLOW_TOLERANCE_L = 0.2
 fun refuelLitresFit(litres: Double, tankLitres: Double): Boolean = litres > 0 && litres <= tankLitres
 
 /**
- * 13a: whether a fill-up counts as a full-tank anchor. The rider's "Filled to the top" switch, or an
+ * 13a: whether a fill-up counts as a full-tank anchor. The rider's "Full refill" switch, or an
  * entry that doesn't fit in the room the estimate says is left ([spaceLeftL], null when unknown): the
  * tank must have been fuller than thought, so after it the tank is full (the level is capped at the
  * tank). The ±35% outlier rule in [learnConsumption] then decides whether that span teaches km/L.

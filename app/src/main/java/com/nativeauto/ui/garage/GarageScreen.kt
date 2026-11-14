@@ -7,6 +7,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import com.nativeauto.ui.components.LocalPortrait
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,14 +103,15 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                 when {
                     list == null -> Unit
                     list.isEmpty() -> EmptyGarage { model -> haptics.tap(); newModel = model; editing = "" }
-                    selected != null -> Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        Column(Modifier.width(260.dp).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    selected != null -> {
+                        val tiles = @Composable { tileModifier: Modifier ->
                             list.forEach { bike ->
-                                BikeTile(bike, isSelected = bike.id == selected.id, viewModel) { haptics.tap(); selectedId = bike.id }
+                                BikeTile(bike, isSelected = bike.id == selected.id, viewModel, tileModifier) { haptics.tap(); selectedId = bike.id }
                             }
-                            AddBikeTile { haptics.tap(); newModel = BikeModel.NMAX_GEN1; editing = "" }
+                            AddBikeTile(tileModifier) { haptics.tap(); newModel = BikeModel.NMAX_GEN1; editing = "" }
                         }
-                        BikeDetail(
+                        val detail = @Composable { detailModifier: Modifier ->
+                            BikeDetail(
                             bike = selected,
                             viewModel = viewModel,
                             onRide = { haptics.confirm(); viewModel.ride(selected.id) },
@@ -122,8 +125,25 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                             onAddService = { haptics.tap(); editingService = 0L },
                             onEditService = { haptics.tap(); editingService = it.id },
                             onServiceDone = { haptics.tap(); doneService = it.id },
-                            modifier = Modifier.weight(1f).fillMaxHeight(),
-                        )
+                                modifier = detailModifier,
+                            )
+                        }
+                        // 14b: portrait puts the bikes in a row of cards that scrolls sideways, the detail underneath.
+                        if (LocalPortrait.current) {
+                            Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    tiles(Modifier.width(200.dp).fillMaxHeight())
+                                }
+                                detail(Modifier.weight(1f).fillMaxWidth())
+                            }
+                        } else {
+                            Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                Column(Modifier.width(260.dp).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    tiles(Modifier.fillMaxWidth())
+                                }
+                                detail(Modifier.weight(1f).fillMaxHeight())
+                            }
+                        }
                     }
                 }
             }
@@ -296,14 +316,14 @@ private fun EmptyGarage(onAdd: (BikeModel) -> Unit) {
 
 /** 13a: the last card of the bike list, in place of a button in the top bar. */
 @Composable
-private fun AddBikeTile(onClick: () -> Unit) {
+private fun AddBikeTile(modifier: Modifier = Modifier.fillMaxWidth(), onClick: () -> Unit) {
     val colors = AppTheme.colors
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = colors.surface,
         contentColor = colors.text,
         border = BorderStroke(1.dp, colors.outline),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).testTag("garage_add"),
+        modifier = modifier.heightIn(min = 64.dp).clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).testTag("garage_add"),
     ) {
         Box(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
             Text("+ Add bike", style = MaterialTheme.typography.titleMedium, color = colors.textDim)
@@ -312,7 +332,7 @@ private fun AddBikeTile(onClick: () -> Unit) {
 }
 
 @Composable
-private fun BikeTile(bike: BikeRecord, isSelected: Boolean, viewModel: GarageViewModel, onClick: () -> Unit) {
+private fun BikeTile(bike: BikeRecord, isSelected: Boolean, viewModel: GarageViewModel, modifier: Modifier = Modifier.fillMaxWidth(), onClick: () -> Unit) {
     val odo by remember(bike.id) { viewModel.odometer(bike.id) }.collectAsStateWithLifecycle(null)
     val colors = AppTheme.colors
     Surface(
@@ -320,7 +340,7 @@ private fun BikeTile(bike: BikeRecord, isSelected: Boolean, viewModel: GarageVie
         color = if (isSelected) colors.navy else colors.surface,
         contentColor = if (isSelected) colors.onNavy else colors.text,
         border = BorderStroke(1.dp, colors.outline),
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).testTag("garage_bike_${bike.name}"),
+        modifier = modifier.clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).testTag("garage_bike_${bike.name}"),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

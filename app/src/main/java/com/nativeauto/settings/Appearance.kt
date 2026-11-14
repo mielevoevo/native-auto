@@ -54,6 +54,17 @@ enum class GarageValue(val label: String) {
     KM_PER_L("km/L"),
 }
 
+/**
+ * 14b: which way the dashboard faces. [LANDSCAPE] (default, and what every earlier install had) and [PORTRAIT] are fixed:
+ * the sensor and the system's rotation lock are ignored. [AUTO] follows the phone's own auto-rotate switch (lock on =
+ * the app stays as it is) and, when unlocked, turns only after a steady, generous tilt ([OrientationPolicy]).
+ */
+enum class OrientationMode(val label: String) {
+    LANDSCAPE("Landscape"),
+    PORTRAIT("Portrait"),
+    AUTO("Auto"),
+}
+
 /** 13a: how the Garage card draws the tank: the five-bar gauge (default) or a fixed pump icon. */
 enum class TankIcon(val label: String) {
     GAUGE("Gauge"),

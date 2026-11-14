@@ -60,6 +60,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setRefreshMode(mode) }
     }
 
+    /** 14b: Landscape (default), Portrait or Auto. */
+    val orientationMode: StateFlow<com.nativeauto.settings.OrientationMode> =
+        settings.orientationMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.nativeauto.settings.OrientationMode.LANDSCAPE)
+
+    fun setOrientationMode(mode: com.nativeauto.settings.OrientationMode) {
+        viewModelScope.launch { settings.setOrientationMode(mode) }
+    }
+
     val dragHoldMs: StateFlow<Long> =
         settings.dragHoldMs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_DRAG_HOLD_MS)
 

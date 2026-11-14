@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
@@ -58,6 +61,7 @@ import com.nativeauto.media.MediaListenerService
 import com.nativeauto.media.NowPlaying
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.DashboardCard
+import com.nativeauto.ui.components.LocalPortrait
 import com.nativeauto.ui.components.rememberHaptics
 import com.nativeauto.ui.components.cardModeTransition
 import com.nativeauto.ui.dashboard.CardMode
@@ -158,7 +162,7 @@ private fun MediaAccessPrompt(mode: CardMode, onGrant: () -> Unit, modifier: Mod
             Text(stringResource(R.string.media_access_action), maxLines = 1, softWrap = false)
         }
     }
-    if (mode == CardMode.Compact || mode == CardMode.Wide) {
+    if (mode == CardMode.Compact || mode == CardMode.Wide || mode == CardMode.Mini) {
         Row(
             modifier = modifier.requiredHeightIn(min = 108.dp).padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -209,13 +213,159 @@ fun MediaCardContent(
             // Clip so content overflowing a still-small card never draws over the header.
             modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds(),
         ) { m ->
-            when (m) {
+            val portrait = LocalPortrait.current
+            when {
+                // 14b: no row of buttons on the small portrait cards: a swipe changes track, play / pause stays.
+                m == CardMode.Mini -> MediaSlim(nowPlaying, controls, art = 64.dp, progress = false)
+                m == CardMode.Narrow -> MediaNarrow(nowPlaying, controls)
+                m == CardMode.Wide && portrait -> MediaSlim(nowPlaying, controls, art = 104.dp, progress = true)
                 // The Rows strip is the compact strip with more width: it lays out the same.
-                CardMode.Compact, CardMode.Wide -> MediaCompact(nowPlaying, controls)
-                CardMode.Expanded -> MediaExpanded(nowPlaying, controls)
-                CardMode.Fullscreen -> MediaFullscreen(nowPlaying, controls)
+                m == CardMode.Compact || m == CardMode.Wide -> MediaCompact(nowPlaying, controls)
+                m == CardMode.Expanded -> MediaExpanded(nowPlaying, controls)
+                portrait -> MediaFullscreenTall(nowPlaying, controls)
+                else -> MediaFullscreen(nowPlaying, controls)
             }
         }
+    }
+}
+
+/**
+ * 14b: a horizontal swipe over [content] changes track (left = next, right = previous), after [SWIPE_DP] of travel,
+ * with a short cue and a tick so the rider knows it landed. Only where the card has skip controls to give up
+ * ([Controls.showSkips]); with nothing playing a swipe does nothing. Taps and the hold-to-drag gesture are untouched
+ * (this only reacts to a drag that starts moving sideways).
+ */
+@Composable
+private fun SwipeToChange(controls: Controls, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val haptics = rememberHaptics()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val threshold = with(density) { SWIPE_DP.dp.toPx() }
+    val cue = remember { androidx.compose.animation.core.Animatable(0f) }
+    var cueText by remember { androidx.compose.runtime.mutableStateOf("") }
+    var cueTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(cueTick) {
+        if (cueTick > 0) {
+            cue.snapTo(1f)
+            cue.animateTo(0f, androidx.compose.animation.core.tween(CUE_MS))
+        }
+    }
+    val latest by androidx.compose.runtime.rememberUpdatedState(controls)
+    Box(
+        modifier
+            .testTag("media_swipe")
+            .pointerInput(threshold) {
+                var total = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { total = 0f },
+                    onDragEnd = {
+                        val c = latest
+                        if (c.showSkips && kotlin.math.abs(total) >= threshold) {
+                            haptics.tick()
+                            if (total < 0) { cueText = "Next track"; c.onNext() } else { cueText = "Previous track"; c.onPrevious() }
+                            cueTick++
+                        }
+                        total = 0f
+                    },
+                    onDragCancel = { total = 0f },
+                ) { _, dx -> total += dx }
+            },
+    ) {
+        content()
+        if (cueText.isNotEmpty()) {
+            Text(
+                cueText,
+                style = MaterialTheme.typography.labelLarge,
+                color = AppTheme.colors.text,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 4.dp)
+                    .graphicsLayer { alpha = cue.value }
+                    .background(AppTheme.colors.surface, RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 3.dp)
+                    .testTag("media_swipe_cue"),
+            )
+        }
+    }
+}
+
+private const val SWIPE_DP = 64
+private const val CUE_MS = 700
+
+/** The small portrait forms: art, title and artist, a play / pause button; skips are the swipe. */
+@Composable
+private fun MediaSlim(np: NowPlaying, controls: Controls, art: Dp, progress: Boolean) {
+    SwipeToChange(controls, Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AlbumArt(np.art, art)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                TrackTitle(np.title, MaterialTheme.typography.titleMedium)
+                TrackLine(np.artist, MaterialTheme.typography.bodyMedium)
+                if (progress) {
+                    Spacer(Modifier.height(10.dp))
+                    Progress(np, controls.position, showTimes = false)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            TransportControls(np.isPlaying, controls.withoutSkips(), buttonSize = 52.dp, playSize = 60.dp)
+        }
+    }
+}
+
+/** A half-width portrait card: one axis down the middle. */
+@Composable
+private fun MediaNarrow(np: NowPlaying, controls: Controls) {
+    SwipeToChange(controls, Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            AlbumArt(np.art, 104.dp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                np.title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.testTag("media_title"),
+            )
+            Text(
+                np.artist,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Progress(np, controls.position, showTimes = false)
+            Spacer(Modifier.height(8.dp))
+            TransportControls(np.isPlaying, controls.withoutSkips(), buttonSize = 52.dp, playSize = 60.dp)
+        }
+    }
+}
+
+/** Portrait fullscreen: the landscape card is art beside details, which is 600 dp across; here it is a column. */
+@Composable
+private fun MediaFullscreenTall(np: NowPlaying, controls: Controls) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        AlbumArt(np.art, 240.dp)
+        Spacer(Modifier.height(20.dp))
+        TrackTitle(np.title, MaterialTheme.typography.headlineSmall, maxLines = 2)
+        TrackLine(np.artist, MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(16.dp))
+        Progress(np, controls.position, showTimes = true)
+        Spacer(Modifier.height(8.dp))
+        TransportControls(np.isPlaying, controls, buttonSize = 64.dp, playSize = 80.dp, Modifier.fillMaxWidth())
     }
 }
 
@@ -226,7 +376,10 @@ private class Controls(
     val position: () -> Long,
     /** Off while nothing plays: Play alone, so "Nothing playing" fits the compact strip. */
     val showSkips: Boolean,
-)
+) {
+    /** The same controls with the skip buttons left out (the swipe does their job). */
+    fun withoutSkips() = Controls(onPlayPause, onNext, onPrevious, position, showSkips = false)
+}
 
 @Composable
 private fun MediaCompact(np: NowPlaying, controls: Controls) {

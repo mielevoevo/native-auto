@@ -232,7 +232,7 @@ fun GarageCard(
             when {
                 !ui.loaded -> Box(Modifier.fillMaxSize())
                 state == null -> NoBike(onOpenGarage)
-                m == CardMode.Compact || m == CardMode.Wide -> SmallGarage(state, value, m, tankIcon)
+                m == CardMode.Compact || m == CardMode.Wide || m == CardMode.Mini || m == CardMode.Narrow -> SmallGarage(state, value, m, tankIcon)
                 else -> ExpandedGarage(state, value, tankIcon, viewModel, onRefuel = { refuelling = true }, onSetLevel = { settingLevel = true }, onOpenGarage)
             }
         }
@@ -320,16 +320,22 @@ private fun shortDue(d: ServiceDue): String = dueText(d)
 private fun SmallGarage(state: GarageCardState, value: GarageValue, mode: CardMode, tankIcon: TankIcon) {
     val big = bigValue(state, value)
     val wide = mode == CardMode.Wide
+    // 14b: the four-stack and half-width cards: the gauge and one value, a little smaller.
+    val small = mode == CardMode.Mini || mode == CardMode.Narrow
     Row(
         Modifier.wrapContentSize(unbounded = true).testTag("garage_card_small"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         if (value == GarageValue.RANGE) {
-            TankGauge(state.fuel.level.fraction, Modifier.size(width = if (wide) 44.dp else 40.dp, height = if (wide) 80.dp else 72.dp), tankIcon)
-            Spacer(Modifier.width(16.dp))
+            TankGauge(
+                state.fuel.level.fraction,
+                Modifier.size(width = if (wide) 44.dp else if (small) 32.dp else 40.dp, height = if (wide) 80.dp else if (small) 60.dp else 72.dp),
+                tankIcon,
+            )
+            Spacer(Modifier.width(if (small) 10.dp else 16.dp))
         }
-        ValueText(big, if (wide) 56.sp else 48.sp)
+        ValueText(big, if (wide) 56.sp else if (small) 36.sp else 48.sp)
     }
 }
 

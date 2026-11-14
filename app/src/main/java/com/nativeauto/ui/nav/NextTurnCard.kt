@@ -103,7 +103,7 @@ fun NextTurnCard(mode: CardMode, layout: DashboardLayoutState, viewModel: NextTu
                     contentAlignment = Alignment.Center,
                     label = "nextTurnMode",
                     modifier = Modifier.fillMaxSize(),
-                ) { m -> TurnFace(s, unit, m, onEnd = viewModel::stop) }
+                ) { m -> TurnFace(s, unit, m, portrait = com.nativeauto.ui.components.LocalPortrait.current, onEnd = viewModel::stop) }
             }
         }
     }
@@ -134,7 +134,7 @@ private fun WhereTo(onClick: () -> Unit) {
 }
 
 @Composable
-private fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMode, onEnd: () -> Unit) {
+internal fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMode, portrait: Boolean = false, onEnd: () -> Unit) {
     if (state.rerouting || (state.offRoute && state.instruction == null)) {
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             CircularProgressIndicator(Modifier.size(36.dp), strokeWidth = 4.dp)
@@ -149,8 +149,12 @@ private fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMode
         "${formatNavDuration(state.durationRemainingS)} · ${formatNavDistance(state.distanceRemainingM, unit)}"
     val color = MaterialTheme.colorScheme.onSurface
 
-    when (mode) {
-        CardMode.Compact, CardMode.Wide -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+    when {
+        // 14b: portrait cards (a row of three, a half-width one, a four-stack one) put everything on one centre axis.
+        mode == CardMode.Mini -> CenteredTurn(state, distance, road, eta, color, glyph = 48.dp, distanceSize = 30.sp, roadSize = 14.sp, etaSize = 14.sp)
+        mode == CardMode.Narrow -> CenteredTurn(state, distance, road, eta, color, glyph = 84.dp, distanceSize = 44.sp, roadSize = 18.sp, etaSize = 15.sp)
+        mode == CardMode.Wide && portrait -> CenteredTurn(state, distance, road, eta, color, glyph = 72.dp, distanceSize = 40.sp, roadSize = 18.sp, etaSize = 17.sp)
+        mode == CardMode.Compact || mode == CardMode.Wide -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
             // 13a: the arrow is centred on the distance + road block, and the arrival line starts
             // at that block's left edge (not the card's), so all the text shares one edge.
             val glyphSize = if (mode == CardMode.Wide) 84.dp else 72.dp
@@ -173,7 +177,7 @@ private fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMode
                 EtaText(eta, MaterialTheme.typography.titleMedium.fontSize, TextAlign.Start, Modifier.padding(start = indent))
             }
         }
-        CardMode.Expanded, CardMode.Fullscreen -> {
+        else -> {
             val big = mode == CardMode.Fullscreen
             Column(
                 modifier = Modifier.fillMaxSize().wrapContentSize(unbounded = true),
@@ -199,6 +203,47 @@ private fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMode
                 EndButton(onEnd, height = 56.dp)
             }
         }
+    }
+}
+
+/**
+ * 14b: arrow, then the route name, then the navigation info (the distance to the turn, large; arrival time, time left
+ * and distance left below it, which wraps to a second centred line on a narrow card instead of being cut). Every line
+ * is centred on the card's one axis: the content is as wide as its text, and the column centres it (the
+ * `NavCardAlignmentTest` measures this).
+ */
+@Composable
+private fun CenteredTurn(
+    state: NavState.Navigating,
+    distance: String,
+    road: String,
+    eta: String,
+    color: androidx.compose.ui.graphics.Color,
+    glyph: Dp,
+    distanceSize: TextUnit,
+    roadSize: TextUnit,
+    etaSize: TextUnit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(glyph).testTag("next_turn_glyph")) }
+        Spacer(Modifier.height(4.dp))
+        RoadText(road, roadSize, maxLines = 2, align = TextAlign.Center)
+        Spacer(Modifier.height(2.dp))
+        DistanceText(distance, distanceSize)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            eta,
+            fontSize = etaSize,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.testTag("next_turn_eta"),
+        )
     }
 }
 

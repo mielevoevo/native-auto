@@ -506,3 +506,60 @@ Needs the phone (also listed in the closing concerns section at the end of this 
 - **Existing install:** after updating from 3.3, accent still cyan; the "What's new" sheet shows once (3.4.1 to 3.5.1).
 
 14a: see the "Needs the phone" list under "14a" above.
+
+## 14b: portrait (v4.0, versionCode 23), run 2026-11-14
+
+Spec and reasons agreed with the rider in chat before the run (see `.dev/Phase-14b-Portrait.md`). Choices made while building
+are logged below, each with its reason.
+
+### 14b decisions so far (portrait 4.0)
+
+- **Real card sizes, not the mockup's.** The mockups drew the four-stack at about 85 dp a card; on a 400 x 860 dp phone each is about 215 dp (a row of
+  three is 285, two stacked 430, a half-width card under "big + two" is 200 x 385). So **Mini** keeps a normal-height header (title, the status
+  corner on the top card) and drops only the pane buttons; its content is the one-line essentials. Reason: nothing is gained by cramming a
+  215 dp card down to 85 dp.
+- **Card modes:** `Mini` (4-stack) and `Narrow` (half-width under the big pane) are new `CardMode`s; a portrait row of three is `Wide` and a portrait
+  one / two stacked / big pane is `Expanded`. `LocalPortrait` (a composition local the dashboard provides) lets a card shape its Wide / Expanded /
+  Fullscreen form for portrait without threading a flag through every call. Landscape forms are untouched.
+- **No Maximize in portrait.** A stack's column is the whole screen, so maximize would equal fullscreen; fullscreen is the only zoom (button, or
+  the hold menu on cards with no header buttons). Swap exists only for two stacked panes; the others rearrange by drag and the picker.
+- **Rotation maps layouts by pane count, keeping the order** (`rotatedView`): Duo and "big + two" <-> three; Side by side / Rows <-> two; Quad <-> four.
+  Where an orientation has two shapes for a count (3: stack or "big + two"; 2: side by side or rows) the shape the rider last used there wins, else
+  the plain stack / side by side. Landscape has no one-pane layout: one portrait pane becomes Side by side with a neighbour (media, speed or map).
+  A maximized pane is dropped, a fullscreen one stays. Each orientation's last preset is saved (`layout_preset_portrait` next to the old
+  `layout_preset`, which stays the landscape one so older data reads the same).
+- **Auto orientation:** with the phone's rotation lock on, the app asks for no orientation (`UNSPECIFIED`), so the system's locked orientation holds:
+  the most literal "follow the lock". With it off, `OrientationPolicy` reads gravity (about 5 Hz, only while the app is started) and asks for sensor-landscape
+  or sensor-portrait after a steady, generous lean: `ZONE_DEG` 30 (the phone must be within 30 degrees of upright to go portrait, within 30 of sideways to
+  go landscape; the 30..60 band decides nothing, so a mount tilted 5 degrees never flips), `STEADY_MS` 1500, and nothing when the phone lies flat
+  (`MIN_IN_PLANE` 3 m/s2). The rider tunes these on the bike (`OrientationTuning`).
+- **configChanges** (`orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density`): a rotation never recreates the activity.
+  The Orientation setting is read once before the first frame (a fixed mode is requested in `onCreate`), so a portrait rider never sees a landscape start.
+- **Call pill:** over a fullscreen pane the call is a slim top pill (ringing: Decline + Answer; on the call: duration, Mute where it works, End). It
+  covers the fullscreen card's header meanwhile (Back and the hold menu still leave fullscreen), never moves or resizes the card, and goes when the call ends.
+  The rider asked for Answer / Decline only; the on-call form is the small addition that keeps the call controllable when the card can't appear.
+- **Dialogs and sheets:** one shell (`AppDialogSurface`): landscape is the old centred card; portrait is a bottom sheet at most 90% of the screen high, one column
+  (`DialogTwoColumns` stacks what was two columns). Forms with Cancel / Save (`GarageDialog`: bike, refuel, level, service, untracked km...) use
+  `PinnedActionDialog` in portrait: the action sits in a footer above the keyboard and the fields scroll above it. The settings sheet already stacked to one
+  column below 600 dp, so it only gained the Orientation row.
+- **Map in portrait:** a narrow card (Mini / Narrow) shows only the recentre button (accent ring while following); guiding it adds the slim chip and a small
+  End in the header that asks twice (armed 3 s, red), no mute. A fullscreen map has "Where to?" along the top, and, guiding, one bottom row whose items
+  share a top edge: the trip's figures with Mute and End on the left, traffic and recentre on the right (the rider's "button top edge aligned with the
+  navigation info box"). A portrait row of three counts as a compact map while guiding.
+- **Tilt sensor axes:** gravity is read in device coordinates, so "upright" means the phone's natural orientation (right for phones).
+- **Release smoke:** `ReleaseSmokeTest` gained `portraitOpensWithoutACrash` (turn to portrait from the settings, every portrait layout, the grid picker,
+  two dialogs as sheets, Auto, back to landscape), next to the landscape journey.
+- **Regression run, one finding (2026-11-14):** the device regression (call, Garage, dashboard) failed 5 tests once; the emulator had been up 15 h with a load
+  average of 22 (CLAUDE.md "ANR after a day of uptime"). After a cold boot the four older tests passed unchanged; the fifth was my new call-pill test,
+  whose "no call card over a fullscreen pane" check counted nodes (the CALL pane is always composed) instead of measuring its area, as the 14a test does.
+
+## Concerns to check at the phone test (14b, portrait)
+
+1. **Mini legibility** (4-stack): ~85 dp cards on a typical phone. If the figures are too small, the 4-stack is the one to drop or reduce to 3.
+2. **Tilt tuning on the mount** (`OrientationTuning`: `ZONE_DEG` 30, `STEADY_MS` 1500, `MIN_IN_PLANE` 3): check that a bike propped 5 degrees off never turns the app,
+   and that a real lean does. Auto with the system lock on follows the lock (no sensor).
+3. **Portrait map controls:** narrow map (recentre only, End with two taps while guiding), fullscreen map (search bar on top, bottom row top edges aligned).
+4. **Call pill** over a fullscreen pane: it covers the card's header (Back / hold menu still exit). Check ringing and on-call forms with gloves.
+5. **Bottom sheets:** the 90% height cap and the pinned Save / Done above the keyboard in the Garage dialogs.
+6. **Swipe on media** (Mini and Narrow): the 64 dp swipe distance, the cue, accidental changes while riding.
+7. **Rotation:** panes slide, the map keeps its camera and the trip / navigation carry on (activity is never recreated; first time on a real phone).

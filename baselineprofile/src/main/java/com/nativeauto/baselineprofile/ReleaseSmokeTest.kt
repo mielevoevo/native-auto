@@ -248,6 +248,57 @@ class ReleaseSmokeTest {
         assertNoCrash()
     }
 
+    /** 14b: portrait in the minified build: the turn, every portrait layout, the grid picker, dialogs as sheets, and back. */
+    @Test fun portraitOpensWithoutACrash() {
+        launch()
+        tap("settings_open")
+        find("settings_sheet")
+        tap("settings_cat_LAYOUT")
+        tap("settings_orientation_PORTRAIT")
+        device.waitForIdle()
+        // The settings sheet stays up through the turn; close it in the new shape.
+        tap("settings_done")
+        gone("settings_sheet")
+
+        listOf("STACK1", "STACK2", "BIG_TWO", "STACK3", "STACK4").forEach { preset ->
+            tap("layouts_open")
+            tap("preset_$preset")
+            gone("layouts_sheet")
+        }
+        // The 4-stack's Mini cards: a hold on a header opens the grid picker, Garage in.
+        find("header_MEDIA").let { header ->
+            val b = header.visibleBounds
+            device.swipe(b.left + b.width() / 10, b.centerY(), b.left + b.width() / 10, b.centerY(), 600)
+        }
+        find("picker_grid")
+        tap("pick_GARAGE")
+        gone("picker_sheet")
+        // A dialog as a bottom sheet (Trip options) and the Colours dialog.
+        tap("settings_open")
+        tap("settings_cat_TRIP_GARAGE")
+        tap("settings_trip_options")
+        find("trip_options")
+        tap("settings_trip_options_done")
+        gone("trip_options")
+        tap("settings_cat_DISPLAY")
+        tap("settings_colours")
+        find("colours_dialog")
+        tap("colours_done")
+        gone("colours_dialog")
+        // Auto, then back to landscape (the default every install keeps).
+        tap("settings_cat_LAYOUT")
+        tap("settings_orientation_AUTO")
+        tap("settings_orientation_LANDSCAPE")
+        device.waitForIdle()
+        tap("settings_done")
+        gone("settings_sheet")
+        find("layouts_open")
+
+        device.waitForIdle()
+        assertTrue("The app is gone", shell("pidof $PACKAGE").isNotBlank())
+        assertNoCrash()
+    }
+
     private companion object {
         const val WAIT_MS = 10_000L
     }

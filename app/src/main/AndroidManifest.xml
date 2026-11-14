@@ -41,13 +41,16 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
 
-        <!-- Landscape on purpose: the dashboard layout is built for a landscape mount. Android 16+
-             ignores it only on large screens (sw600dp+), not on phones. -->
+        <!-- Landscape unless the rider picks otherwise (14b): the Orientation setting asks for the real orientation at
+             run time (MainActivity). This manifest value is only where the app starts. configChanges: a rotation never
+             recreates the activity, so the map, trip and navigation carry on and the panes slide. Android 16+ ignores
+             orientation requests only on large screens (sw600dp+), not on phones. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density"
             tools:ignore="DiscouragedApi"
             android:theme="@style/Theme.NativeAuto">
             <intent-filter>

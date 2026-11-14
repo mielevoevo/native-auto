@@ -48,6 +48,11 @@ internal val LayoutPreset.label: String
         LayoutPreset.SIDE_BY_SIDE -> "Side by side"
         LayoutPreset.ROWS -> "Rows"
         LayoutPreset.QUAD -> "Quad"
+        LayoutPreset.STACK1 -> "One"
+        LayoutPreset.STACK2 -> "Two"
+        LayoutPreset.STACK3 -> "Three"
+        LayoutPreset.BIG_TWO -> "Big + two"
+        LayoutPreset.STACK4 -> "Four"
     }
 
 internal val Pane.label: String
@@ -92,11 +97,8 @@ internal fun LayoutSwitcherSheet(layout: DashboardLayoutState, onDismiss: () -> 
         Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
             Text("Layout", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-            ) {
-                LayoutPreset.entries.forEach { preset ->
+            val thumbs = @Composable {
+                LayoutPreset.entries.filter { it.portrait == layout.portrait }.forEach { preset ->
                     val selected = layout.view.preset == preset
                     PresetThumb(
                         preset = preset,
@@ -110,6 +112,19 @@ internal fun LayoutSwitcherSheet(layout: DashboardLayoutState, onDismiss: () -> 
                         onDismiss()
                     }
                 }
+            }
+            if (layout.portrait) {
+                // 14b: five tall thumbnails wrap onto rows, so all of them are in view without scrolling sideways.
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) { thumbs() }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                ) { thumbs() }
             }
         }
     }
@@ -136,7 +151,7 @@ private fun PresetThumb(
     ) {
         BoxWithConstraints(
             Modifier
-                .size(width = 168.dp, height = 96.dp)
+                .size(width = if (preset.portrait) 72.dp else 168.dp, height = if (preset.portrait) 128.dp else 96.dp)
                 .border(BorderStroke(if (selected) 3.dp else 1.dp, outline), ThumbShape)
                 .padding(5.dp),
         ) {
@@ -197,51 +212,65 @@ internal fun PanePickerSheet(layout: DashboardLayoutState, slotPane: Pane, onDis
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-            ) {
-                Pane.entries.filter { it != Pane.CALL }.forEach { pane ->
-                    val current = pane == slotPane
-                    val elsewhere = !current && pane in shown
-                    Surface(
-                        onClick = {
-                            if (current) {
-                                onDismiss()
-                            } else {
-                                haptics.tick()
-                                layout.assign(slotPane, pane)
-                                onDismiss()
-                            }
-                        },
-                        modifier = Modifier
-                            .size(width = 128.dp, height = 104.dp)
-                            .semantics { selected = current }
-                            .testTag("pick_${pane.name}"),
-                        shape = ThumbShape,
-                        color = if (current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (current) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                        border = if (current) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Icon(pane.icon, contentDescription = null, modifier = Modifier.size(32.dp))
-                            Spacer(Modifier.height(6.dp))
-                            Text(pane.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                            Text(
-                                when {
-                                    current -> "Showing"
-                                    elsewhere -> "Swap places"
-                                    else -> " "
-                                },
-                                style = MaterialTheme.typography.labelMedium,
-                                maxLines = 1,
-                            )
+            // One tile per pane. A tile is a fixed 128 x 104 dp in a row that scrolls sideways (landscape), or half the
+            // width in a two-column grid (portrait, 14b).
+            val tile = @Composable { pane: Pane, tileModifier: Modifier ->
+                val current = pane == slotPane
+                val elsewhere = !current && pane in shown
+                Surface(
+                    onClick = {
+                        if (current) {
+                            onDismiss()
+                        } else {
+                            haptics.tick()
+                            layout.assign(slotPane, pane)
+                            onDismiss()
                         }
+                    },
+                    modifier = tileModifier
+                        .semantics { selected = current }
+                        .testTag("pick_${pane.name}"),
+                    shape = ThumbShape,
+                    color = if (current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (current) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                    border = if (current) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(pane.icon, contentDescription = null, modifier = Modifier.size(32.dp))
+                        Spacer(Modifier.height(6.dp))
+                        Text(pane.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                        Text(
+                            when {
+                                current -> "Showing"
+                                elsewhere -> "Swap places"
+                                else -> " "
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                        )
                     }
+                }
+            }
+            val panes = Pane.entries.filter { it != Pane.CALL }
+            if (com.nativeauto.ui.components.LocalPortrait.current) {
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth().testTag("picker_grid"),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    maxItemsInEachRow = 2,
+                ) {
+                    panes.forEach { tile(it, Modifier.weight(1f).height(96.dp)) }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                ) {
+                    panes.forEach { tile(it, Modifier.size(width = 128.dp, height = 104.dp)) }
                 }
             }
         }

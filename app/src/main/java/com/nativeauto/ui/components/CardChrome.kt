@@ -190,6 +190,9 @@ fun CardChrome(
                 headerActions()
                 return@HeaderRow
             }
+            // 14b: a four-stack or half-width card has a title and nothing else (the status corner aside):
+            // Fullscreen and the other choices are in the pane picker, under the hold.
+            if (mode == CardMode.Mini || mode == CardMode.Narrow) return@HeaderRow
             if (canMaximize && !fullscreen) {
                 val maximized = layout.maximized == pane
                 ChromeButton(
@@ -280,6 +283,12 @@ private fun HeaderRow(
 }
 
 private const val MAX_HEADER_H = 4096
+
+/**
+ * 14b: the dashboard is portrait (a vertically mounted phone). Cards read it where a portrait card is shaped differently
+ * from its landscape namesake (a Wide row is 400 dp across, not 800; a Fullscreen card is tall, not wide).
+ */
+val LocalPortrait = staticCompositionLocalOf { false }
 
 /** Opens the pane picker for a slot (by the pane in it). Provided by DashboardScreen; null in isolation. */
 val LocalPanePicker = compositionLocalOf<((Pane) -> Unit)?> { null }
