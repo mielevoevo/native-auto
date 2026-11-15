@@ -33,6 +33,7 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   Known unavoidable: the emulator drops a tiny "running" marker in C's temp folder.
 - Kotlin compiles in-process (`gradle.properties`), so no Kotlin daemon writes to `%LOCALAPPDATA%`.
   The debug keystore in `.dev/android-user/` is a copy of the original, so builds stay signed alike.
+- **Screenshots (user, 2026-11-15):** the user's phone screenshots go in `screenshots/` (git-ignored, never committed; they show real locations). Read them from there; my own go in `.dev/scratch/`.
 - **Git:** local repo, branch `main`, one commit per finished sub-phase. No remote, never push
   (blocked in `.claude/settings.local.json`); the user decides on GitHub.
 - **Unattended phases (8d → 11c):** don't stop to ask. Take the recommended option and log it in

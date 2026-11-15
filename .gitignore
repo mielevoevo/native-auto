@@ -17,5 +17,6 @@ local.properties
 .kotlin
 /.dev/
 
-# User screenshots dropped in for Claude (not part of the app)
-Screenshot*.png
+# User screenshots dropped in for Claude (not part of the app): stay in /screenshots, never committed
+Screenshot*
+/screenshots/

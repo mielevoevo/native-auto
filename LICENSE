@@ -1,0 +1,21 @@
+Native Auto
+Copyright (c) 2026 mielevoevo. All rights reserved.
+
+You may read this source code, and build and run the app on your own devices for your own
+personal, non-commercial use.
+
+You may not, without prior written permission from the copyright holder:
+- publish, distribute or sell this code, the app, or any modified version of either;
+- publish or distribute apps or other works based on this code, in whole or in part;
+- use the Native Auto name or logo.
+
+To ask for permission, open an issue on the project's GitHub page.
+
+Third-party components keep their own licences, for example the Geist font (SIL Open Font
+License 1.1, see app/src/main/assets/licenses/geist-OFL.txt) and the libraries listed in the
+build files.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF
+THE SOFTWARE. Do not operate the app while riding in a way that takes your attention from the
+road.
