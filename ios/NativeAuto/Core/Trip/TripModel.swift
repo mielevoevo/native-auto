@@ -25,6 +25,9 @@ struct SpeedSample: Equatable {
 /// Mean Earth radius (IUGG), metres.
 let earthRadiusM = 6_371_008.8
 
+/// Metres per degree of latitude on the mean sphere.
+let metersPerDegreeLat = earthRadiusM * Double.pi / 180.0
+
 /// Great-circle distance in metres (haversine).
 func haversineMeters(_ lat1: Double, _ lon1: Double, _ lat2: Double, _ lon2: Double) -> Double {
     let rad = Double.pi / 180

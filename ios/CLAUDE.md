@@ -4,8 +4,14 @@ Read `ios/PLAN.md` (phase plan, iOS limits, versioning) and `ios/README.md` (Mac
 Android app's history and spec; its Windows-only workspace rules (`.dev/env.sh`, emulator, drive D) don't apply on
 the Mac.
 
-- Build: `cd ios && xcodegen && xcodebuild -scheme NativeAuto -destination 'platform=iOS Simulator,name=iPhone 16' test`
-  (pick an installed simulator: `xcrun simctl list devices`). Install on the phone from Xcode (⌘R).
+- Build: `cd ios && xcodegen && xcodebuild -scheme NativeAuto -destination 'platform=iOS Simulator,name=iPhone 17' test`
+  (XcodeGen is at `~/bin/xcodegen/bin/xcodegen` on the rider's Mac; iPhone 17 is the installed simulator). The test
+  action runs the unit tests (`NativeAutoTests`) and the UI tests (`NativeAutoUITests`, real holds, drags and taps on
+  the simulator). Install on the phone from Xcode (⌘R).
+- Simulator checks: launch arguments set any setting for one launch (UserDefaults argument domain), e.g.
+  `xcrun simctl launch <sim> com.mielevoevo.nativeauto -use_fake_gps 1 -debug_start_trip 1 -layout_preset QUAD`.
+- Panes are placed with `.position`; any modifier that hit-tests (gestures, taps, accessibility) must come before it,
+  or it covers the whole dashboard (15b).
 - Never commit `NativeAuto.xcodeproj` (generated) or `Local.xcconfig` (the rider's team ID).
 - **Privacy (rider, 2026-11-16):** never write the rider's bike plate initials, home base or real email into files or
   commits. Bikes in tests and examples are "Gen 1" / "Gen 2". Commits use the GitHub no-reply address.

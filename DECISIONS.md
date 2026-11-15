@@ -626,3 +626,38 @@ Unattended run 15a -> 15b on the Mac (2026-11-16). Simulator: iPhone 17 (iOS 27.
   rider's real ID goes in later, for the phone.
 - The Windows-written 15a compiled and passed all 16 tests unchanged. Checked against the Kotlin: `TripReducer`,
   `stepAutoStart`, `autoStartAllowed` and the polyline match line for line (same constants).
+
+### 15b (v0.2, build 2)
+- **Testable core without async:** `TripTracker`, `AutoTrip` and the fake drive run on a small `TaskScheduler` /
+  `MonotonicClock` pair (`Core/Common/Scheduling.swift`); tests use `VirtualScheduler`, the app the main queue.
+  Reason: Android's tests run in virtual coroutine time; this keeps the same tests (same numbers, e.g. one fake-drive
+  loop) deterministic on iOS without Combine or Swift concurrency in `Core/`.
+- **Source = callbacks, not a stream:** `SpeedSampleSource.subscribe` delivers `.fix` / `.failure(.permissionDenied |
+  .disabled | .other)`; the tracker does Android's retry rules (3 s while location is off, 5 s on other errors, none
+  without permission). Reason: Foundation-only core; same behaviour as `retryWhen`.
+- **One CoreLocation manager** for the trip and the live hero (Android's single GPS read). Fix times are converted to
+  the monotonic clock (`now − age`); fixes older than 10 s on arrival are skipped (CoreLocation hands out a cached fix
+  first, which would start a trip with a stale point). Reason: trip maths never uses the wall clock (rule #8).
+- **Layout state is a value type** (`struct DashboardLayoutState`); SwiftUI animates when it changes. The Compose
+  `Saver` tests are not ported: iOS doesn't recreate the screen on rotation, and what is saved between launches is
+  `SavedLayout` (same keys and the same `LayoutCodec` text as Android, tested).
+- **Ported ahead of their sub-phase, because the layout tests need them:** call takeover (`callTakeoverPane`) and
+  `AutoLayout` (pure). The call card itself (15e) and navigation (15c) wire them up later.
+- **Orientation:** Landscape (default) / Portrait / Auto. Auto = every orientation but upside down; iOS applies the
+  rider's rotation lock by itself, so Android's lean-and-hold `OrientationPolicy` isn't ported. Reason: an app can't
+  read the lock on iOS, and the system already does what the policy approximated.
+- **Safe area:** the dashboard keeps clear of the notch / Dynamic Island sides and uses the bottom edge (home indicator
+  hidden). Reason: cards under the sensor housing or the rounded corners would lose their corner buttons.
+- **Panes are placed with `.position`, and every gesture / accessibility modifier comes before it.** Found by the UI
+  tests: after `.position` a modifier covers the whole dashboard, so every card's tap and hold area was the full screen.
+- **Speed faces:** a small custom pager (not `TabView`), so it can be switched off while a card is lifted and a drag
+  never turns the page. Android consumes the touch after the lift; this is the SwiftUI equivalent.
+- **Settings sheet for 15b** is one scrolling sheet (Display, Layout, Trip, Debug). Android's category tabs (13c) come
+  with the other settings in 15e.
+- **Not ported (Android-only):** the double-back close flow and its save prompt (iOS has no back button; swiping the
+  app away ends the trip, as on Android), refresh-rate control (iOS ProMotion adapts by itself), `SelfClose`,
+  the foreground service (iOS trips run while the app is open, like Android's rule).
+- **Debug launch arguments** (UserDefaults argument domain, e.g. `-use_fake_gps 1 -debug_start_trip 1 -layout_preset
+  QUAD`) drive the simulator screenshots and the UI tests; `-debug_start_trip` is compiled into debug builds only.
+- **UI tests added** (`NativeAutoUITests`, 5 tests): trip life cycle through the log face, drag to swap, picker after a
+  still hold, layout switcher, rotation in Auto. Reason: the drag and the hold can't be checked by unit tests.

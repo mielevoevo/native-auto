@@ -1,0 +1,169 @@
+import Foundation
+import SwiftUI
+
+/// The trip as the screen sees it: owns the `TripTracker`, the GPS source, auto-pause / auto-end and the
+/// once-a-second refresh, and turns SI stats into display units (`toUiState`). Counterpart of Android's
+/// `TripTracker` + `SpeedometerViewModel` + `TripLogViewModel` (start / pause / resume / end / dismiss).
+@MainActor
+final class TripStore: ObservableObject {
+    @Published private(set) var ui: SpeedometerUiState = .empty
+    @Published private(set) var state: TripState = .idle
+    @Published private(set) var locationGranted = true
+    /// End needs two taps within `armMs` (the button turns red: "Tap again to end").
+    @Published private(set) var endArmed = false
+    /// Reset (discard) needs two taps too.
+    @Published private(set) var resetArmed = false
+
+    static let armMs: Int64 = 3_000
+
+    let clock = SystemMonotonicClock()
+    private let scheduler = MainQueueScheduler()
+    private let settings: SettingsStore
+    private let source: SwitchableSource
+    let tracker: TripTracker
+    private var autoTrip: AutoTrip!
+    private var live: Cancellable?
+    private var liveFix: SpeedSample?
+    private var ticker: Timer?
+    private var endTimer: Cancellable?
+    private var resetTimer: Cancellable?
+
+    init(settings: SettingsStore) {
+        self.settings = settings
+        let real = CoreLocationSource(clock: clock)
+        source = SwitchableSource(real: real, fake: FakeSpeedSampleSource(clock: clock, scheduler: scheduler))
+        source.useFake = settings.useFakeGps
+        tracker = TripTracker(source: source, clock: clock, scheduler: scheduler)
+        autoTrip = AutoTrip(tracker: tracker, clock: clock, scheduler: scheduler) { [weak settings] in
+            MainActor.assumeIsolated { (settings?.autoPauseMin ?? AutoTripConfig.defaultPauseMin, settings?.autoEndMin ?? AutoTripConfig.defaultEndMin) }
+        }
+        tracker.onChange = { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.autoTrip.update()
+                if self.state != self.tracker.state {
+                    self.state = self.tracker.state
+                    self.updateLive()
+                }
+                self.refresh()
+            }
+        }
+        real.onAuthorization = { [weak self] ok in
+            MainActor.assumeIsolated {
+                self?.locationGranted = ok || !(self?.source.real.denied ?? false)
+                self?.updateLive()
+                self?.refresh()
+            }
+        }
+        locationGranted = !real.denied
+    }
+
+    // MARK: - App life
+
+    /// The app came to the front: the screen stays on, the live speed and the 1 s refresh run.
+    func appActive() {
+        UIApplication.shared.isIdleTimerDisabled = true
+        updateLive()
+        ticker?.invalidate()
+        ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+        refresh()
+        #if DEBUG
+        // Screenshots and checks in the simulator: `-debug_start_trip 1` starts a trip at launch.
+        if UserDefaults.standard.bool(forKey: "debug_start_trip"), state == .idle { start() }
+        #endif
+    }
+
+    /// The app left the front: iOS stops the GPS for an app without background location, so the hero stops too.
+    func appInactive() {
+        ticker?.invalidate(); ticker = nil
+        live?.cancel(); live = nil
+    }
+
+    /// The app is closing (swiped away): the trip ends, like Android's `onTaskRemoved`. Saving it is 15d.
+    func appTerminating() {
+        tracker.end()
+    }
+
+    // MARK: - Trip controls
+
+    func start() { tracker.start() }
+    func pause() { tracker.pause() }
+    func resume() { tracker.resume() }
+
+    func tapEnd() {
+        if endArmed {
+            disarmEnd()
+            tracker.end()
+            Haptics.confirm()
+        } else {
+            endArmed = true
+            endTimer = scheduler.schedule(afterMs: Self.armMs) { [weak self] in
+                MainActor.assumeIsolated { self?.endArmed = false }
+            }
+        }
+    }
+
+    private func disarmEnd() { endArmed = false; endTimer?.cancel(); endTimer = nil }
+
+    /// The summary's dismiss: the ended trip is cleared (it is already saved from 15d on).
+    func dismissSummary() { tracker.discard() }
+
+    /// Reset = discard (9a), two taps within 3 s.
+    func tapReset() {
+        if resetArmed {
+            resetArmed = false; resetTimer?.cancel()
+            tracker.discard()
+            Haptics.confirm()
+        } else {
+            resetArmed = true
+            resetTimer = scheduler.schedule(afterMs: Self.armMs) { [weak self] in
+                MainActor.assumeIsolated { self?.resetArmed = false }
+            }
+        }
+    }
+
+    /// Debug: switch between the real GPS and the scripted drive. Like Android, it also resets the trip.
+    func setFakeGps(_ on: Bool) {
+        settings.useFakeGps = on
+        tracker.discard()
+        source.useFake = on
+        live?.cancel(); live = nil
+        liveFix = nil
+        updateLive()
+        refresh()
+    }
+
+    func requestLocation() { source.real.requestPermission() }
+
+    // MARK: - Live speed without a trip
+
+    /// With no trip running the hero still shows the speed, from its own read of the same source.
+    private func updateLive() {
+        let want = state != .running && ticker != nil
+        if want, live == nil {
+            live = source.subscribe { [weak self] event in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    switch event {
+                    case .fix(let f): self.liveFix = f; self.refresh()
+                    case .failure: self.live = nil; self.liveFix = nil; self.refresh()
+                    }
+                }
+            }
+        } else if !want {
+            live?.cancel(); live = nil
+            liveFix = nil
+        }
+    }
+
+    private func refresh() {
+        let next = tracker.stats.toUiState(nowNanos: clock.nowNanos(), unit: settings.speedUnit, tripState: tracker.state,
+                                           locationGranted: locationGranted, liveFix: tracker.state == .running ? nil : liveFix)
+        if next != ui { ui = next }
+    }
+
+    /// The unit changed in settings.
+    func unitChanged() { refresh() }
+}

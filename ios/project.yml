@@ -13,14 +13,21 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "0.1"        # iOS line: 0.x until it matches the Android app, then 1.0
-    CURRENT_PROJECT_VERSION: "1"    # +1 per sub-phase build
+    MARKETING_VERSION: "0.2"        # iOS line: 0.x until it matches the Android app, then 1.0
+    CURRENT_PROJECT_VERSION: "2"    # +1 per sub-phase build
 
 targets:
   NativeAuto:
     type: application
     platform: iOS
     sources: [NativeAuto]
+    info:
+      path: NativeAuto/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Geist (Vercel, OFL), the same TTFs as the Android app (res/font).
+        UIAppFonts: [geist_regular.ttf, geist_medium.ttf, geist_semibold.ttf, geist_bold.ttf]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mielevoevo.nativeauto
@@ -43,11 +50,24 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.mielevoevo.nativeauto.tests
 
+  NativeAutoUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [NativeAutoUITests]
+    dependencies:
+      - target: NativeAuto
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.mielevoevo.nativeauto.uitests
+        TEST_TARGET_NAME: NativeAuto
+
 schemes:
   NativeAuto:
     build:
       targets:
         NativeAuto: all
         NativeAutoTests: [test]
+        NativeAutoUITests: [test]
     test:
-      targets: [NativeAutoTests]
+      targets: [NativeAutoTests, NativeAutoUITests]
