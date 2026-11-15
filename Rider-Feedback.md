@@ -829,8 +829,9 @@ Short overview. Details are added once the rider's latest phone-test feedback is
 - **Media card swipe in landscape:** the portrait `SwipeToChange` (swipe to change track) also on the landscape media card.
 - **Auto-resume:** a paused trip resumes when steady movement is seen again (same detector as auto-start: speed over
   the threshold, held). Must not fight auto-pause / auto-end: resuming restarts the stationary clock; auto-end only
-  fires while still paused. Proposed: auto-resume only trips that were **auto**-paused (a manual pause is the rider's
-  choice), unless the rider wants both; a setting beside auto-pause.
+  fires while still paused. **Decided (rider):** manual pauses auto-resume too, by the same movement rule. Its own
+  hold time, shorter than auto-start's and set by the rider: 5 / 10 / 20 s (default 10), plus an on/off switch, in
+  Trip options beside auto-pause.
 - **Auto-start threshold 15 → ~10 km/h** (rider). Note from the test: no auto-start in a basement. Likely no usable GPS
   there (no fix, or fixes skipped as inaccurate), not the threshold; it should start soon after leaving. Keep the hold
   time so GPS drift at low speed doesn't start a trip.
