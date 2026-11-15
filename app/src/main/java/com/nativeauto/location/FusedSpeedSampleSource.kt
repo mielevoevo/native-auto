@@ -130,7 +130,7 @@ class FusedSpeedSampleSource @Inject constructor(
     private companion object {
         const val INTERVAL_MS = 1_000L
         const val WATCH_IDLE_INTERVAL_MS = 5_000L
-        /** Faster than a walk: worth the full-rate request (the auto-start line itself is 15 km/h). */
+        /** Faster than a walk: worth the full-rate request (the auto-start line itself is 10 km/h). */
         const val WATCH_MOVING_MPS = 2.5f
         /** A network fix this far from the last one means the bike moved. */
         const val WATCH_JUMP_M = 120.0

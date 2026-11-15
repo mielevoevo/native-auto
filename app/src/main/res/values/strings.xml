@@ -57,6 +57,7 @@
     <string name="settings_reset_hint">Discards this trip without saving</string>
     <string name="settings_auto_pause">Auto-pause</string>
     <string name="settings_auto_end">Auto-end</string>
+    <string name="settings_auto_resume">Auto-resume when moving</string>
     <string name="settings_auto_hint">Auto-pause: no movement for this long. Auto-end: paused this long; the trip is saved.</string>
     <string name="settings_off">Off</string>
     <string name="settings_telemetry">Trip figures</string>

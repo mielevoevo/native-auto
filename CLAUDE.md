@@ -822,3 +822,14 @@ Major drop: a vertically mounted phone. Spec `.dev/Phase-14b-Portrait.md`; choic
   user's request; revisit after the app is complete.
   Free alternative for the MapLibre engine: **Ferrostar** (open-source, BSD) with a Valhalla or
   OSRM routing server (public demo servers have fair-use limits; or self-host). No live traffic.
+
+## 4.2.1: auto-resume, 10 km/h, landscape media swipe (built 2026-11-16, versionCode 27)
+
+- **Auto-resume (`trip/AutoStart.kt`: `autoResumeAllowed`, `AUTO_RESUME_HOLD_CHOICES_S` 5/10/20, default 10):**
+  `AutoStartMonitor.watch()` runs `watchResume()` beside the auto-start watch; a paused trip (manual or auto) resumes
+  through `AutoStartActions.resumeTrip()` (`TripService.resume`) after `stepAutoStart` holds. App open only.
+  `SettingsRepository.autoResume` / `autoResumeHoldS` (defaulted interface members). Trip options row
+  `settings_auto_resume_<0|5|10|20>` (0 = off). `monitor.resumed` → banner "Trip resumed" (`BannerMessage`).
+- `AUTO_START_KMH` = 10 (was 15).
+- **Media:** landscape Compact / Wide / Expanded / Fullscreen wrap in `SwipeToChange` (`SwipeCentred`), skips kept.
+  Test: `PortraitCardsTest.landscapeMediaCardsChangeTrackBySwipeAndKeepSkips`.

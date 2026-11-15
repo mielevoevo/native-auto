@@ -614,3 +614,25 @@ tree is stashed during build 1 so the logo APK is built from clean code, then re
   4.1.1: emulator dex-opt after install). Not a code problem; if it recurs, run the smoke test twice.
 - **Concerns for the phone test:** (1) the notification-access screen opens in the middle of the setup on the Notifications toggle: check it returns to the
   page and the toggle reads On; (2) Android 13+ shows the permission prompt as a dialog over the setup, check both orientations; (3) the confirm dialog wording.
+
+## 4.2.1 (minor update, 2026-11-16)
+
+- **Auto-resume covers manual pauses too** (rider's choice): steady movement means riding again, whoever paused.
+- **Auto-resume runs only while the app is open**, through the same watcher as auto-start (`AutoStartMonitor`).
+  Reason: a pause stops the GPS, and the rider's rule is no background location. A trip paused with the app closed
+  resumes once the app is opened and the bike moves.
+- **Same proof as auto-start** (over 10 km/h, held, inaccurate fixes skipped), own hold 5 / 10 / 20 s, **default on at
+  10 s**. Reason: the rider asked for it, and a shorter hold than auto-start's because the trip already exists. On for
+  existing installs too: the rider's request, and it only acts on a paused trip.
+- **One settings row (Off / 5 / 10 / 20 s)** instead of a switch plus a row: the Trip options dialog has to fit a
+  landscape phone without scrolling. Stored as two settings (`auto_resume`, `auto_resume_hold_s`).
+- **No clash with auto-pause / auto-end:** a resume restarts auto-pause's stationary clock, auto-end only fires while
+  still paused, and auto-pause needs minutes below 3 km/h while resume needs 10 km/h held, so they can't flip-flop.
+- **"Trip resumed / Moving again"** reuses the auto-start banner and pill (`BannerMessage.resumed`).
+- **Auto-start threshold 10 km/h** (rider). The basement miss was the GPS (no usable fix underground), not the
+  threshold; the hold time stays so drift at a standstill can't start a trip.
+- **Smoke test fix:** the Trip options row went to the right column (the left one pushed Period total below the fold).
+  Leftover plate tags (`garage_bike_<name>` etc.) in three tests renamed; the history rewrite had matched whole words only.
+- **Landscape media swipe:** Compact, Wide, Expanded and Fullscreen landscape cards take the portrait swipe; unlike
+  portrait's small cards they **keep** their skip buttons (room for them, and gloves). No other horizontal gesture on
+  those cards to clash with.
