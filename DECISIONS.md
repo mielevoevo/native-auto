@@ -614,3 +614,15 @@ tree is stashed during build 1 so the logo APK is built from clean code, then re
   4.1.1: emulator dex-opt after install). Not a code problem; if it recurs, run the smoke test twice.
 - **Concerns for the phone test:** (1) the notification-access screen opens in the middle of the setup on the Notifications toggle: check it returns to the
   page and the toggle reads On; (2) Android 13+ shows the permission prompt as a dialog over the setup, check both orientations; (3) the confirm dialog wording.
+
+## Phase 15 (iOS)
+
+Unattended run 15a -> 15b on the Mac (2026-11-16). Simulator: iPhone 17 (iOS 27.2, Xcode 27.2); the README's
+"iPhone 16" isn't installed here.
+
+### 15a (v0.1, build 1)
+- **Local.xcconfig** created from the example with an empty team ID (git-ignored). `project.yml` lists it as the
+  config file, so XcodeGen needs it to exist; the simulator doesn't sign, so the empty ID is enough. Reason: the
+  rider's real ID goes in later, for the phone.
+- The Windows-written 15a compiled and passed all 16 tests unchanged. Checked against the Kotlin: `TripReducer`,
+  `stepAutoStart`, `autoStartAllowed` and the polyline match line for line (same constants).
