@@ -1,0 +1,53 @@
+# XcodeGen spec: `cd ios && xcodegen` writes NativeAuto.xcodeproj (git-ignored; never edit it by hand).
+name: NativeAuto
+options:
+  bundleIdPrefix: com.mielevoevo
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+configFiles:
+  Debug: Local.xcconfig
+  Release: Local.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1"        # iOS line: 0.x until it matches the Android app, then 1.0
+    CURRENT_PROJECT_VERSION: "1"    # +1 per sub-phase build
+
+targets:
+  NativeAuto:
+    type: application
+    platform: iOS
+    sources: [NativeAuto]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mielevoevo.nativeauto
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Native Auto
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Native Auto shows your speed and records your trips while the app is open.
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+  NativeAutoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [NativeAutoTests]
+    dependencies:
+      - target: NativeAuto
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.mielevoevo.nativeauto.tests
+
+schemes:
+  NativeAuto:
+    build:
+      targets:
+        NativeAuto: all
+        NativeAutoTests: [test]
+    test:
+      targets: [NativeAutoTests]
