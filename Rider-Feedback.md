@@ -831,3 +831,12 @@ Short overview. Details are added once the rider's latest phone-test feedback is
   no-reply author email), but APKs built up to v4.2 still carry the old hint. **Don't attach v4.2 or earlier APKs to a
   GitHub release;** the first release APK should be this update.
 - Version bump + changelog entry as usual; release smoke test before the APK.
+
+## WIP: licence (rider, 2026-11-16; decide before the repo goes public)
+
+The GitHub repo is private for now; the MIT `LICENSE` stays until then. The rider does **not** want others to reuse or
+modify the code. Before making the repo public:
+- Choose the licence (likely "all rights reserved" / no licence; source visible only).
+- Remove the MIT file from the **whole history** (rewrite + force-push to the private repo), not just the latest commit,
+  or old versions stay MIT.
+- README: replace "Code: MIT" and revisit "pull requests are welcome".
