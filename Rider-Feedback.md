@@ -821,3 +821,13 @@ Rider notes: the green pin at a pane's top-right in screenshots is Android's pri
   portrait maximize by pane count (2: none; 3-4: a card takes two cards' space); one Add bike button on an empty Garage; call-controls switch;
   auto-start on/off merged; Privacy and data tab; more title space in portrait; portrait layout switcher rows.
 - 4.2: first-run setup pages (7), landscape first, no scrolling on any page. Details in `.dev/Phase-4.1-4.2-Unattended.md`.
+
+## Next update (planned 2026-11-16, not started; version number: rider decides)
+
+Short overview. Details are added once the rider's latest phone-test feedback is collected.
+- **Rider feedback from the latest phone test** (v4.2): the main content, to be listed here.
+- **Privacy clean-up in the app:** the bike editor's name hint drops the old example (it becomes "Name (e.g. Gen 1)" or
+  no example). Git history is already cleaned before the first GitHub push (bike names → Gen 1 / Gen 2, no home-base hints,
+  no-reply author email), but APKs built up to v4.2 still carry the old hint. **Don't attach v4.2 or earlier APKs to a
+  GitHub release;** the first release APK should be this update.
+- Version bump + changelog entry as usual; release smoke test before the APK.
