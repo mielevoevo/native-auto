@@ -21,6 +21,9 @@ Current version: **4.2** (Android 8.0+, `com.nativeauto`).
 
 Everything stays on the phone. There is no account and no analytics.
 
+**What it is not:** a trip-planning or off-road navigation suite, a logbook, or a hardware add-on. It needs no
+sensors, adapter or account. It is the screen you glance at while riding, on the bike you already have.
+
 ## Built with AI
 
 Native Auto was built by one rider working with [Claude Code](https://claude.com/claude-code): the rider
