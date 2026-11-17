@@ -120,17 +120,53 @@ extension SpeedSample {
     }
 }
 
-/// Real GPS or the scripted drive (debug "Fake GPS"), chosen at subscribe time.
+/// Real GPS, the scripted drive (debug "Fake GPS") or the planned route (debug "Simulate navigation", which beats
+/// Fake GPS). A change of choice moves every open subscription over at once, like Android's
+/// `SwitchableSpeedSampleSource` (`flatMapLatest`).
 final class SwitchableSource: SpeedSampleSource {
     let real: CoreLocationSource
     let fake: FakeSpeedSampleSource
-    var useFake = false
+    var useFake = false { didSet { if oldValue != useFake { reselect() } } }
+    /// Set while a simulated drive runs; nil otherwise.
+    var simulated: SpeedSampleSource? { didSet { if oldValue !== simulated { reselect() } } }
 
     init(real: CoreLocationSource, fake: FakeSpeedSampleSource) { self.real = real; self.fake = fake }
 
-    var isLocationEnabled: Bool { useFake || real.isLocationEnabled }
+    var isLocationEnabled: Bool { simulated != nil || useFake || real.isLocationEnabled }
+
+    private var current: SpeedSampleSource { simulated ?? (useFake ? fake : real) }
+
+    private final class Forward: Cancellable {
+        let onEvent: (SourceEvent) -> Void
+        var inner: Cancellable?
+        var cancelled = false
+        let done: (Forward) -> Void
+        init(_ onEvent: @escaping (SourceEvent) -> Void, done: @escaping (Forward) -> Void) { self.onEvent = onEvent; self.done = done }
+        func cancel() { cancelled = true; inner?.cancel(); inner = nil; done(self) }
+    }
+
+    private var open: [Forward] = []
 
     func subscribe(_ onEvent: @escaping (SourceEvent) -> Void) -> Cancellable {
-        useFake ? fake.subscribe(onEvent) : real.subscribe(onEvent)
+        let f = Forward(onEvent) { [weak self] f in self?.open.removeAll { $0 === f } }
+        open.append(f)
+        attach(f)
+        return f
+    }
+
+    private func attach(_ f: Forward) {
+        f.inner = current.subscribe { [weak self, weak f] event in
+            guard let self, let f, !f.cancelled else { return }
+            // A failure ends the subscription (the reader retries with a new one), so a later switch skips it.
+            if case .failure = event { f.inner = nil; f.cancelled = true; self.open.removeAll { $0 === f } }
+            f.onEvent(event)
+        }
+    }
+
+    private func reselect() {
+        for f in open where !f.cancelled {
+            f.inner?.cancel()
+            attach(f)
+        }
     }
 }

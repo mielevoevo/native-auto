@@ -47,6 +47,10 @@ private struct PaneSlot: View {
         let mode = model.layout.modeOf(pane)
 
         PaneContent(pane: pane, mode: mode)
+            // A parked pane stays composed (rule #3) but isn't on screen; panes leave out controls a rider couldn't
+            // reach (a parked Navigation pane would offer VoiceOver a second "Start").
+            .environment(\.paneOnScreen, visible)
+            .accessibilityHidden(!visible)
             .padding(visible ? gap : 0)
             .frame(width: w, height: h)
             .overlay { if visible { DragOverlay(pane: pane, holdStart: holdStart, holdMs: settings.dragHoldMs).padding(gap) } }
@@ -130,6 +134,16 @@ private struct DragOverlay: View {
     }
 }
 
+private struct PaneOnScreenKey: EnvironmentKey { static let defaultValue = true }
+
+extension EnvironmentValues {
+    /// False while the pane is parked (zero size): composed, but nothing in it can be seen or reached.
+    var paneOnScreen: Bool {
+        get { self[PaneOnScreenKey.self] }
+        set { self[PaneOnScreenKey.self] = newValue }
+    }
+}
+
 /// Which card fills a pane.
 struct PaneContent: View {
     let pane: Pane
@@ -139,8 +153,8 @@ struct PaneContent: View {
         switch pane {
         case .speed: SpeedCard(mode: mode)
         case .clock: ClockCard(mode: mode)
-        case .map: PlaceholderCard(pane: .map, mode: mode, icon: "map", note: "The map comes in the next build (0.3).")
-        case .nav: PlaceholderCard(pane: .nav, mode: mode, icon: "arrow.triangle.turn.up.right.diamond", note: "Navigation comes with the map (0.3).")
+        case .map: MapCard(mode: mode)
+        case .nav: NextTurnCard(mode: mode)
         case .media: PlaceholderCard(pane: .media, mode: mode, icon: "music.note", note: "Media comes in 0.5.")
         case .garage: PlaceholderCard(pane: .garage, mode: mode, icon: "fuelpump", note: "The Garage comes in 0.4.")
         case .call: PlaceholderCard(pane: .call, mode: mode, icon: "phone", note: "A call is on.")

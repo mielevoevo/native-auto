@@ -1,10 +1,6 @@
 import Foundation
 
-/// Port of Android `history/Polyline.kt`.
-struct GeoPoint: Equatable {
-    var latitude: Double
-    var longitude: Double
-}
+/// Port of Android `history/Polyline.kt`. `GeoPoint` lives in `Core/Nav/NavModels.swift`.
 
 /// Google's encoded polyline format, precision 5 (~1 m). Same text as the Android app writes,
 /// so backups move between the two.

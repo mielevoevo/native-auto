@@ -13,6 +13,9 @@ final class TripStore: ObservableObject {
     @Published private(set) var endArmed = false
     /// Reset (discard) needs two taps too.
     @Published private(set) var resetArmed = false
+    /// The latest fix from whichever reader holds the GPS: the trip while it runs, the live read otherwise. The map
+    /// and the navigator follow it (Android `LiveLocation`: one GPS subscription for everything).
+    @Published private(set) var fix: SpeedSample?
 
     static let armMs: Int64 = 3_000
 
@@ -45,6 +48,7 @@ final class TripStore: ObservableObject {
                     self.state = self.tracker.state
                     self.updateLive()
                 }
+                if self.tracker.state == .running, let f = self.tracker.lastFix, f != self.fix { self.fix = f }
                 self.refresh()
             }
         }
@@ -63,11 +67,13 @@ final class TripStore: ObservableObject {
     /// The app came to the front: the screen stays on, the live speed and the 1 s refresh run.
     func appActive() {
         UIApplication.shared.isIdleTimerDisabled = true
-        updateLive()
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
+        // After the ticker exists: the live read runs only while the app is in front (`ticker != nil`). Called the
+        // other way round it never started unless a permission callback came later (15b race, found in 15c).
+        updateLive()
         refresh()
         #if DEBUG
         // Screenshots and checks in the simulator: `-debug_start_trip 1` starts a trip at launch.
@@ -137,6 +143,11 @@ final class TripStore: ObservableObject {
 
     func requestLocation() { source.real.requestPermission() }
 
+    /// Debug "Simulate navigation": every reader drives along `route` until it is set back to nil.
+    func setSimulatedRoute(_ route: [GeoPoint]?) {
+        source.simulated = route.map { SimulatedDriveSource(route: $0, clock: clock, scheduler: scheduler) }
+    }
+
     // MARK: - Live speed without a trip
 
     /// With no trip running the hero still shows the speed, from its own read of the same source.
@@ -147,7 +158,7 @@ final class TripStore: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     switch event {
-                    case .fix(let f): self.liveFix = f; self.refresh()
+                    case .fix(let f): self.liveFix = f; self.fix = f; self.refresh()
                     case .failure: self.live = nil; self.liveFix = nil; self.refresh()
                     }
                 }

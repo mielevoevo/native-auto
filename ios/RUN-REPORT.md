@@ -1,6 +1,7 @@
-# Unattended run: Phase 15a + 15b (iOS), 2026-11-16
+# Unattended run: Phase 15a + 15b (iOS), 2026-11-16; 15c, 2026-11-17
 
-Mac: Xcode 27.2, simulator **iPhone 17** (iOS 27.2). Commits: `Native Auto iOS 0.1` (15a), `Native Auto iOS 0.2` (15b).
+Mac: Xcode 27.2, simulator **iPhone 17** (iOS 27.2). Commits: `Native Auto iOS 0.1` (15a), `Native Auto iOS 0.2` (15b),
+`Native Auto iOS 0.3` (15c).
 Choices and reasons: `DECISIONS.md` → "Phase 15 (iOS)".
 
 ## 15a (v0.1, build 1)
@@ -42,6 +43,32 @@ Choices and reasons: `DECISIONS.md` → "Phase 15 (iOS)".
 - **5 UI tests** (`NativeAutoUITests`) on the simulator: trip life cycle through the log face, drag to swap, picker
   after a still hold, layout switcher to Quad, rotation in Auto mode.
 
+## 15c (v0.3, build 3)
+**Pure core (`Core/Nav/`, `Core/Map/`), ported with its Android tests:** nav models and `NavState`, distance / duration /
+ETA formatting and banner text, Photon parsing, Google Maps / `geo:` link parsing, the simulated drive, the follow
+camera, recent places. **226 unit tests** (37 new: `ParsePhotonTest`, `MapsLinkTest`, `NavFormatTest`,
+`SimulatedDriveTest`, `FollowCameraTest`, plus recent places, renames, the switchable source).
+
+**App:**
+- Map pane: MapLibre 6.31 with OpenFreeMap tiles (no key). Dark = the stock dark style recoloured to true black with
+  the roads lightest (Android's layer table); light = Positron. Cyan dot with a heading chevron, follow camera
+  (heading-up, 45° tilt, breaks on a pan or pinch, Recenter restores it), route in the accent over a dark casing, red
+  destination pin, OpenStreetMap credit kept. The map sleeps 30 s after leaving the screen and wakes where it was.
+- Navigation: Ferrostar 0.59 with FOSSGIS Valhalla **motorcycle** costing, Photon search. Search sheet (recent places,
+  results after a pause in typing, Paste for a Maps link) → route preview (Cancel / Start) → guidance: banner, ETA
+  card, Mute / End / Recenter on a big map; one chip plus Mute / End in the header on a small map; English voice,
+  muting never ducks music; reroutes at least 8 s apart. Failures say why (no GPS yet, offline with Retry, no route).
+- Navigation pane: "Where to?" when idle, the same preview and status cards, the turn face in every card size (Compact,
+  Wide, Expanded / Fullscreen with "Then …" and End, portrait Mini / Narrow / row centred).
+- Auto layout: navigation start shows the map (Quad → map, Navigation, speed, media), the end gives the rider's layout back.
+- Links: pasted text or Maps links in search, `geo:` URIs, `nativeauto://open?text=…`; a status pill while one resolves.
+- Long-press the map in fullscreen to drop a destination pin (named afterwards from Apple's geocoder or Photon).
+- Settings: Navigation (voice guidance, auto layout), Debug (Simulate navigation).
+- **3 new UI tests** (`NavigationUITests`, live services, skip offline): link → preview → guidance → End; the Navigation
+  pane taking over from a small map; search → preview. All 8 UI tests pass.
+- Fixed on the way: the live GPS read could fail to start at launch (15b timing bug), launch-argument switches,
+  parked panes exposing a second "Start" to VoiceOver. Android bug noted in DECISIONS (a `geo:` label lost).
+
 ## Not possible / not ported on iOS (so far)
 - Rotation-lock-following AUTO with Android's lean-and-hold policy: iOS applies the lock itself, so Auto just follows
   the phone. Refresh-rate control (ProMotion adapts by itself). The double-back close flow (no back button).
@@ -65,7 +92,17 @@ Choices and reasons: `DECISIONS.md` → "Phase 15 (iOS)".
 - Auto-pause after 5 min stopped, auto-end 30 min later (only while the app stays open).
 - Battery reading in the corner (the simulator has none).
 
+**15c on the iPhone:**
+- A real route: the voice (English, and that music ducks only while it speaks), rerouting after a wrong turn,
+  arrival, the motorcycle costing keeping off toll roads.
+- Holding the **map body** (not its header) 1 s to lift it: SwiftUI's hold over MapLibre's own gestures is untested
+  by the UI tests (they drag other cards onto the map). If it doesn't lift, the header strip does.
+- Long-press to drop a pin in fullscreen; the follow glide's smoothness at 1 Hz; the map's battery and heat cost.
+- Sharing from Google Maps: until the share extension (15e), copy the link and use Paste in "Navigate to…".
+
 ## Left half-done / notes
+- Google Maps' share sheet can't target the app yet: a share extension is planned for 15e (paste works meanwhile).
+- No traffic layer (OpenFreeMap has none) and no Google engine on iOS; the route colour setting comes with 15e.
 - The trip isn't saved yet (history is 15d); ending or swiping away just ends it.
 - The settings sheet is one page; the categories (13c) come with 15e.
 - A static simulator location (simctl `location set`) can show "No fix": CoreLocation sends that fix once, cached, and

@@ -8,11 +8,15 @@ struct NativeAutoApp: App {
     @StateObject private var trip: TripStore
     @StateObject private var dashboard: DashboardModel
     @StateObject private var battery = BatteryMonitor()
+    @StateObject private var navigator: Navigator
+    @StateObject private var map = MapStore()
 
     init() {
         let s = SettingsStore()
         _settings = StateObject(wrappedValue: s)
-        _trip = StateObject(wrappedValue: TripStore(settings: s))
+        let t = TripStore(settings: s)
+        _trip = StateObject(wrappedValue: t)
+        _navigator = StateObject(wrappedValue: Navigator(settings: s, trip: t))
         _dashboard = StateObject(wrappedValue: DashboardModel(settings: s))
         // The orientation is asked for before the first frame (Android `MainActivity` does the same).
         AppDelegate.orientationMask = s.orientationMode.mask
@@ -25,6 +29,8 @@ struct NativeAutoApp: App {
                 .environmentObject(trip)
                 .environmentObject(dashboard)
                 .environmentObject(battery)
+                .environmentObject(navigator)
+                .environmentObject(map)
         }
     }
 }
@@ -34,6 +40,8 @@ struct RootView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var trip: TripStore
     @EnvironmentObject private var dashboard: DashboardModel
+    @EnvironmentObject private var navigator: Navigator
+    @EnvironmentObject private var map: MapStore
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var phase
 
@@ -52,6 +60,33 @@ struct RootView: View {
             .sheet(isPresented: $dashboard.showSettings) { sheet(colors) { SettingsSheet() } }
             .sheet(isPresented: $dashboard.showLayouts) { sheet(colors) { LayoutSwitcher() } }
             .sheet(item: $dashboard.pickerFor) { pane in sheet(colors) { PanePicker(slot: pane) } }
+            .sheet(isPresented: $dashboard.showSearch) { sheet(colors) { DestinationSearchSheet() } }
+            .overlay(alignment: .top) {
+                if let status = navigator.linkStatus {
+                    LinkStatusPill(status: status).padding(.top, 8).transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: navigator.linkStatus)
+            .onChange(of: navigator.state.isNavigating) { _, on in
+                dashboard.navigationChanged(active: on, autoLayout: settings.autoLayout)
+            }
+            // 10b: `geo:` links, and `nativeauto://open?text=…` (what a share extension or a Shortcut hands over).
+            .onOpenURL { url in
+                if let text = incomingLinkText(url) { navigator.openLink(text) }
+            }
+            #if DEBUG
+            // Screenshots: `-debug_start_nav 1` presses Start as soon as a preview arrives.
+            .onChange(of: navigator.state) { _, s in
+                if case .preview = s, UserDefaults.standard.bool(forKey: "debug_start_nav") { navigator.start() }
+            }
+            // Simulator checks and UI tests: `-debug_open_link "geo:…"` opens a link at launch, as if shared.
+            .task {
+                if let link = UserDefaults.standard.string(forKey: "debug_open_link"), !link.isEmpty {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000) // a first fix to route from
+                    navigator.openLink(link)
+                }
+            }
+            #endif
             .onAppear { applyOrientation(settings.orientationMode) }
             .onChange(of: settings.orientationMode) { _, m in applyOrientation(m) }
             .onChange(of: phase, initial: true) { _, p in
@@ -66,6 +101,7 @@ struct RootView: View {
         content()
             .environment(\.appColors, colors)
             .environmentObject(settings).environmentObject(trip).environmentObject(dashboard)
+            .environmentObject(navigator).environmentObject(map)
             .font(.geist(16))
             .tint(colors.accent)
             .preferredColorScheme(colors.isDark ? .dark : .light)
@@ -75,6 +111,18 @@ struct RootView: View {
 }
 
 extension Pane: Identifiable { var id: String { rawValue } }
+
+/// The text to resolve from a URL opened in the app: a `geo:` URI as it is, or the `text` / `url` of
+/// `nativeauto://open?...`. Nil for anything else.
+func incomingLinkText(_ url: URL) -> String? {
+    switch url.scheme?.lowercased() {
+    case "geo": return url.absoluteString
+    case "nativeauto":
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        return items.first { $0.name == "text" || $0.name == "url" }?.value.flatMap { $0.isEmpty ? nil : $0 }
+    default: return nil
+    }
+}
 
 extension OrientationMode {
     /// Landscape and Portrait are fixed (both landscape sides, like Android's sensor-landscape); Auto turns with the

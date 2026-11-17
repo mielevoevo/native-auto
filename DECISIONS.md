@@ -661,3 +661,49 @@ Unattended run 15a -> 15b on the Mac (2026-11-16). Simulator: iPhone 17 (iOS 27.
   QUAD`) drive the simulator screenshots and the UI tests; `-debug_start_trip` is compiled into debug builds only.
 - **UI tests added** (`NativeAutoUITests`, 5 tests): trip life cycle through the log face, drag to swap, picker after a
   still hold, layout switcher, rotation in Auto. Reason: the drag and the hold can't be checked by unit tests.
+
+### 15c (v0.3, build 3), 2026-11-17
+- **Map: MapLibre's UIKit `MLNMapView` in a `UIViewRepresentable`, not the SwiftUI DSL or `FerrostarMapLibreUI`.**
+  Only Ferrostar's `FerrostarCore` product is linked. Reason: the dashboard needs Android's own map rules (OLED
+  recolour by layer id, route under the labels, cyan dot with a heading chevron, follow camera breaking on a gesture
+  only, map sleep), which the ready-made navigation view doesn't offer. The DSL still comes in as a Ferrostar
+  dependency; command-line builds pass `-skipMacroValidation`, Xcode asks once to trust its macro.
+- **Exact package pins:** Ferrostar 0.59.0 (Android's), MapLibre 6.31.0 (what Ferrostar 0.59 resolves to). Reason:
+  the resolved-versions file lives in the git-ignored `.xcodeproj`, so only `project.yml` fixes the versions.
+- **One location read for everything:** `TripStore.fix` (the trip's fix while it runs, the live read otherwise) feeds
+  the map and Ferrostar (`FixLocationProvider`); Ferrostar never opens its own `CLLocationManager`. `SwitchableSource`
+  now moves open readers over mid-stream, so debug "Simulate navigation" (beats Fake GPS) drives the trip, the map and
+  guidance along the planned route, like Android's `SwitchableSpeedSampleSource`.
+- **15b bug fixed:** `TripStore.appActive()` started the live read before the 1 s ticker existed, and the read only
+  runs while the ticker does, so the hero and the map had no fix unless a permission callback came later. It worked in
+  15b by luck of timing; 15c's extra start-up work changed the order. Now the ticker comes first.
+- **Voice:** Ferrostar iOS checks its mute flag before it asks for audio focus, so a muted route never ducks the music:
+  Android's 13a workaround (detaching the observer) isn't needed; mute is `toggleMute()`. `EnglishSpeech` puts a US
+  English voice on every utterance (the narration is Valhalla's English).
+- **Recent places in `UserDefaults`** (JSON, 8 kept, one per ~10 m: `rememberPlace`, tested), not a database. Reason:
+  eight small rows; storage arrives with 15d and they can move then.
+- **Naming a dropped pin:** Apple's `CLGeocoder` first, Photon reverse as fallback (Android: the platform `Geocoder`
+  first, then Photon). Same User-Agent rule for FOSSGIS and Photon: `NativeAuto/<version> (iOS dashboard; personal use)`.
+- **Google Maps links without a share extension (for now):** the search sheet takes a pasted link (field or the
+  system Paste button, which needs no paste permission), and the app opens `geo:` URIs and
+  `nativeauto://open?text=…` (a Shortcut can hand a shared link over). Reason: Google Maps on iOS offers only apps
+  with a share extension in its share sheet; an extension is its own target with an app group, which fits 15e better.
+  Logged as left for 15e.
+- **Android bug found while porting (not fixed in `app/`, for the Android update):** `findMapsUrl` trims a trailing
+  `)` from every link, so `geo:…(Warung Bu Ning)` found in shared text loses its label. iOS keeps a `)` the link opened
+  (`MapsLinkTests.testAGeoLabelSurvivesBeingFoundInText`).
+- **Map buttons while guiding, as on Android:** a big map's 56 pt column holds Mute, End (two taps) and Recenter
+  (Android `MapButtons`); a small map's header holds Mute and End (13b). End is two taps everywhere on iOS: the 14b
+  rule for the portrait header, applied to every End so one tap of a glove never drops the route.
+- **Parked panes draw no navigation controls** (`paneOnScreen` environment). Found by the UI tests: a parked
+  Navigation pane still offered VoiceOver a second "Start"; `accessibilityHidden` on the slot didn't remove it.
+- **No traffic button:** OpenFreeMap has no traffic data (as on Android's MapLibre engine). No Google Maps engine on iOS.
+- **The route line follows the accent;** a separate route colour (13c) comes with the 15e settings.
+- **Launch-argument switches:** `SettingsStore` read booleans with `as? Bool`, which misses text from launch arguments
+  ("-voice_guidance 0"), so those fell back to the default. Now `bool(forKey:)` (also fixes 15b's battery switch).
+- **Debug launch arguments added:** `-debug_open_link "<text>"` (opens it as if shared), `-debug_start_nav 1` (presses
+  Start on the preview), `-simulate_navigation 1`. Debug builds only.
+- **UI tests added** (`NavigationUITests`, 3 tests, against the real FOSSGIS and Photon, skipping when offline): link →
+  preview → guidance on the simulated drive → End (two taps); the Navigation pane taking the turn from a small map
+  (auto layout to Quad's guiding set, the map's Mute / End header); search → preview. The 15b rotation test now pins
+  the portrait shape (the last one used wins, and a manual run had saved another).

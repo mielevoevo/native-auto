@@ -9,6 +9,8 @@ final class DashboardModel: ObservableObject {
     @Published var pickerFor: Pane?
     @Published var showLayouts = false
     @Published var showSettings = false
+    /// The destination search ("Navigate to…").
+    @Published var showSearch = false
 
     // Drag to swap (12a / 13a)
     @Published private(set) var lifted: Pane?
@@ -39,6 +41,15 @@ final class DashboardModel: ObservableObject {
     func setPortrait(_ portrait: Bool) {
         guard portrait != layout.portrait else { return }
         change { $0.setPortrait(portrait) }
+    }
+
+    // MARK: - Navigation (8b auto layout)
+
+    /// Navigation started or ended: show the map on top of the rider's layout (an override, never saved), or drop it.
+    func navigationChanged(active: Bool, autoLayout: Bool) {
+        var l = layout
+        if active { AutoLayout.onNavigationStarted(&l, enabled: autoLayout) } else { AutoLayout.onNavigationEnded(&l) }
+        withAnimation(Self.spring) { layout = l }
     }
 
     // MARK: - Drag

@@ -14,6 +14,9 @@ struct DashboardCard<Content: View>: View {
     let pane: Pane
     let mode: CardMode
     var title: String? = nil
+    /// The pane's own header buttons in place of swap / maximize / fullscreen (13b: a guiding map shows mute and End;
+    /// the pane picker keeps Fullscreen and Maximize).
+    var headerActions: AnyView? = nil
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var model: DashboardModel
     @Environment(\.appColors) private var colors
@@ -42,7 +45,7 @@ struct DashboardCard<Content: View>: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityAction(named: "Choose what this pane shows") { model.pickerFor = pane }
             Spacer(minLength: 8)
-            if !slim { paneButtons }
+            if let headerActions { headerActions } else if !slim { paneButtons }
             if model.layout.statusPane == pane { StatusCorner() }
         }
         .padding(.trailing, 6)

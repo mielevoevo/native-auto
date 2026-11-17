@@ -6,6 +6,16 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
 
+packages:
+  # 15c: map + navigation (no API keys). Ferrostar matches Android's 0.59; MapLibre 6.31.0 is what Ferrostar 0.59's
+  # own MapLibre dependency resolves to. Exact pins: the resolved file lives in the git-ignored .xcodeproj.
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    exactVersion: "6.31.0"
+  Ferrostar:
+    url: https://github.com/stadiamaps/ferrostar
+    exactVersion: "0.59.0"
+
 configFiles:
   Debug: Local.xcconfig
   Release: Local.xcconfig
@@ -13,14 +23,18 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "0.2"        # iOS line: 0.x until it matches the Android app, then 1.0
-    CURRENT_PROJECT_VERSION: "2"    # +1 per sub-phase build
+    MARKETING_VERSION: "0.3"        # iOS line: 0.x until it matches the Android app, then 1.0
+    CURRENT_PROJECT_VERSION: "3"    # +1 per sub-phase build
 
 targets:
   NativeAuto:
     type: application
     platform: iOS
     sources: [NativeAuto]
+    dependencies:
+      - package: MapLibre
+      - package: Ferrostar
+        product: FerrostarCore
     info:
       path: NativeAuto/Info.plist
       properties:
@@ -28,6 +42,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # Geist (Vercel, OFL), the same TTFs as the Android app (res/font).
         UIAppFonts: [geist_regular.ttf, geist_medium.ttf, geist_semibold.ttf, geist_bold.ttf]
+        # 15c: `geo:` links and `nativeauto://open?text=…` (a Shortcut or a later share extension) open a destination.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.mielevoevo.nativeauto.links
+            CFBundleURLSchemes: [geo, nativeauto]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mielevoevo.nativeauto

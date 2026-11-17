@@ -86,7 +86,8 @@ final class DashboardUITests: XCTestCase {
 
     func testTurningThePhoneInAutoGivesAPortraitStackInTheSameOrder() {
         app.terminate()
-        app.launchArguments += ["-orientation_mode", "AUTO"]
+        // Pin the portrait shape: the last one used wins (14b), and an earlier run may have saved another.
+        app.launchArguments += ["-orientation_mode", "AUTO", "-layout_preset_portrait", "STACK3"]
         app.launch()
         XCTAssertTrue(slot("SPEED").waitForExistence(timeout: 10))
         XCUIDevice.shared.orientation = .portrait

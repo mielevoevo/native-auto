@@ -24,6 +24,10 @@ struct SettingsSheet: View {
                     row("Orientation") { Segments(options: OrientationMode.allCases, selection: $settings.orientationMode) { $0.label } }
                     row("Hold to move a card") { Segments(options: PaneDrag.holdChoicesMs, selection: $settings.dragHoldMs) { "\($0 / 1000) s" } }
                 }
+                section("Navigation") {
+                    switchRow("Voice guidance (English)", $settings.voiceGuidance)
+                    switchRow("Auto layout: show the map when navigation starts", $settings.autoLayout)
+                }
                 section("Trip") {
                     row("Auto-pause after no movement") {
                         Segments(options: AutoTripConfig.pauseChoicesMin, selection: $settings.autoPauseMin) { $0 == 0 ? "Off" : "\($0) min" }
@@ -41,6 +45,7 @@ struct SettingsSheet: View {
                 #if DEBUG
                 section("Debug") {
                     switchRow("Fake GPS (scripted drive; resets the trip)", Binding(get: { settings.useFakeGps }, set: { trip.setFakeGps($0) }))
+                    switchRow("Simulate navigation (drives the planned route)", $settings.simulateNavigation)
                 }
                 #endif
                 Text("Native Auto iOS \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""))")

@@ -20,6 +20,16 @@ final class SettingsStore: ObservableObject {
     @Published var showBattery: Bool { didSet { d.set(showBattery, forKey: "show_battery") } }
     @Published var useFakeGps: Bool { didSet { d.set(useFakeGps, forKey: "use_fake_gps") } }
     @Published var hiddenStats: Set<TelemetryStat> { didSet { d.set(Array(hiddenStats.map(\.key)), forKey: "hidden_stats") } }
+    // 15c: navigation
+    /// Spoken turn instructions; the mute button flips it mid-route.
+    @Published var voiceGuidance: Bool { didSet { d.set(voiceGuidance, forKey: "voice_guidance") } }
+    /// Show the map when navigation starts (8b auto layout).
+    @Published var autoLayout: Bool { didSet { d.set(autoLayout, forKey: "auto_layout") } }
+    /// Debug: guidance drives the planned route instead of reading the GPS.
+    @Published var simulateNavigation: Bool { didSet { d.set(simulateNavigation, forKey: "simulate_navigation") } }
+    /// Places navigated to, newest first (8 kept). Android keeps them in Room; here they are small enough for
+    /// `UserDefaults` (JSON).
+    @Published var recentPlaces: [Place] { didSet { d.set(try? JSONEncoder().encode(recentPlaces), forKey: "recent_places") } }
 
     init(defaults: UserDefaults = .standard) {
         d = defaults
@@ -33,17 +43,27 @@ final class SettingsStore: ObservableObject {
         let hold = Int64(d.object(forKey: "drag_hold_ms") as? Int ?? Int(PaneDrag.defaultHoldMs))
         dragHoldMs = PaneDrag.holdChoicesMs.contains(hold) ? hold : PaneDrag.defaultHoldMs
         orientationMode = OrientationMode(rawValue: d.string(forKey: "orientation_mode") ?? "") ?? .landscape
-        showBattery = d.object(forKey: "show_battery") as? Bool ?? true
+        showBattery = Self.flag(d, "show_battery", default: true)
         useFakeGps = d.bool(forKey: "use_fake_gps")
         hiddenStats = (d.array(forKey: "hidden_stats") as? [String]).map { TelemetryStat.fromKeys(Set($0)) } ?? TelemetryStat.defaultHidden
+        voiceGuidance = Self.flag(d, "voice_guidance", default: true)
+        autoLayout = Self.flag(d, "auto_layout", default: true)
+        simulateNavigation = d.bool(forKey: "simulate_navigation")
+        recentPlaces = d.data(forKey: "recent_places").flatMap { try? JSONDecoder().decode([Place].self, from: $0) } ?? []
     }
 
     var accent: RGB { RGB(hex: accentArgb) }
 
+    /// A stored switch, or `default` when never set. `bool(forKey:)` also reads launch arguments ("-show_battery 0"
+    /// arrives as text, which `as? Bool` misses).
+    private static func flag(_ d: UserDefaults, _ key: String, default value: Bool) -> Bool {
+        d.object(forKey: key) == nil ? value : d.bool(forKey: key)
+    }
+
     /// The rider's own arrangement (never an auto-layout override), sanitized on the way in.
     var savedLayout: SavedLayout {
         get {
-            SavedLayout(bigOnLeft: d.object(forKey: "layout_big_on_left") as? Bool ?? true,
+            SavedLayout(bigOnLeft: Self.flag(d, "layout_big_on_left", default: true),
                         split: d.object(forKey: "layout_split") as? Double ?? 0.5,
                         preset: d.string(forKey: "layout_preset") ?? "",
                         slots: d.string(forKey: "layout_slots") ?? "",
