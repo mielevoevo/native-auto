@@ -11,7 +11,7 @@ final class DashboardUITests: XCTestCase {
         // The app asks for landscape; the device must agree, or frames and swipes come back rotated.
         XCUIDevice.shared.orientation = .landscapeLeft
         app = XCUIApplication()
-        app.launchArguments = ["-use_fake_gps", "1", "-orientation_mode", "LANDSCAPE", "-layout_preset", "DUO",
+        app.launchArguments = ["-setup_done", "1", "-use_fake_gps", "1", "-orientation_mode", "LANDSCAPE", "-layout_preset", "DUO",
                                "-layout_slots", "DUO=MAP,MEDIA,SPEED", "-layout_big_on_left", "1", "-layout_split", "0.5",
                                "-drag_hold_ms", "1000"]
         app.launch()

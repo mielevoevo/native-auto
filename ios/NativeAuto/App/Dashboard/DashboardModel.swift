@@ -49,6 +49,14 @@ final class DashboardModel: ObservableObject {
 
     // MARK: - Navigation (8b auto layout)
 
+    /// A call rang, connected or ended: the call card takes a slot, never the rider's arrangement (14a).
+    func callChanged(active: Bool) {
+        guard layout.callActive != active else { return }
+        var l = layout
+        l.setCallActive(active)
+        withAnimation(Self.spring) { layout = l }
+    }
+
     /// Navigation started or ended: show the map on top of the rider's layout (an override, never saved), or drop it.
     func navigationChanged(active: Bool, autoLayout: Bool) {
         var l = layout

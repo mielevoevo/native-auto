@@ -15,7 +15,7 @@ final class NavigationUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         XCUIDevice.shared.location = XCUILocation(location: origin)
         app = XCUIApplication()
-        app.launchArguments = ["-use_fake_gps", "0", "-orientation_mode", "LANDSCAPE", "-layout_preset", "DUO",
+        app.launchArguments = ["-setup_done", "1", "-use_fake_gps", "0", "-orientation_mode", "LANDSCAPE", "-layout_preset", "DUO",
                                "-layout_slots", "DUO=MAP,MEDIA,SPEED", "-layout_big_on_left", "1", "-layout_split", "0.5",
                                "-simulate_navigation", "1", "-voice_guidance", "0", "-auto_layout", "1"]
     }

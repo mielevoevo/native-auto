@@ -748,3 +748,61 @@ Unattended run 15a -> 15b on the Mac (2026-11-16). Simulator: iPhone 17 (iOS 27.
   `-debug_start_trip 1`), `-debug_open_screen GARAGE|HISTORY` (screenshots). Debug builds only.
 - **Found while porting:** an accessibility identifier on a plain SwiftUI container is copied to every child, which
   hid the buttons inside from the UI tests; containers now say `.accessibilityElement(children: .contain)` first.
+
+### 15e (v0.5, build 5), 2026-11-17
+- **Media card = what iOS allows an app** (default in `ios/CLAUDE.md`): play / pause / skip and the track with its art
+  for **Apple Music** (`MPMusicPlayerController.systemMusicPlayer`), the system output picker (`AVRoutePickerView`) and
+  volume (`MPVolumeView`) for whatever plays. Spotify and other apps can't be read or controlled by another app on iOS,
+  so the card says so in one line. Track details need media-library access: asked from the card's own button or the
+  first-run page, never at launch. Previous goes back to the start of the track after 3 s, like a car stereo.
+- **Call card from CallKit only** (`CXCallObserver`): ringing / calling / on a call and the call's time. iOS gives an
+  app no caller name and no Answer / Decline / End (the Android card's main buttons); the card says to use the phone
+  or the headset's button. Same takeover rule as Android (`callTakeoverPane`: media first, never over a fullscreen
+  card, the pill over a fullscreen card). The "Call controls" switch (Audio) turns the card off. Pure part ported with
+  tests (`CallModel`: phases and the pick order). The Android notification classifier isn't ported (no source for it).
+- **Not ported (Android-only):** the notification listener (media sessions and call notifications), answering and
+  ending calls, mic mute / audio route on the call card, refresh-rate control (ProMotion adapts by itself), baseline
+  profiles, the debug Search test screen, the double-back close flow. The `ODOMETER_ONLY` auto-start mode is gone from
+  the UI on Android too (4.1.1); iOS has on / off only.
+- **Settings in categories** as 4.1.1 orders them: Trip and Garage (where the sheet opens), Display, Layout,
+  Navigation, Audio, Backup, Privacy and data, Debug (debug builds). A row of chips on top; each page two columns at
+  600 pt and wider, one below; pages scroll where they're taller than a landscape phone (Trip and Garage does: the
+  figure chips sit low on the left), rather than Android's split into Trip options / Screen options dialogs. Reason:
+  one level fewer to reach a setting with gloves, and the pages fit the iPhone's width well.
+- **Route colour (13c):** "Follow the accent" switch, else the accent presets + hex for the line; stored as
+  `route_color` (absent = follow). In the light theme the line gets the colour's light variant, like the accent. The
+  hex fields warn only for a typed colour (presets carry their own light variants; Android's warning showed for the
+  default cyan too).
+- **Auto-start wired up** (the core was ported in 15b): on / off + Start after 20 / 30 / 45 / 60 s in Trip and Garage,
+  off by default; only while the app is open (iOS has no background location without "Always"), from a clean opening
+  (no trip, none ended since), same `stepAutoStart` rules (15 km/h held). Announced with a "Trip started · riding
+  detected" pill at the top (3 s, tap or swipe to dismiss) instead of Android's banner over the speed card.
+- **Privacy and data:** opens the iPhone's Settings for the app (iOS has one screen for all its permissions), and
+  **Reset app** (two taps): deletes the database, checkpoint, caches and every setting, then the app quits (iOS has no
+  `clearApplicationUserData`; quitting is the only way to start clean). The next start is a first run.
+- **First-run pages (4.2):** Welcome, Make it yours (orientation / theme / units), Location, Media and calls (call
+  card switch, Apple Music access), Add your bike (the Garage's editor), Riding (auto-start, auto layout, voice),
+  Ready. Shown when the app's own defaults are empty at launch (a new install or after Reset app), decided before
+  anything writes a setting and stored (`setup_done`), as on Android. Android's Notifications page has no iOS
+  counterpart (no notification access; trips don't need a notification here). Location is asked only from the
+  switch; refused before, the switch opens the iPhone's Settings.
+- **Changelog (13a):** `Resources/Text/changelog.md` in Android's format (`## <name> (<code>) · <date>`), its own iOS
+  entries (0.1–0.5). The sheet after an update shows only entries newer than the last one seen (at most three), never
+  during a trip, a pause or navigation; a fresh install counts as seen. An update from 0.4 (no changelog) shows 0.5
+  once. "What's new" in Display shows the whole file. A unit test fails if the top entry isn't the build's version.
+- **App icon:** `nativeauto.svg` rendered at 1024 px on black (no SVG tool on the Mac, so AppKit draws it; the mark's
+  longer side is 64% of the icon, inside iOS's rounded mask), saved without an alpha channel (App Store rule). The
+  first-run Welcome uses the SVG itself (vector asset `LaunchMark`).
+- **Google Maps share extension** (`ShareExtension` target, "Native Auto" in the share sheet): joins the shared name
+  and link like Android's `EXTRA_TEXT` and opens `nativeauto://open?text=…`, which the app's existing link resolver
+  takes (preview, then Start). iOS has no supported way for a share extension to open its app; it calls
+  `UIApplication.open` found up the responder chain (what share extensions do in practice). If iOS refuses, the text is
+  copied and the extension says to paste it in search. An App Group hand-over was not used: it needs a capability on
+  the rider's signing team that may not exist (a free team can't add one), and would break the phone install.
+  `Shared/ShareLink.swift` is compiled into both targets and tested (round trip through `incomingLinkText`).
+- **Compact speed face fix:** in a compact card (Quad) the hero size is now taken from the card's height, so the
+  state line ("No fix", "Lost") stays in view; it was cut off below the card.
+- **Media card's big form tightened** (title scales down, two lines max; the access button or the note in one line):
+  it overflowed in Side by side.
+- **Debug launch arguments added:** `-debug_call RINGING|ACTIVE`, `-setup_done 0|1` (also skips the changelog unless
+  `-changelog_seen_code` is given), `-setup_page N`, `-debug_open_screen SETTINGS`, `-settings_category <NAME>`.

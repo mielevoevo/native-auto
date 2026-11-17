@@ -16,6 +16,8 @@ final class TripStore: ObservableObject {
     /// The latest fix from whichever reader holds the GPS: the trip while it runs, the live read otherwise. The map
     /// and the navigator follow it (Android `LiveLocation`: one GPS subscription for everything).
     @Published private(set) var fix: SpeedSample?
+    /// 13b: a trip auto-start just began (the dashboard shows "Trip started" for a few seconds).
+    @Published private(set) var autoStarted = false
 
     static let armMs: Int64 = 3_000
 
@@ -32,6 +34,11 @@ final class TripStore: ObservableObject {
     private var resetTimer: Cancellable?
     /// Others watching every tracker change (15d: the trip recorder, the Garage's live odometer).
     private var observers: [() -> Void] = []
+    // Auto-start (13b): the hold, and whether this opening of the app is "clean" (no trip at the time, none ended since).
+    private var autoState = AutoStartState()
+    private var cleanAtOpen = false
+    private var endedThisSession = false
+    private var bannerTask: Task<Void, Never>?
 
     func addTrackerObserver(_ f: @escaping () -> Void) { observers.append(f) }
 
@@ -50,6 +57,7 @@ final class TripStore: ObservableObject {
                 for o in self.observers { o() }
                 self.autoTrip.update()
                 if self.state != self.tracker.state {
+                    if self.tracker.state == .ended { self.endedThisSession = true }
                     self.state = self.tracker.state
                     self.updateLive()
                 }
@@ -72,6 +80,10 @@ final class TripStore: ObservableObject {
     /// The app came to the front: the screen stays on, the live speed and the 1 s refresh run.
     func appActive() {
         UIApplication.shared.isIdleTimerDisabled = true
+        // Each opening is a fresh chance for auto-start, if no trip is around.
+        cleanAtOpen = state == .idle
+        endedThisSession = false
+        autoState = AutoStartState()
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
@@ -174,7 +186,7 @@ final class TripStore: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     switch event {
-                    case .fix(let f): self.liveFix = f; self.fix = f; self.refresh()
+                    case .fix(let f): self.liveFix = f; self.fix = f; self.autoStartStep(f); self.refresh()
                     case .failure: self.live = nil; self.liveFix = nil; self.refresh()
                     }
                 }
@@ -184,6 +196,30 @@ final class TripStore: ObservableObject {
             liveFix = nil
         }
     }
+
+    /// One live fix into the auto-start hold; starts the trip once the speed was held long enough.
+    private func autoStartStep(_ f: SpeedSample) {
+        let mode: AutoStartMode = settings.autoStart ? .trip : .off
+        guard autoStartAllowed(mode, state, endedThisSession: endedThisSession, cleanAtOpen: cleanAtOpen) else {
+            autoState = AutoStartState()
+            return
+        }
+        let (next, triggered) = stepAutoStart(autoState, f, holdNanos: Int64(settings.autoStartHoldS) * 1_000_000_000)
+        autoState = next
+        guard triggered else { return }
+        autoState = AutoStartState()
+        cleanAtOpen = false
+        start()
+        Haptics.confirm()
+        autoStarted = true
+        bannerTask?.cancel()
+        bannerTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if !Task.isCancelled { self?.autoStarted = false }
+        }
+    }
+
+    func dismissAutoStartBanner() { bannerTask?.cancel(); autoStarted = false }
 
     private func refresh() {
         let next = tracker.stats.toUiState(nowNanos: clock.nowNanos(), unit: settings.speedUnit, tripState: tracker.state,

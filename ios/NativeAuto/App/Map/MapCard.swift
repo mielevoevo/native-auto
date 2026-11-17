@@ -17,7 +17,8 @@ struct MapCard: View {
     var body: some View {
         let nav = navigator.state
         let big = mode == .expanded || mode == .fullscreen
-        let look = MapLook.of(dark: colors.isDark, route: UIColor(colors.accent))
+        // 13c: the route line follows the accent unless the rider picked its own colour.
+        let look = MapLook.of(dark: colors.isDark, route: settings.route.map { UIColor(Color(accentFor($0, isDark: colors.isDark))) } ?? UIColor(colors.accent))
         DashboardCard(pane: .map, mode: mode, headerActions: headerActions(nav, big: big)) {
             ZStack {
                 Color(look.background)

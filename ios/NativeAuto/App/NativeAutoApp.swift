@@ -12,6 +12,9 @@ struct NativeAutoApp: App {
     @StateObject private var map = MapStore()
     @StateObject private var garage: GarageStore
     @StateObject private var history: HistoryStore
+    @StateObject private var media = MediaStore()
+    @StateObject private var call: CallStore
+    @StateObject private var appStart: AppStart
 
     init() {
         #if DEBUG
@@ -21,10 +24,13 @@ struct NativeAutoApp: App {
             FileTripCheckpoints().clear()
         }
         #endif
+        // 4.2: decided before anything writes a preference (an empty store = a new install = first-run pages).
+        _appStart = StateObject(wrappedValue: AppStart())
         let s = SettingsStore()
         _settings = StateObject(wrappedValue: s)
         let t = TripStore(settings: s)
         _trip = StateObject(wrappedValue: t)
+        _call = StateObject(wrappedValue: CallStore(settings: s))
         // 15d: one database for the history and the Garage; the Garage store first, so the recorder can tag trips.
         let db = AppDatabase()
         let g = GarageStore(db: db, trip: t)
@@ -47,6 +53,9 @@ struct NativeAutoApp: App {
                 .environmentObject(map)
                 .environmentObject(garage)
                 .environmentObject(history)
+                .environmentObject(media)
+                .environmentObject(call)
+                .environmentObject(appStart)
         }
     }
 }
@@ -60,13 +69,21 @@ struct RootView: View {
     @EnvironmentObject private var map: MapStore
     @EnvironmentObject private var garage: GarageStore
     @EnvironmentObject private var history: HistoryStore
+    @EnvironmentObject private var media: MediaStore
+    @EnvironmentObject private var call: CallStore
+    @EnvironmentObject private var appStart: AppStart
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
         let colors = AppColors.palette(settings.themeMode, systemDark: systemScheme == .dark).withAccent(settings.accent)
-        DashboardView()
-            .padding(.horizontal, 2)
+        Group {
+            if appStart.setupPending {
+                SetupScreen().transition(.opacity)
+            } else {
+                DashboardView().padding(.horizontal, 2)
+            }
+        }
             .ignoresSafeArea(.container, edges: .bottom)
             .background(colors.bg.ignoresSafeArea())
             .environment(\.appColors, colors)
@@ -79,6 +96,11 @@ struct RootView: View {
             .sheet(isPresented: $dashboard.showLayouts) { sheet(colors) { LayoutSwitcher() } }
             .sheet(item: $dashboard.pickerFor) { pane in sheet(colors) { PanePicker(slot: pane) } }
             .sheet(isPresented: $dashboard.showSearch) { sheet(colors) { DestinationSearchSheet() } }
+            // 13a: what's new after an update, never while a trip runs / is paused or navigation is on.
+            .sheet(isPresented: Binding(get: { showChangelog },
+                                        set: { if !$0 { appStart.changelogSeen() } })) {
+                sheet(colors) { ChangelogSheet(entries: appStart.newEntries, title: "What's new in \(appStart.newEntries.first?.versionName ?? "")") { appStart.changelogSeen() } }
+            }
             .fullScreenCover(isPresented: $dashboard.showHistory) { screen(colors) { HistoryScreen() } }
             .fullScreenCover(isPresented: $dashboard.showGarage) { screen(colors) { GarageScreen() } }
             // 11a: "Gen 2's odometer now?" after days away (and "Which bike?" in debug builds).
@@ -92,6 +114,28 @@ struct RootView: View {
                 }
             }
             .animation(.easeOut(duration: 0.2), value: navigator.linkStatus)
+            // 14b: a call over a fullscreen card (the card never takes it) shows as a pill at the top.
+            .overlay(alignment: .top) {
+                if call.active, !dashboard.layout.isOnScreen(.call) {
+                    CallPill().padding(.top, 8).transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: call.active)
+            // 13b: "Trip started" after an auto-start (a tap or a swipe up dismisses it).
+            .overlay(alignment: .top) {
+                if trip.autoStarted {
+                    Text("Trip started · riding detected").font(.geist(16, .semibold)).foregroundStyle(colors.text)
+                        .padding(.horizontal, 18).frame(minHeight: 44)
+                        .background(colors.surface, in: Capsule()).overlay(Capsule().strokeBorder(colors.accent, lineWidth: 1))
+                        .padding(.top, 8)
+                        .onTapGesture { trip.dismissAutoStartBanner() }
+                        .gesture(DragGesture(minimumDistance: 10).onEnded { _ in trip.dismissAutoStartBanner() })
+                        .accessibilityIdentifier("auto_start_pill")
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: trip.autoStarted)
+            .onChange(of: call.active, initial: true) { _, on in dashboard.callChanged(active: on) }
             .onChange(of: navigator.state.isNavigating) { _, on in
                 dashboard.navigationChanged(active: on, autoLayout: settings.autoLayout)
             }
@@ -110,6 +154,7 @@ struct RootView: View {
                 switch UserDefaults.standard.string(forKey: "debug_open_screen") {
                 case "GARAGE": dashboard.showGarage = true
                 case "HISTORY": dashboard.showHistory = true
+                case "SETTINGS": dashboard.showSettings = true
                 default: break
                 }
                 if let link = UserDefaults.standard.string(forKey: "debug_open_link"), !link.isEmpty {
@@ -132,6 +177,11 @@ struct RootView: View {
             }
     }
 
+    private var showChangelog: Bool {
+        !appStart.setupPending && !appStart.newEntries.isEmpty && !dashboard.showSettings && !dashboard.screenOver
+            && (trip.state == .idle || trip.state == .ended) && !navigator.state.isNavigating
+    }
+
     /// A full screen over the dashboard (history, Garage): the same environment as a sheet, the app's own background.
     private func screen<C: View>(_ colors: AppColors, @ViewBuilder _ content: () -> C) -> some View {
         content()
@@ -139,6 +189,7 @@ struct RootView: View {
             .environmentObject(settings).environmentObject(trip).environmentObject(dashboard)
             .environmentObject(navigator).environmentObject(map)
             .environmentObject(garage).environmentObject(history)
+            .environmentObject(media).environmentObject(call).environmentObject(appStart)
             .font(.geist(16))
             .tint(colors.accent)
             .preferredColorScheme(colors.isDark ? .dark : .light)
@@ -151,6 +202,7 @@ struct RootView: View {
             .environmentObject(settings).environmentObject(trip).environmentObject(dashboard)
             .environmentObject(navigator).environmentObject(map)
             .environmentObject(garage).environmentObject(history)
+            .environmentObject(media).environmentObject(call).environmentObject(appStart)
             .font(.geist(16))
             .tint(colors.accent)
             .preferredColorScheme(colors.isDark ? .dark : .light)

@@ -155,9 +155,9 @@ struct PaneContent: View {
         case .clock: ClockCard(mode: mode)
         case .map: MapCard(mode: mode)
         case .nav: NextTurnCard(mode: mode)
-        case .media: PlaceholderCard(pane: .media, mode: mode, icon: "music.note", note: "Media comes in 0.5.")
+        case .media: MediaCard(mode: mode)
         case .garage: GarageCard(mode: mode)
-        case .call: PlaceholderCard(pane: .call, mode: mode, icon: "phone", note: "A call is on.")
+        case .call: CallCard(mode: mode)
         }
     }
 }

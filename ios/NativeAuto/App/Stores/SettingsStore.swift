@@ -31,6 +31,15 @@ final class SettingsStore: ObservableObject {
     /// `UserDefaults` (JSON).
     @Published var recentPlaces: [Place] { didSet { d.set(try? JSONEncoder().encode(recentPlaces), forKey: "recent_places") } }
 
+    // 15e
+    /// The call card takes a slot while a call is on (Android 4.1.1's "Call controls" switch).
+    @Published var callControls: Bool { didSet { d.set(callControls, forKey: "call_controls") } }
+    /// 13b: start a trip by itself once riding (15 km/h held for `autoStartHoldS`), only while the app is open. Off by default.
+    @Published var autoStart: Bool { didSet { d.set(autoStart ? "TRIP" : "OFF", forKey: "auto_start_mode") } }
+    @Published var autoStartHoldS: Int { didSet { d.set(autoStartHoldS, forKey: "auto_start_hold_s") } }
+    /// 13c: the route line's own colour (0xFFRRGGBB), or nil to follow the accent.
+    @Published var routeArgb: UInt32? { didSet { if let r = routeArgb { d.set(Int(r), forKey: "route_color") } else { d.removeObject(forKey: "route_color") } } }
+
     // 15d: history and Garage
     /// The log face's total: today, this week or this month (12b).
     @Published var totalPeriod: TotalPeriod { didSet { d.set(totalPeriod.rawValue, forKey: "total_period") } }
@@ -56,6 +65,12 @@ final class SettingsStore: ObservableObject {
         voiceGuidance = Self.flag(d, "voice_guidance", default: true)
         autoLayout = Self.flag(d, "auto_layout", default: true)
         simulateNavigation = d.bool(forKey: "simulate_navigation")
+        callControls = Self.flag(d, "call_controls", default: true)
+        // Android stores the mode by name; ODOMETER_ONLY (gone from the UI in 4.1.1) reads as on.
+        autoStart = (d.string(forKey: "auto_start_mode") ?? "OFF") != "OFF"
+        let held = d.object(forKey: "auto_start_hold_s") as? Int ?? AutoStartConfig.defaultHoldS
+        autoStartHoldS = AutoStartConfig.holdChoicesS.contains(held) ? held : AutoStartConfig.defaultHoldS
+        routeArgb = (d.object(forKey: "route_color") as? Int).map { UInt32(truncatingIfNeeded: $0) }
         totalPeriod = TotalPeriod(rawValue: d.string(forKey: "total_period") ?? "") ?? .day
         garageValue = GarageValue(rawValue: d.string(forKey: "garage_value") ?? "") ?? .range
         tankIcon = TankIcon(rawValue: d.string(forKey: "tank_icon") ?? "") ?? .gauge
@@ -63,6 +78,7 @@ final class SettingsStore: ObservableObject {
     }
 
     var accent: RGB { RGB(hex: accentArgb) }
+    var route: RGB? { routeArgb.map { RGB(hex: $0) } }
 
     /// A stored switch, or `default` when never set. `bool(forKey:)` also reads launch arguments ("-show_battery 0"
     /// arrives as text, which `as? Bool` misses).

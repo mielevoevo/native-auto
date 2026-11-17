@@ -50,7 +50,14 @@ struct SpeedFace: View {
         Group {
             switch mode {
             case .compact:
-                VStack(spacing: 6) { Hero(ui: ui, size: 96); StateLine(ui: ui) }
+                // The state line ("Lost", "No fix") must stay in view: the hero gives way when it's there.
+                GeometryReader { g in
+                    let line: CGFloat = ui.tripState == .paused ? 52 : (ui.gps != .fix ? 26 : 0)
+                    // The number's line is ~1.2× its size, the unit ~0.22×; keep both above the line, 96 at most.
+                    let size = min(96, max(44, (g.size.height - line - 14) / 1.42))
+                    VStack(spacing: 6) { Hero(ui: ui, size: size); StateLine(ui: ui) }
+                        .frame(width: g.size.width, height: g.size.height)
+                }
             case .wide where portrait:
                 HStack(spacing: 18) { Hero(ui: ui, size: 72); StatLines(stats: inline(ui, 4)) }
             case .wide:

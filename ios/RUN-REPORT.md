@@ -1,7 +1,8 @@
-# Unattended run: Phase 15a + 15b (iOS), 2026-11-16; 15c, 2026-11-17
+# Unattended run: Phase 15a–15e (iOS), 2026-11-16 → 2026-11-17
 
-Mac: Xcode 27.2, simulator **iPhone 17** (iOS 27.2). Commits: `Native Auto iOS 0.1` (15a), `Native Auto iOS 0.2` (15b),
-`Native Auto iOS 0.3` (15c).
+Mac: Xcode 27.2, simulator **iPhone 17** (iOS 27.2). Commits: `Native Auto iOS 0.1` (15a) … `Native Auto iOS 0.5` (15e).
+The run is complete: 15a–15e built, **346 unit tests and 14 UI tests green** on the simulator. Nothing was installed
+on a phone and nothing pushed.
 Choices and reasons: `DECISIONS.md` → "Phase 15 (iOS)".
 
 ## 15a (v0.1, build 1)
@@ -97,11 +98,45 @@ Android-style backup fixture, the track blob).
 - **2 new UI tests** (`GarageHistoryUITests`): a bike from the Garage card, a fill-up → 235 km range on the screen and
   the card; a short scripted trip saved, opened, deleted with two taps. All 10 UI tests pass.
 
-## Not possible / not ported on iOS (so far)
+## 15e (v0.5, build 5)
+**Pure core:** `CallModel` (call phases from CallKit's facts, ringing-first pick, duration format), the changelog parser
+and "what's new since" rules, the first-run rule, the share hand-over (`Shared/ShareLink.swift`). **346 unit tests**
+(11 new: `CallModelTests`, `ChangelogTests` incl. the shipped file matching the build, `SetupRuleTests`,
+`ShareLinkTests`).
+
+**App:**
+- Media card: Apple Music's track, art, previous / play-pause / next; the output picker (AirPods, helmet, speaker) and
+  the volume for any app; one line saying Spotify and other apps can't be controlled on iOS. Every card size.
+- Call card: "Incoming call" / "Calling…" / "On a call" + the time, taking media's slot (Android's takeover order),
+  a pill at the top over a fullscreen card; the rider answers and ends with the phone or the headset.
+- Settings in pages (Trip and Garage first, Display, Layout, Navigation, Audio, Backup, Privacy and data, Debug):
+  route line colour, call card switch, auto-start on / off + Start after, What's new, open the iPhone's Settings,
+  Reset app (two taps).
+- Auto-start (off by default): a trip starts once 15 km/h is held for the chosen time, while the app is open, with a
+  "Trip started" pill.
+- First-run pages on a new install: Welcome, Make it yours, Location, Media and calls, Add your bike, Riding, Ready.
+- "What's new" sheet once after an update (never during a trip or navigation); the iOS changelog file.
+- App icon from `nativeauto.svg` (black, 1024 px).
+- Share extension: Google Maps → Share → Native Auto opens the app with that place's route preview.
+- Fixed: the compact speed card cut off "No fix" / "Lost" (Quad); the big media card overflowed in Side by side.
+- **4 new UI tests** (`FirstRunUITests`): the first-run pages through to the dashboard, the changelog once after an
+  update, the settings pages (route colour, What's new, call switch, Reset app's arm), a call taking media's slot and
+  the pill over fullscreen. All 14 UI tests pass.
+
+## Not possible / not ported on iOS
 - Rotation-lock-following AUTO with Android's lean-and-hold policy: iOS applies the lock itself, so Auto just follows
   the phone. Refresh-rate control (ProMotion adapts by itself). The double-back close flow (no back button).
 - Background tracking: trips and the live speed run while the app is open (iOS stops GPS in the background without
   "Always" location, which we don't ask for). Same rule as Android, but iOS also pauses the app sooner.
+- **Media from other apps:** no app can read or control Spotify, YouTube Music etc. on iOS (Android uses notification
+  access). Apple Music only, plus the output picker and volume for everything.
+- **Calls:** no caller name, no Answer / Decline / End, no mic mute or audio route: iOS tells an app only that a call
+  rings or is on (CallKit). The card shows that and the time.
+- **Notification access, baseline profiles, refresh-rate control, the debug Search test screen:** Android-only.
+- **Reset app** can't wipe the app like Android's `clearApplicationUserData`: it deletes its own files and settings and
+  quits (iOS has no other way to restart clean).
+- **The share extension opening the app** uses a common workaround (no official API); if a future iOS blocks it, the
+  extension copies the link and says to paste it in search.
 
 ## What to check
 **In the Simulator now** (`open NativeAuto.xcodeproj`, run on iPhone 17):
@@ -129,20 +164,36 @@ Android-style backup fixture, the track blob).
   within 10 min: it should carry on.
 - The Refuel dialog with gloves; the range against the bike's own gauge over a few tanks.
 
+**15e on the iPhone:**
+- **Install fresh** (delete the old one first) to see the first-run pages and the new icon; then the location prompt
+  from the Location switch, the Apple Music prompt from the Media page.
+- **Share from Google Maps:** a place → Share → Native Auto (scroll the app row / "More" the first time) → the app
+  opens with the route preview. If the app doesn't open, the extension says "Copied": paste in Where to?. Tell me
+  which happened.
+- **A real phone call** (ring yourself): the call card in media's place, the time running, back to media after; in a
+  fullscreen card, the pill. Then turn Audio → Call card off.
+- **Media:** Apple Music play / pause / skip and the art; the output picker switching to the helmet; Spotify playing
+  with the card's note (and the output picker still working for it).
+- **Auto-start** (Settings → Trip and Garage): ride off with it on, about 30 s after 15 km/h the "Trip started" pill.
+- The changelog sheet after updating from 0.4 (shows 0.5 once).
+
 **15c on the iPhone:**
 - A real route: the voice (English, and that music ducks only while it speaks), rerouting after a wrong turn,
   arrival, the motorcycle costing keeping off toll roads.
 - Holding the **map body** (not its header) 1 s to lift it: SwiftUI's hold over MapLibre's own gestures is untested
   by the UI tests (they drag other cards onto the map). If it doesn't lift, the header strip does.
 - Long-press to drop a pin in fullscreen; the follow glide's smoothness at 1 Hz; the map's battery and heat cost.
-- Sharing from Google Maps: until the share extension (15e), copy the link and use Paste in "Navigate to…".
 
 ## Left half-done / notes
-- Google Maps' share sheet can't target the app yet: a share extension is planned for 15e (paste works meanwhile).
-- No traffic layer (OpenFreeMap has none) and no Google engine on iOS; the route colour setting comes with 15e.
+- No traffic layer (OpenFreeMap has none) and no Google engine on iOS.
+- Version 0.5 is not parity with the Android app yet (1.0 = parity, per PLAN.md). Still missing from Android 4.2: the
+  portrait media card's swipe-to-change (14b; for Apple Music it could be added) and the call card's controls (iOS
+  forbids them).
+- Accent / route hex fields apply on Return or Apply, not as you type (Android applies a full six digits at once).
+- The share extension, Apple Music and CallKit were checked only through tests and simulated states: the simulator
+  can't ring a call or play Apple Music, and the share path from Google Maps needs the real app.
 - Swiping the app away saves the trip only if iOS delivers `willTerminate` (it usually does for a foreground app);
   otherwise the minute checkpoint saves it at the next launch.
-- The settings sheet is one page; the categories (13c) come with 15e.
 - A static simulator location (simctl `location set`) can show "No fix": CoreLocation sends that fix once, cached, and
   fixes older than 10 s are skipped on purpose. Moving locations (Freeway Drive) or Fake GPS work.
 
