@@ -156,7 +156,7 @@ struct PaneContent: View {
         case .map: MapCard(mode: mode)
         case .nav: NextTurnCard(mode: mode)
         case .media: PlaceholderCard(pane: .media, mode: mode, icon: "music.note", note: "Media comes in 0.5.")
-        case .garage: PlaceholderCard(pane: .garage, mode: mode, icon: "fuelpump", note: "The Garage comes in 0.4.")
+        case .garage: GarageCard(mode: mode)
         case .call: PlaceholderCard(pane: .call, mode: mode, icon: "phone", note: "A call is on.")
         }
     }

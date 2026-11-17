@@ -9,7 +9,7 @@ enum TripState { case idle, running, paused, ended }
 enum GpsStatus { case searching, fix, stale, disabled, permissionDenied }
 
 /// One GPS fix, in SI units. `timestampNanos` is a monotonic-ish clock in nanoseconds.
-struct SpeedSample: Equatable {
+struct SpeedSample: Equatable, Codable {
     var timestampNanos: Int64
     var speedMps: Float
     var speedAccuracyMps: Float?

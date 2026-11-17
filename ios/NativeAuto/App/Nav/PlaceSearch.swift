@@ -53,6 +53,11 @@ final class PlaceSearch {
     /// Nil when nothing is known there or the lookup fails.
     func reverse(_ point: GeoPoint) async -> Place? {
         if let p = await apple(point) { return p }
+        return await photonReverse(point)
+    }
+
+    /// Photon only (the trip addresses ask Apple's geocoder themselves first).
+    func photonReverse(_ point: GeoPoint) async -> Place? {
         var c = URLComponents(string: Self.base + "reverse")!
         c.queryItems = [URLQueryItem(name: "lat", value: String(point.latitude)), URLQueryItem(name: "lon", value: String(point.longitude)),
                         URLQueryItem(name: "limit", value: "1")]

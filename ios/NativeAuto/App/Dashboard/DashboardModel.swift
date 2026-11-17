@@ -11,6 +11,10 @@ final class DashboardModel: ObservableObject {
     @Published var showSettings = false
     /// The destination search ("Navigate to…").
     @Published var showSearch = false
+    /// 15d: full screens over the dashboard (the map sleeps under them).
+    @Published var showHistory = false
+    @Published var showGarage = false
+    var screenOver: Bool { showHistory || showGarage }
 
     // Drag to swap (12a / 13a)
     @Published private(set) var lifted: Pane?

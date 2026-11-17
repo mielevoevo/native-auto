@@ -23,8 +23,8 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "0.3"        # iOS line: 0.x until it matches the Android app, then 1.0
-    CURRENT_PROJECT_VERSION: "3"    # +1 per sub-phase build
+    MARKETING_VERSION: "0.4"        # iOS line: 0.x until it matches the Android app, then 1.0
+    CURRENT_PROJECT_VERSION: "4"    # +1 per sub-phase build
 
 targets:
   NativeAuto:

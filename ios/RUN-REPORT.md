@@ -69,6 +69,34 @@ camera, recent places. **226 unit tests** (37 new: `ParsePhotonTest`, `MapsLinkT
 - Fixed on the way: the live GPS read could fail to start at launch (15b timing bug), launch-argument switches,
   parked panes exposing a second "Start" to VoiceOver. Android bug noted in DECISIONS (a `geo:` label lost).
 
+## 15d (v0.4, build 4)
+**Pure core (`Core/History/`, `Core/Garage/`), ported with its Android tests:** trip records and the recorder (save on
+End, path from accepted fixes, Douglas–Peucker, short trips dropped, bike tag, checkpoint and recovery, addresses),
+GPX, the ZIP backup (format 2, Android-compatible), period totals, day groups; the Garage: odometer estimate and the
+learned factor, away / untracked km, fuel level and consumption (full-to-full, partials, gauge marks, dash km/L,
+cautious range), refuel amounts and spend, services (due levels, date items rolling on), the Garage backup and merge,
+the Garage repository. **335 unit tests** (109 new: `TripRecorderTest`, `GarageRepositoryTest`, `OdometerTest`,
+`FuelTest`, `FuelLevel12bTest`, `TankSegmentsTest`, `ServiceTest`, `GarageBackupTest`, GPX / backup / ZIP, an
+Android-style backup fixture, the track blob).
+
+**App:**
+- Storage: SwiftData (`native-auto.store` in Application Support), tracks as one blob per trip, the live trip
+  checkpointed to a file every minute. A trip ended (or the app swiped away) is saved at once; a trip lost with the
+  process is resumed within 10 min, else saved.
+- Trip history (Settings → Trip history): day groups with totals, cards with a map snapshot of the route and the
+  addresses, the detail with the chosen figures, Export GPX (share sheet), Delete (two taps), bike chips with 2 bikes.
+  Back up / Import here and in Settings → Backup (share sheet / Files).
+- Garage (Settings → Garage, or the Garage card): bikes (add, edit, delete, ride), odometer (set, correct, untracked
+  km, the log, the learned GPS factor), fuel (range, Refuel with full refill / paid or litres / price / odometer, Set
+  fuel level from the gauge bars, costs on demand, fuel prices, the refuel log with two-tap delete), services (items by
+  km / months or by date, Done with odometer / cost / note, history). The away prompt ("Gen 2's odometer now?").
+- Garage card pane (from the picker): tank gauge + one chosen value when small; range, facts, Refuel, Set fuel level,
+  Service done, bike choice, the value and tank-icon choices, Open Garage when expanded.
+- Speed card: "Today 42.3 km" on the log face (Day / Week / Month in Settings), the service reminder badge, a red
+  tank when fuel is low and no Garage card is shown, the summary's route sketch and "Bike's km/L", "Too short to save".
+- **2 new UI tests** (`GarageHistoryUITests`): a bike from the Garage card, a fill-up → 235 km range on the screen and
+  the card; a short scripted trip saved, opened, deleted with two taps. All 10 UI tests pass.
+
 ## Not possible / not ported on iOS (so far)
 - Rotation-lock-following AUTO with Android's lean-and-hold policy: iOS applies the lock itself, so Auto just follows
   the phone. Refresh-rate control (ProMotion adapts by itself). The double-back close flow (no back button).
@@ -92,6 +120,15 @@ camera, recent places. **226 unit tests** (37 new: `ParsePhotonTest`, `MapsLinkT
 - Auto-pause after 5 min stopped, auto-end 30 min later (only while the app stays open).
 - Battery reading in the corner (the simulator has none).
 
+**15d on the iPhone:**
+- **Backup moved from Android:** Android Settings → Backup → Back up, send the ZIP to the iPhone (Files / AirDrop),
+  iOS Settings → Backup → Import. Trips, tracks (Export GPX of one), bikes, refuels, services should all arrive; then
+  the reverse direction.
+- End a real ride: the summary, the trip in the history with its addresses and map; the Garage odometer moving on.
+- Swipe the app away mid-ride: the trip should be saved (check the history). Force-quit during a ride and reopen
+  within 10 min: it should carry on.
+- The Refuel dialog with gloves; the range against the bike's own gauge over a few tanks.
+
 **15c on the iPhone:**
 - A real route: the voice (English, and that music ducks only while it speaks), rerouting after a wrong turn,
   arrival, the motorcycle costing keeping off toll roads.
@@ -103,7 +140,8 @@ camera, recent places. **226 unit tests** (37 new: `ParsePhotonTest`, `MapsLinkT
 ## Left half-done / notes
 - Google Maps' share sheet can't target the app yet: a share extension is planned for 15e (paste works meanwhile).
 - No traffic layer (OpenFreeMap has none) and no Google engine on iOS; the route colour setting comes with 15e.
-- The trip isn't saved yet (history is 15d); ending or swiping away just ends it.
+- Swiping the app away saves the trip only if iOS delivers `willTerminate` (it usually does for a foreground app);
+  otherwise the minute checkpoint saves it at the next launch.
 - The settings sheet is one page; the categories (13c) come with 15e.
 - A static simulator location (simctl `location set`) can show "No fix": CoreLocation sends that fix once, cached, and
   fixes older than 10 s are skipped on purpose. Moving locations (Freeway Drive) or Fake GPS work.

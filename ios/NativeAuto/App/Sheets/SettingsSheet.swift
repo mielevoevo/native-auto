@@ -1,12 +1,18 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Settings for 15b: display (theme, accent, units, battery), layout (orientation, hold time) and the trip (auto-pause,
 /// auto-end, figures, reset). Android's full category sheet (13c) comes with 15e.
 struct SettingsSheet: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var trip: TripStore
+    @EnvironmentObject private var dashboard: DashboardModel
+    @EnvironmentObject private var garage: GarageStore
+    @EnvironmentObject private var history: HistoryStore
     @Environment(\.appColors) private var colors
     @State private var hex = ""
+    @State private var share: SharedFile?
+    @State private var importing = false
 
     var body: some View {
         SheetScaffold(title: "Settings") {
@@ -28,7 +34,18 @@ struct SettingsSheet: View {
                     switchRow("Voice guidance (English)", $settings.voiceGuidance)
                     switchRow("Auto layout: show the map when navigation starts", $settings.autoLayout)
                 }
-                section("Trip") {
+                section("Trip and Garage") {
+                    HStack(spacing: 12) {
+                        BigButton(title: "Trip history", icon: "clock.arrow.circlepath", style: .quiet) { open { dashboard.showHistory = true } }
+                            .accessibilityIdentifier("settings_history")
+                        BigButton(title: garage.active.map { "Garage · \($0.name)" } ?? "Garage", icon: "scooter", style: .quiet) {
+                            open { dashboard.showGarage = true }
+                        }
+                        .accessibilityIdentifier("settings_garage")
+                    }
+                    row("Total on the trip log") {
+                        Segments(options: TotalPeriod.allCases, selection: $settings.totalPeriod) { $0.label }
+                    }
                     row("Auto-pause after no movement") {
                         Segments(options: AutoTripConfig.pauseChoicesMin, selection: $settings.autoPauseMin) { $0 == 0 ? "Off" : "\($0) min" }
                     }
@@ -42,6 +59,19 @@ struct SettingsSheet: View {
                         Text("Drops the trip in progress without saving it.").font(.geist(13)).foregroundStyle(colors.textDim)
                     }
                 }
+                section("Backup") {
+                    Text("Every trip with its full track, and the Garage, in one ZIP. The Android app reads the same file.")
+                        .font(.geist(14)).foregroundStyle(colors.textDim)
+                    HStack(spacing: 12) {
+                        BigButton(title: "Back up", icon: "square.and.arrow.up", style: .quiet) {
+                            share = history.backupFile().map(SharedFile.init)
+                        }
+                        .accessibilityIdentifier("settings_backup")
+                        BigButton(title: "Import", icon: "square.and.arrow.down", style: .quiet) { importing = true }
+                            .accessibilityIdentifier("settings_import")
+                    }
+                    if let m = history.message { Text(m).font(.geist(14)).foregroundStyle(colors.textDim).accessibilityIdentifier("settings_backup_message") }
+                }
                 #if DEBUG
                 section("Debug") {
                     switchRow("Fake GPS (scripted drive; resets the trip)", Binding(get: { settings.useFakeGps }, set: { trip.setFakeGps($0) }))
@@ -54,7 +84,21 @@ struct SettingsSheet: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .onAppear { hex = settings.accent.hexString }
+        .onAppear { hex = settings.accent.hexString; history.message = nil }
+        .sheet(item: $share) { ShareSheet(url: $0.url).presentationDetents([.medium, .large]) }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.zip]) { result in
+            if case .success(let url) = result { history.importBackup(url) }
+        }
+    }
+
+    /// Closes the sheet, then opens a full screen (one can't be presented while the sheet is still going away).
+    private func open(_ f: @escaping () -> Void) {
+        Haptics.tap()
+        dashboard.showSettings = false
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            f()
+        }
     }
 
     private var accent: some View {

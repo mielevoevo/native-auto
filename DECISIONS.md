@@ -707,3 +707,44 @@ Unattended run 15a -> 15b on the Mac (2026-11-16). Simulator: iPhone 17 (iOS 27.
   preview → guidance on the simulated drive → End (two taps); the Navigation pane taking the turn from a small map
   (auto layout to Quad's guiding set, the map's Mute / End header); search → preview. The 15b rotation test now pins
   the portrait shape (the last one used wins, and a manual run had saved another).
+
+### 15d (v0.4, build 4), 2026-11-17
+- **Storage shape:** the pure core talks to two synchronous protocols (`TripDao`, `GarageDao`, the Room DAOs' contract);
+  `AppDatabase` implements both over SwiftData and keeps the (small) rows in memory as value records, writing and
+  saving each change at once. Reason: the Garage maths and the recorder stay pure Swift, tested against an in-memory
+  fake like Android's `FakeGarageDao`, and a trip ended by swiping the app away reaches the disk before the process
+  goes. Screens read an `ObservableObject` store (`GarageStore`, `HistoryStore`) republished after each write and every
+  10 m of a live trip (the Garage odometer runs during a ride), instead of Room's Flows.
+- **Full tracks as one blob per trip** (`TrackCodec`, 36 bytes a fix, external storage), not one SwiftData object per
+  fix. Reason: a two-hour ride is ~7 000 fixes; thousands of objects make SwiftData slow to save and to delete. The
+  backup and GPX carry every fix as on Android.
+- **The trip checkpoint is a file pair** in Application Support (figures as JSON, fixes appended one JSON line each),
+  not SwiftData: appending a minute of fixes is cheap and a line cut off by a kill is just skipped. Same rules as 11b
+  (every 60 s and at pause / resume; resumed within 10 min of the same boot, else saved as ended).
+- **Same boot:** a checkpoint whose monotonic time is later than the clock now comes from before a reboot (the clock
+  restarts at boot), as on Android; then the trip is saved, not resumed.
+- **Backup = Android's format 2, byte for byte where it matters:** ZIP with `backup.json` + `gpx/*.gpx`, written and
+  read by our own small ZIP code (DEFLATE via Foundation, CRC-32; reading goes through the central directory because
+  Android's `ZipOutputStream` uses data descriptors). Longs are written as JSON integers (kotlinx reads them as
+  `.long`). Tested against a fixture laid out like Android's output. Import merges as on Android (start time for trips;
+  ids / keys for the Garage). A damaged Garage row is skipped instead of failing the whole file (Android fails the
+  file); reason: one bad row from a future version shouldn't block the trips.
+- **Not in the backup (as on Android):** fuel marks (gauge readings) and dash km/L figures.
+- **Recent places stay in UserDefaults** (15c), not SwiftData: eight small entries read at launch.
+- **A store that can't be opened** (damaged file) is moved aside with a date suffix and a new one started, so the app
+  always starts; the old file stays for a later look.
+- **Addresses:** Apple's `CLGeocoder` first ("Street, Area" by the same `shortAddress` rules), Photon reverse as the
+  fallback; retried when the history opens, as on Android.
+- **Trip overview maps:** MapLibre's `MLNMapSnapshotter` with the dashboard's look (OLED recolour in dark), path drawn on
+  top, cached per trip and theme in Caches; the plain sketch shows until it's ready, and stays if offline (20 s limit).
+- **History and Garage are full screens over the dashboard** (`fullScreenCover`): the map stays put underneath and
+  sleeps after 30 s, like Android's overlay. Opened from Settings (Trip and Garage) and the Garage card.
+- **"Which bike?" in debug builds only**, as on Android (inferring where the rider lives needs a disclosure first).
+- **Dash km/L on the summary** goes to the trip's own bike (the one it was saved with), else the active one.
+- **Summary route sketch only where there's room** (Expanded / Fullscreen); the compact summary keeps the figures and
+  the Bike's km/L button, as Android's compact summary does.
+- **Debug launch arguments added:** `-reset_data 1` (empty history and Garage), `-debug_min_trip_m` /
+  `-debug_min_moving_ms` (save a few seconds of the scripted drive in UI tests), `-debug_end_trip_after_s N` (with
+  `-debug_start_trip 1`), `-debug_open_screen GARAGE|HISTORY` (screenshots). Debug builds only.
+- **Found while porting:** an accessibility identifier on a plain SwiftUI container is copied to every child, which
+  hid the buttons inside from the UI tests; containers now say `.accessibilityElement(children: .contain)` first.

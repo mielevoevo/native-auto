@@ -31,6 +31,13 @@ final class SettingsStore: ObservableObject {
     /// `UserDefaults` (JSON).
     @Published var recentPlaces: [Place] { didSet { d.set(try? JSONEncoder().encode(recentPlaces), forKey: "recent_places") } }
 
+    // 15d: history and Garage
+    /// The log face's total: today, this week or this month (12b).
+    @Published var totalPeriod: TotalPeriod { didSet { d.set(totalPeriod.rawValue, forKey: "total_period") } }
+    /// The small Garage card's figure.
+    @Published var garageValue: GarageValue { didSet { d.set(garageValue.rawValue, forKey: "garage_value") } }
+    @Published var tankIcon: TankIcon { didSet { d.set(tankIcon.rawValue, forKey: "tank_icon") } }
+
     init(defaults: UserDefaults = .standard) {
         d = defaults
         speedUnit = SpeedUnit(rawValue: d.string(forKey: "speed_unit") ?? "") ?? .kmh
@@ -49,6 +56,9 @@ final class SettingsStore: ObservableObject {
         voiceGuidance = Self.flag(d, "voice_guidance", default: true)
         autoLayout = Self.flag(d, "auto_layout", default: true)
         simulateNavigation = d.bool(forKey: "simulate_navigation")
+        totalPeriod = TotalPeriod(rawValue: d.string(forKey: "total_period") ?? "") ?? .day
+        garageValue = GarageValue(rawValue: d.string(forKey: "garage_value") ?? "") ?? .range
+        tankIcon = TankIcon(rawValue: d.string(forKey: "tank_icon") ?? "") ?? .gauge
         recentPlaces = d.data(forKey: "recent_places").flatMap { try? JSONDecoder().decode([Place].self, from: $0) } ?? []
     }
 

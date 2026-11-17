@@ -6,6 +6,8 @@ struct SpeedCard: View {
     let mode: CardMode
     @EnvironmentObject private var trip: TripStore
     @EnvironmentObject private var model: DashboardModel
+    @EnvironmentObject private var garage: GarageStore
+    @Environment(\.appColors) private var colors
     @State private var page = 0
 
     var body: some View {
@@ -19,6 +21,14 @@ struct SpeedCard: View {
                 } second: {
                     LogFace(mode: mode)
                 }
+            }
+        }
+        // 11c: a small red tank when the fuel is in its last segment and no Garage card is on screen. No text, no pop-up.
+        .overlay(alignment: .topLeading) {
+            if let f = garage.card?.fuel.level.fraction, f <= lowFuelFraction, !model.layout.isOnScreen(.garage) {
+                Image(systemName: "fuelpump.fill").font(.system(size: 24)).foregroundStyle(colors.red)
+                    .padding(.leading, 18).padding(.top, mode == .mini ? 8 : 52)
+                    .accessibilityLabel("Low fuel").accessibilityIdentifier("low_fuel")
             }
         }
         .animation(.easeInOut(duration: 0.25), value: trip.state == .ended)
@@ -175,6 +185,8 @@ struct LogFace: View {
     let mode: CardMode
     @EnvironmentObject private var trip: TripStore
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var history: HistoryStore
+    @EnvironmentObject private var garage: GarageStore
     @Environment(\.appColors) private var colors
 
     var body: some View {
@@ -187,8 +199,12 @@ struct LogFace: View {
             if mode != .mini {
                 if small {
                     StatLines(stats: Array(ui.tripStats(visible: visible, prefix: "log_").prefix(mode == .wide ? 3 : 2)))
+                    // A due service outranks the total on the small face: it's rare and it matters.
+                    if let due = garage.card?.reminder { ServiceBadge(due: due) } else { period(small: true) }
                 } else {
                     StatGrid(stats: ui.tripStats(visible: visible, prefix: "log_"), columns: 3, tileHeight: 62)
+                    if let due = garage.card?.reminder { ServiceBadge(due: due) }
+                    period(small: false)
                 }
             }
             Controls(compact: small)
@@ -198,6 +214,17 @@ struct LogFace: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("log_face")
+    }
+
+    /// 12b: "Today 42.3 km", saved trips plus the live one, in the speed unit's distance.
+    private func period(small: Bool) -> some View {
+        TimelineView(.everyMinute) { _ in
+            let live = trip.state == .running || trip.state == .paused ? trip.tracker.stats.distanceM : 0
+            Text("\(settings.totalPeriod.lead) \(formatDistance(history.periodMeters(settings.totalPeriod, liveM: live), settings.speedUnit))")
+                .font(.geist(small ? 16 : 20, small ? .regular : .medium)).monospacedDigit()
+                .foregroundStyle(small ? colors.textDim : colors.text).lineLimit(1)
+                .accessibilityIdentifier("log_period")
+        }
     }
 
     private func title(_ ui: SpeedometerUiState) -> String {
@@ -275,8 +302,11 @@ struct TripSummaryView: View {
     let mode: CardMode
     @EnvironmentObject private var trip: TripStore
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var history: HistoryStore
+    @EnvironmentObject private var garage: GarageStore
     @Environment(\.appColors) private var colors
     @State private var progress = 0.0
+    @State private var askDash = false
 
     var body: some View {
         let visible = Set(TelemetryStat.allCases).subtracting(settings.hiddenStats)
@@ -285,21 +315,62 @@ struct TripSummaryView: View {
         VStack(spacing: small ? 8 : 14) {
             Text("Trip summary").font(.geist(small ? 16 : 20, .semibold)).foregroundStyle(colors.text)
             if mode != .mini {
-                if small { StatLines(stats: Array(stats.prefix(3))) } else { StatGrid(stats: stats, columns: 3, tileHeight: 62) }
+                if small {
+                    HStack(spacing: 14) {
+                        StatLines(stats: Array(stats.prefix(3)))
+                        dash
+                    }
+                } else {
+                    if case .saved(let t)? = history.outcome {
+                        TrackSketch(track: t.track).frame(maxWidth: 360, maxHeight: mode == .fullscreen ? 180 : 96)
+                            .clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityIdentifier("summary_route")
+                    }
+                    StatGrid(stats: stats, columns: 3, tileHeight: 62)
+                    dash
+                }
             }
-            Text("Tap to dismiss").font(.geist(13)).foregroundStyle(colors.textDim)
+            if case .tooShort? = history.outcome {
+                Text("Too short to save").font(.geist(14)).foregroundStyle(colors.textDim).accessibilityIdentifier("summary_too_short")
+            }
+            if let due = garage.card?.reminder, mode != .mini { ServiceBadge(due: due) }
+            Text("Tap to close").font(.geist(13)).foregroundStyle(colors.textDim)
         }
         .padding(.horizontal, 14).padding(.bottom, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .onTapGesture { Haptics.tap(); trip.dismissSummary() }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("trip_summary")
-        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Close") { trip.dismissSummary() }
+        .sheet(isPresented: $askDash) {
+            if case .saved(let t)? = history.outcome {
+                DashKmPerLDialog(bikeName: bikeName(t) ?? "Bike", onSave: { history.giveDashKmPerL(t, $0); askDash = false }, onSkip: { askDash = false })
+                    .environment(\.appColors, colors).presentationBackground(colors.surface)
+            }
+        }
         .gesture(DragGesture(minimumDistance: 30).onEnded { _ in trip.dismissSummary() })
         .onAppear {
             progress = 0
             withAnimation(.easeOut(duration: 0.9)) { progress = 1 }
+        }
+    }
+}
+
+extension TripSummaryView {
+    private func bikeName(_ t: TripRecord) -> String? {
+        let id = t.bikeId ?? garage.repo.activeId()
+        return garage.bikes.first { $0.id == id }?.name
+    }
+
+    /// 12b: the bike's own km/L for this ride, asked on a saved trip once a bike exists. One answer per trip.
+    @ViewBuilder var dash: some View {
+        if case .saved(let t)? = history.outcome, bikeName(t) != nil {
+            if let given = history.dashGiven[t.id] {
+                Text("Bike's \(formatKmPerL(given)) saved").font(.geist(14)).foregroundStyle(colors.textDim).lineLimit(1)
+                    .accessibilityIdentifier("sum_dash_saved")
+            } else {
+                QuietButton(title: "Bike's km/L") { askDash = true }.accessibilityIdentifier("sum_dash")
+            }
         }
     }
 }

@@ -10,12 +10,26 @@ struct NativeAutoApp: App {
     @StateObject private var battery = BatteryMonitor()
     @StateObject private var navigator: Navigator
     @StateObject private var map = MapStore()
+    @StateObject private var garage: GarageStore
+    @StateObject private var history: HistoryStore
 
     init() {
+        #if DEBUG
+        // UI tests and screenshots: `-reset_data 1` starts from an empty history and Garage.
+        if UserDefaults.standard.bool(forKey: "reset_data") {
+            AppDatabase.deleteStore()
+            FileTripCheckpoints().clear()
+        }
+        #endif
         let s = SettingsStore()
         _settings = StateObject(wrappedValue: s)
         let t = TripStore(settings: s)
         _trip = StateObject(wrappedValue: t)
+        // 15d: one database for the history and the Garage; the Garage store first, so the recorder can tag trips.
+        let db = AppDatabase()
+        let g = GarageStore(db: db, trip: t)
+        _garage = StateObject(wrappedValue: g)
+        _history = StateObject(wrappedValue: HistoryStore(db: db, trip: t, garage: g))
         _navigator = StateObject(wrappedValue: Navigator(settings: s, trip: t))
         _dashboard = StateObject(wrappedValue: DashboardModel(settings: s))
         // The orientation is asked for before the first frame (Android `MainActivity` does the same).
@@ -31,6 +45,8 @@ struct NativeAutoApp: App {
                 .environmentObject(battery)
                 .environmentObject(navigator)
                 .environmentObject(map)
+                .environmentObject(garage)
+                .environmentObject(history)
         }
     }
 }
@@ -42,6 +58,8 @@ struct RootView: View {
     @EnvironmentObject private var dashboard: DashboardModel
     @EnvironmentObject private var navigator: Navigator
     @EnvironmentObject private var map: MapStore
+    @EnvironmentObject private var garage: GarageStore
+    @EnvironmentObject private var history: HistoryStore
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var phase
 
@@ -61,6 +79,13 @@ struct RootView: View {
             .sheet(isPresented: $dashboard.showLayouts) { sheet(colors) { LayoutSwitcher() } }
             .sheet(item: $dashboard.pickerFor) { pane in sheet(colors) { PanePicker(slot: pane) } }
             .sheet(isPresented: $dashboard.showSearch) { sheet(colors) { DestinationSearchSheet() } }
+            .fullScreenCover(isPresented: $dashboard.showHistory) { screen(colors) { HistoryScreen() } }
+            .fullScreenCover(isPresented: $dashboard.showGarage) { screen(colors) { GarageScreen() } }
+            // 11a: "Gen 2's odometer now?" after days away (and "Which bike?" in debug builds).
+            .sheet(item: Binding(get: { dashboard.screenOver ? nil : garage.prompt.map(PromptBox.init) },
+                                 set: { if $0 == nil, garage.prompt != nil { garage.dismissPrompt() } })) { box in
+                sheet(colors) { GaragePromptSheet(prompt: box.prompt) }
+            }
             .overlay(alignment: .top) {
                 if let status = navigator.linkStatus {
                     LinkStatusPill(status: status).padding(.top, 8).transition(.move(edge: .top).combined(with: .opacity))
@@ -81,6 +106,12 @@ struct RootView: View {
             }
             // Simulator checks and UI tests: `-debug_open_link "geo:…"` opens a link at launch, as if shared.
             .task {
+                // Screenshots: `-debug_open_screen GARAGE|HISTORY` opens that screen at launch.
+                switch UserDefaults.standard.string(forKey: "debug_open_screen") {
+                case "GARAGE": dashboard.showGarage = true
+                case "HISTORY": dashboard.showHistory = true
+                default: break
+                }
                 if let link = UserDefaults.standard.string(forKey: "debug_open_link"), !link.isEmpty {
                     try? await Task.sleep(nanoseconds: 1_500_000_000) // a first fix to route from
                     navigator.openLink(link)
@@ -90,11 +121,28 @@ struct RootView: View {
             .onAppear { applyOrientation(settings.orientationMode) }
             .onChange(of: settings.orientationMode) { _, m in applyOrientation(m) }
             .onChange(of: phase, initial: true) { _, p in
-                if p == .active { trip.appActive() } else if p == .background { trip.appInactive() }
+                if p == .active {
+                    // 11b: a trip lost with the process is resumed or saved, before anything else starts one.
+                    history.recover()
+                    trip.appActive()
+                } else if p == .background { trip.appInactive() }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
                 trip.appTerminating()
             }
+    }
+
+    /// A full screen over the dashboard (history, Garage): the same environment as a sheet, the app's own background.
+    private func screen<C: View>(_ colors: AppColors, @ViewBuilder _ content: () -> C) -> some View {
+        content()
+            .environment(\.appColors, colors)
+            .environmentObject(settings).environmentObject(trip).environmentObject(dashboard)
+            .environmentObject(navigator).environmentObject(map)
+            .environmentObject(garage).environmentObject(history)
+            .font(.geist(16))
+            .tint(colors.accent)
+            .preferredColorScheme(colors.isDark ? .dark : .light)
+            .statusBarHidden()
     }
 
     private func sheet<C: View>(_ colors: AppColors, @ViewBuilder _ content: () -> C) -> some View {
@@ -102,6 +150,7 @@ struct RootView: View {
             .environment(\.appColors, colors)
             .environmentObject(settings).environmentObject(trip).environmentObject(dashboard)
             .environmentObject(navigator).environmentObject(map)
+            .environmentObject(garage).environmentObject(history)
             .font(.geist(16))
             .tint(colors.accent)
             .preferredColorScheme(colors.isDark ? .dark : .light)
@@ -111,6 +160,17 @@ struct RootView: View {
 }
 
 extension Pane: Identifiable { var id: String { rawValue } }
+
+/// A Garage prompt as a sheet item.
+struct PromptBox: Identifiable {
+    let prompt: GaragePrompt
+    var id: String {
+        switch prompt {
+        case .odometerNow(let b, _): "odo-\(b.id)"
+        case .whichBike: "which"
+        }
+    }
+}
 
 /// The text to resolve from a URL opened in the app: a `geo:` URI as it is, or the `text` / `url` of
 /// `nativeauto://open?...`. Nil for anything else.

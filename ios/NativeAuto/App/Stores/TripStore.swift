@@ -30,6 +30,10 @@ final class TripStore: ObservableObject {
     private var ticker: Timer?
     private var endTimer: Cancellable?
     private var resetTimer: Cancellable?
+    /// Others watching every tracker change (15d: the trip recorder, the Garage's live odometer).
+    private var observers: [() -> Void] = []
+
+    func addTrackerObserver(_ f: @escaping () -> Void) { observers.append(f) }
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -43,6 +47,7 @@ final class TripStore: ObservableObject {
         tracker.onChange = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                for o in self.observers { o() }
                 self.autoTrip.update()
                 if self.state != self.tracker.state {
                     self.state = self.tracker.state
@@ -77,7 +82,17 @@ final class TripStore: ObservableObject {
         refresh()
         #if DEBUG
         // Screenshots and checks in the simulator: `-debug_start_trip 1` starts a trip at launch.
-        if UserDefaults.standard.bool(forKey: "debug_start_trip"), state == .idle { start() }
+        if UserDefaults.standard.bool(forKey: "debug_start_trip"), state == .idle {
+            start()
+            // `-debug_end_trip_after_s N` ends it again (the history then holds a saved trip for screenshots).
+            let after = UserDefaults.standard.double(forKey: "debug_end_trip_after_s")
+            if after > 0 {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64(after * 1e9))
+                    self?.tracker.end()
+                }
+            }
+        }
         #endif
     }
 
@@ -87,7 +102,8 @@ final class TripStore: ObservableObject {
         live?.cancel(); live = nil
     }
 
-    /// The app is closing (swiped away): the trip ends, like Android's `onTaskRemoved`. Saving it is 15d.
+    /// The app is closing (swiped away): the trip ends and is saved (the recorder writes it synchronously), like
+    /// Android's `onTaskRemoved`.
     func appTerminating() {
         tracker.end()
     }
@@ -113,7 +129,7 @@ final class TripStore: ObservableObject {
 
     private func disarmEnd() { endArmed = false; endTimer?.cancel(); endTimer = nil }
 
-    /// The summary's dismiss: the ended trip is cleared (it is already saved from 15d on).
+    /// The summary's dismiss: the ended trip is cleared (it is already saved).
     func dismissSummary() { tracker.discard() }
 
     /// Reset = discard (9a), two taps within 3 s.

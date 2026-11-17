@@ -41,7 +41,7 @@ struct MapCard: View {
             }
             .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: CardStyle.radius, bottomTrailingRadius: CardStyle.radius))
         }
-        .onChange(of: model.layout.isOnScreen(.map), initial: true) { _, on in map.setOnScreen(on) }
+        .onChange(of: model.layout.isOnScreen(.map) && !model.screenOver, initial: true) { _, on in map.setOnScreen(on) }
     }
 
     /// The map leaves navigation panels to the Navigation pane when that is on screen.
