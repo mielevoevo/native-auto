@@ -9,7 +9,7 @@ import org.junit.Test
 class AutoStartTest {
     private val sec = 1_000_000_000L
     private val hold = 30 * sec
-    private val ride = 5.5f // ~20 km/h, over the 15 km/h line (4.17 m/s)
+    private val ride = 5.5f // ~20 km/h, over the 10 km/h line (2.78 m/s)
 
     private fun fix(t: Int, speed: Float, hAcc: Float = 5f, speedAcc: Float? = 0.3f, hasSpeed: Boolean = true, lonStep: Double = 0.00005) =
         SpeedSample(t * sec, speed, speedAcc, hAcc, -7.8, 110.0 + t * lonStep, hasSpeed = hasSpeed)
@@ -30,10 +30,10 @@ class AutoStartTest {
         assertEquals(30, at)
     }
 
-    @Test fun `the threshold is 15 km per hour`() {
-        assertEquals(4.1667f, AUTO_START_MPS, 1e-3f)
-        assertNull(run(0, 90, 4.1f).first)
-        assertEquals(30, run(0, 90, 4.2f).first)
+    @Test fun `the threshold is 10 km per hour`() {
+        assertEquals(2.7778f, AUTO_START_MPS, 1e-3f)
+        assertNull(run(0, 90, 2.7f).first)
+        assertEquals(30, run(0, 90, 2.8f).first)
     }
 
     @Test fun `dropping below the line starts the hold over`() {
@@ -81,5 +81,12 @@ class AutoStartTest {
     @Test fun `hold choices and the default`() {
         assertEquals(listOf(20, 30, 45, 60), AUTO_START_HOLD_CHOICES_S)
         assertTrue(DEFAULT_AUTO_START_HOLD_S in AUTO_START_HOLD_CHOICES_S)
+    }
+
+    @Test fun `auto-resume only acts on a paused trip and only when on`() {
+        assertTrue(autoResumeAllowed(true, TripState.Paused))
+        assertFalse(autoResumeAllowed(false, TripState.Paused))
+        assertFalse(autoResumeAllowed(true, TripState.Running))
+        assertFalse(autoResumeAllowed(true, TripState.Idle))
     }
 }

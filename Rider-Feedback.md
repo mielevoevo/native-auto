@@ -849,3 +849,5 @@ modify the code. Before making the repo public:
 - Remove the MIT file from the **whole history** (rewrite + force-push to the private repo), not just the latest commit,
   or old versions stay MIT.
 - README: replace "Code: MIT" and revisit "pull requests are welcome".
+- In the same rewrite: the old history still has the plate initials in test tags (`garage_bike_Gen 1` etc., missed by
+  the first rewrite's `\b`). Replace them without word boundaries (current files are already clean since 4.2.1).

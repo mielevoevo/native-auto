@@ -65,6 +65,7 @@ class PortraitCardsTest {
     private var shownContent by androidx.compose.runtime.mutableStateOf<@androidx.compose.runtime.Composable () -> Unit>({})
     private var shownVersion by androidx.compose.runtime.mutableIntStateOf(0)
     private var started = false
+    private var shownPortrait by androidx.compose.runtime.mutableStateOf(true)
 
     private fun host(slot: Slot, content: @androidx.compose.runtime.Composable () -> Unit) {
         shownSlot = slot
@@ -74,7 +75,7 @@ class PortraitCardsTest {
             started = true
             rule.setContent {
                 NativeAutoTheme {
-                    CompositionLocalProvider(LocalPortrait provides true) {
+                    CompositionLocalProvider(LocalPortrait provides shownPortrait) {
                         androidx.compose.runtime.key(shownVersion) {
                             Box(Modifier.size(shownSlot.w, shownSlot.h)) { shownContent() }
                         }
@@ -179,6 +180,25 @@ class PortraitCardsTest {
             tag("media_swipe").performTouchInput { swipeRight() }
             rule.waitForIdle()
             assertEquals("$slot: swipe right = previous", 1, previous)
+        }
+    }
+
+    /** 4.2.1: the landscape cards take the same swipe and keep their skip buttons. */
+    @Test fun landscapeMediaCardsChangeTrackBySwipeAndKeepSkips() {
+        shownPortrait = false
+        for (mode in listOf(CardMode.Compact, CardMode.Expanded, CardMode.Fullscreen)) {
+            var next = 0
+            var previous = 0
+            host(Slot.ROW) {
+                MediaCardContent(mode, DashboardLayoutState(), track(), onPlayPause = {}, onNext = { next++ }, onPrevious = { previous++ })
+            }
+            assertEquals("$mode: skip buttons stay", 1, rule.onAllNodesWithTag("media_next", useUnmergedTree = true).fetchSemanticsNodes().size)
+            tag("media_swipe").performTouchInput { swipeLeft() }
+            rule.waitForIdle()
+            assertEquals("$mode: swipe left = next", 1, next)
+            tag("media_swipe").performTouchInput { swipeRight() }
+            rule.waitForIdle()
+            assertEquals("$mode: swipe right = previous", 1, previous)
         }
     }
 

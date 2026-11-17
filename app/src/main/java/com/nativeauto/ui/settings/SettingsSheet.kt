@@ -581,6 +581,7 @@ private fun ScreenOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> U
 private fun TripOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
     val autoPause by viewModel.autoPauseMinutes.collectAsStateWithLifecycle()
     val autoEnd by viewModel.autoEndMinutes.collectAsStateWithLifecycle()
+    val autoResume by viewModel.autoResumeHoldOrOff.collectAsStateWithLifecycle()
     val totalPeriod by viewModel.totalPeriod.collectAsStateWithLifecycle()
     val hiddenStats by viewModel.hiddenStats.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
@@ -625,6 +626,17 @@ private fun TripOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> Uni
                         ) { haptics.tick(); viewModel.setTotalPeriod(it) }
                     }
                     Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // 4.2.1: resumes a paused trip on steady movement; 0 = off. In this column: the left one
+                        // would push Period total below a landscape phone's fold.
+                        val offLabel = stringResource(R.string.settings_off)
+                        ChoiceRow(
+                            label = R.string.settings_auto_resume,
+                            options = listOf(0) + com.nativeauto.trip.AUTO_RESUME_HOLD_CHOICES_S,
+                            selected = autoResume,
+                            text = { if (it == 0) offLabel else "$it s" },
+                            tag = { "settings_auto_resume_$it" },
+                            stacked = true,
+                        ) { haptics.tick(); viewModel.setAutoResume(it) }
                         Text(stringResource(R.string.settings_telemetry), style = MaterialTheme.typography.titleMedium)
                         Text(stringResource(R.string.settings_telemetry_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

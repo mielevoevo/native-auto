@@ -115,6 +115,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setRouteColor(argb) }
     }
 
+    /** 4.2.1: auto-resume as one choice: 0 = off, else the hold in seconds. */
+    val autoResumeHoldOrOff: StateFlow<Int> =
+        kotlinx.coroutines.flow.combine(settings.autoResume, settings.autoResumeHoldS) { on, s -> if (on) s else 0 }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.nativeauto.trip.DEFAULT_AUTO_RESUME_HOLD_S)
+
+    fun setAutoResume(holdOrOff: Int) {
+        viewModelScope.launch {
+            settings.setAutoResume(holdOrOff > 0)
+            if (holdOrOff > 0) settings.setAutoResumeHoldS(holdOrOff)
+        }
+    }
+
     fun setAutoPauseMinutes(minutes: Int) {
         viewModelScope.launch { settings.setAutoPauseMinutes(minutes) }
     }

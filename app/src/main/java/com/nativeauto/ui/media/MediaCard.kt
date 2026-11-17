@@ -220,10 +220,11 @@ fun MediaCardContent(
                 m == CardMode.Narrow -> MediaNarrow(nowPlaying, controls)
                 m == CardMode.Wide && portrait -> MediaSlim(nowPlaying, controls, art = 104.dp, progress = true)
                 // The Rows strip is the compact strip with more width: it lays out the same.
-                m == CardMode.Compact || m == CardMode.Wide -> MediaCompact(nowPlaying, controls)
-                m == CardMode.Expanded -> MediaExpanded(nowPlaying, controls)
+                // 4.2.1: landscape cards change track by the same swipe as portrait; their skip buttons stay too.
+                m == CardMode.Compact || m == CardMode.Wide -> SwipeCentred(controls) { MediaCompact(nowPlaying, controls) }
+                m == CardMode.Expanded -> SwipeCentred(controls) { MediaExpanded(nowPlaying, controls) }
                 portrait -> MediaFullscreenTall(nowPlaying, controls)
-                else -> MediaFullscreen(nowPlaying, controls)
+                else -> SwipeCentred(controls) { MediaFullscreen(nowPlaying, controls) }
             }
         }
     }
@@ -285,6 +286,14 @@ private fun SwipeToChange(controls: Controls, modifier: Modifier = Modifier, con
                     .testTag("media_swipe_cue"),
             )
         }
+    }
+}
+
+/** 4.2.1: [SwipeToChange] over the whole card, its content centred as the card's own [AnimatedContent] would. */
+@Composable
+private fun SwipeCentred(controls: Controls, content: @Composable () -> Unit) {
+    SwipeToChange(controls, Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
     }
 }
 

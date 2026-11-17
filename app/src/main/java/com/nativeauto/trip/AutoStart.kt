@@ -16,8 +16,8 @@ enum class AutoStartMode(val label: String) {
     TRIP("Start trip"),
 }
 
-/** The speed that counts as "riding": 15 km/h. */
-const val AUTO_START_KMH = 15
+/** The speed that counts as "riding": 10 km/h (rider, 4.2.1; was 15). */
+const val AUTO_START_KMH = 10
 const val AUTO_START_MPS = AUTO_START_KMH / 3.6f
 
 /** How long the speed must be held, in seconds (setting; default [DEFAULT_AUTO_START_HOLD_S]). */
@@ -74,3 +74,14 @@ const val ODOMETER_CHUNK_M = 500.0
 
 /** Stationary this long ends a run of odometer-only riding (the remainder is committed). */
 const val ODOMETER_IDLE_NANOS = 120_000_000_000L
+
+/**
+ * 4.2.1: auto-resume. A paused trip (by hand or by auto-pause) continues once the bike is moving again: the same
+ * proof as auto-start ([stepAutoStart]: over [AUTO_START_MPS], held), with its own, shorter hold. Only while the app
+ * is open, like auto-start. Auto-pause can't undo it at once (a resume restarts its stationary clock) and auto-end
+ * only fires while the trip is still paused.
+ */
+val AUTO_RESUME_HOLD_CHOICES_S = listOf(5, 10, 20)
+const val DEFAULT_AUTO_RESUME_HOLD_S = 10
+
+fun autoResumeAllowed(enabled: Boolean, tripState: TripState): Boolean = enabled && tripState == TripState.Paused

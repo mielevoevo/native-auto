@@ -13,6 +13,7 @@ import com.nativeauto.trip.TripReducer
 import com.nativeauto.trip.TripState
 import com.nativeauto.trip.TripStats
 import com.nativeauto.trip.TripTracker
+import com.nativeauto.trip.autoResumeAllowed
 import com.nativeauto.trip.autoStartAllowed
 import com.nativeauto.trip.stepAutoStart
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -21,7 +22,9 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -39,6 +42,9 @@ interface AutoStartActions {
     /** Starts a trip now (the same path as the Start button). */
     fun startTrip()
 
+    /** Continues a paused trip (the same path as the Resume button). */
+    fun resumeTrip()
+
     /** Adds [km] ridden to the active bike's odometer, fuel and services, without saving a trip. */
     suspend fun addOdometerKm(km: Double)
 }
@@ -49,6 +55,8 @@ class AndroidAutoStartActions @Inject constructor(
     private val bike: ActiveBike,
 ) : AutoStartActions {
     override fun startTrip() = TripService.start(context)
+
+    override fun resumeTrip() = TripService.resume(context)
 
     override suspend fun addOdometerKm(km: Double) {
         val id = bike.id() ?: return
@@ -62,7 +70,7 @@ class AndroidAutoStartActions @Inject constructor(
  * background location.
  *
  * While the setting is on and the state is clean ([autoStartAllowed]) it watches the fixes
- * ([SpeedSampleSource.watchSamples]: low rate while stationary, full rate once moving) for 15 km/h
+ * ([SpeedSampleSource.watchSamples]: low rate while stationary, full rate once moving) for 10 km/h
  * held for the hold time. Then, by the setting:
  * - **Start trip**: starts a trip right then (the first seconds are not recorded: an auto-start is
  *   consent proven by "app open and already moving") and announces it ([announcements]).
@@ -82,6 +90,11 @@ class AutoStartMonitor @Inject constructor(
     /** One event each time a trip was started by auto-start. */
     val announcements: SharedFlow<Unit> = _announcements.asSharedFlow()
 
+    private val _resumed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** One event each time a paused trip was resumed by auto-resume. */
+    val resumed: SharedFlow<Unit> = _resumed.asSharedFlow()
+
     @Volatile private var cleanAtOpen = true
     @Volatile private var endedThisSession = false
 
@@ -92,7 +105,38 @@ class AutoStartMonitor @Inject constructor(
     }
 
     /** Runs until cancelled. Call it from a lifecycle that is active only while the app is on screen. */
-    suspend fun watch() {
+    suspend fun watch(): Unit = coroutineScope {
+        launch { watchResume() }
+        watchStart()
+    }
+
+    /** 4.2.1: a paused trip continues on steady movement ([autoResumeAllowed]), with its own hold. */
+    private suspend fun watchResume() {
+        combine(settings.autoResume, settings.autoResumeHoldS, tracker.state) { on, holdS, trip ->
+            if (autoResumeAllowed(on, trip)) holdS else null
+        }
+            .distinctUntilChanged()
+            .flatMapLatest { holdS -> if (holdS == null) emptyFlow() else kotlinx.coroutines.flow.flow<Unit> { runResume(holdS) } }
+            .collect {}
+    }
+
+    private suspend fun runResume(holdS: Int) {
+        val holdNanos = holdS * 1_000_000_000L
+        var hold = AutoStartState()
+        sampleFlow().collect { fix ->
+            val step = stepAutoStart(hold, fix, holdNanos)
+            hold = step.state
+            if (step.triggered) {
+                actions.resumeTrip()
+                _resumed.tryEmit(Unit)
+                // Running ends this watch; if the resume didn't take, try again after a pause.
+                delay(RETRY_START_MS)
+                hold = AutoStartState()
+            }
+        }
+    }
+
+    private suspend fun watchStart() {
         combine(
             settings.autoStartMode,
             settings.autoStartHoldS,

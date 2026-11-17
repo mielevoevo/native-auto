@@ -33,8 +33,10 @@ class AutoStartMonitorTest {
 
     private class Actions : AutoStartActions {
         var started = 0
+        var resumed = 0
         var km = 0.0
         override fun startTrip() { started++ }
+        override fun resumeTrip() { resumed++ }
         override suspend fun addOdometerKm(km: Double) { this.km += km }
     }
 
@@ -61,6 +63,29 @@ class AutoStartMonitorTest {
         runCurrent()
         assertEquals(1, r.actions.started)
         assertEquals(1, announced)
+    }
+
+    @Test fun `a paused trip resumes after the auto-resume hold and says so`() = runTest {
+        val r = rig(ride(0, 30, 6f), AutoStartMode.OFF)
+        var resumedEvents = 0
+        backgroundScope.launch { r.monitor.resumed.collect { resumedEvents++ } }
+        r.tracker.start()
+        r.tracker.pause() // by hand: auto-resume applies too (rider, 4.2.1)
+        r.monitor.onAppOpened()
+        backgroundScope.launch { r.monitor.watch() }
+        runCurrent()
+        assertEquals(1, r.actions.resumed)
+        assertEquals(1, resumedEvents)
+        assertEquals(0, r.actions.started)
+    }
+
+    @Test fun `walking pace never resumes a paused trip`() = runTest {
+        val r = rig(ride(0, 60, 2f), AutoStartMode.OFF) // 7 km/h, under the 10 km/h line
+        r.tracker.start()
+        r.tracker.pause()
+        backgroundScope.launch { r.monitor.watch() }
+        runCurrent()
+        assertEquals(0, r.actions.resumed)
     }
 
     @Test fun `nothing happens with auto-start off`() = runTest {

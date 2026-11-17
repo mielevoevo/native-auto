@@ -1,5 +1,10 @@
 # What's new in Native Auto
 
+## 4.2.1 (27) · 2026-11-16
+- Auto-resume: a paused trip (paused by you or by auto-pause) carries on by itself once you ride steadily again, while the app is open. Settings, Trip and Garage, Trip options: Off, 5, 10 or 20 seconds (10 by default). A short "Trip resumed" note shows when it happens.
+- Auto-start now counts riding from 10 km/h (was 15). Underground or indoors it still waits for a good GPS fix, so it starts shortly after you are out in the open.
+- Landscape media card: swipe sideways to change track, as on the portrait cards. The skip buttons stay.
+
 ## 4.2 (26) · 2026-11-15
 - First-run setup: a new install starts with seven short pages. Welcome, Appearance (orientation, theme, units), Location and notifications, Calls, Your bike, Riding, and a summary. Each switch asks Android for its permission right there, and nothing is asked before you tap. Updating from an older version never shows it; everything stays in Settings (and Settings, Privacy and data).
 

@@ -12,8 +12,10 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.nativeauto.trip.AUTO_RESUME_HOLD_CHOICES_S
 import com.nativeauto.trip.AUTO_START_HOLD_CHOICES_S
 import com.nativeauto.trip.AutoStartMode
+import com.nativeauto.trip.DEFAULT_AUTO_RESUME_HOLD_S
 import com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
@@ -80,9 +82,17 @@ interface SettingsRepository {
     val callControls: Flow<Boolean> get() = flowOf(true)
     suspend fun setCallControls(enabled: Boolean) {}
 
-    /** 13b: seconds at 15 km/h before auto-start acts, one of [AUTO_START_HOLD_CHOICES_S]. */
+    /** 13b: seconds at 10 km/h before auto-start acts, one of [AUTO_START_HOLD_CHOICES_S]. */
     val autoStartHoldS: Flow<Int>
     suspend fun setAutoStartHoldS(seconds: Int)
+
+    /** 4.2.1: a paused trip resumes by itself on steady movement (while the app is open). On by default. */
+    val autoResume: Flow<Boolean> get() = flowOf(true)
+    suspend fun setAutoResume(enabled: Boolean) {}
+
+    /** 4.2.1: seconds over the auto-start speed before auto-resume acts, one of [AUTO_RESUME_HOLD_CHOICES_S]. */
+    val autoResumeHoldS: Flow<Int> get() = flowOf(DEFAULT_AUTO_RESUME_HOLD_S)
+    suspend fun setAutoResumeHoldS(seconds: Int) {}
 
     /**
      * 13c: the accent colour, as ARGB. Cyan (what every install had) until [initialiseDefaults] says otherwise,
@@ -288,6 +298,19 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[AUTO_START_HOLD_S] = seconds }
     }
 
+    override val autoResume: Flow<Boolean> = prefs.map { it[AUTO_RESUME] ?: true }.distinctUntilChanged()
+
+    override suspend fun setAutoResume(enabled: Boolean) {
+        store.edit { it[AUTO_RESUME] = enabled }
+    }
+
+    override val autoResumeHoldS: Flow<Int> =
+        prefs.map { p -> p[AUTO_RESUME_HOLD_S]?.takeIf { it in AUTO_RESUME_HOLD_CHOICES_S } ?: DEFAULT_AUTO_RESUME_HOLD_S }.distinctUntilChanged()
+
+    override suspend fun setAutoResumeHoldS(seconds: Int) {
+        store.edit { it[AUTO_RESUME_HOLD_S] = seconds }
+    }
+
     override val accentColor: Flow<Int> = prefs.map { it[ACCENT] ?: LEGACY_ACCENT_ARGB }.distinctUntilChanged()
 
     override suspend fun setAccentColor(argb: Int) {
@@ -401,6 +424,8 @@ class DataStoreSettingsRepository @Inject constructor(
         val CALL_CONTROLS = booleanPreferencesKey("call_controls")
         val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
         val AUTO_START_HOLD_S = intPreferencesKey("auto_start_hold_s")
+        val AUTO_RESUME = booleanPreferencesKey("auto_resume")
+        val AUTO_RESUME_HOLD_S = intPreferencesKey("auto_resume_hold_s")
         val REFRESH_MODE = stringPreferencesKey("refresh_mode")
         val DRAG_HOLD_MS = longPreferencesKey("drag_hold_ms")
         val CLOCK_SECONDS = booleanPreferencesKey("clock_seconds")

@@ -23,7 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -59,7 +61,8 @@ class AutoStartBannerViewModel @Inject constructor(monitor: AutoStartMonitor) : 
     private var hide: Job? = null
 
     init {
-        viewModelScope.launch { monitor.announcements.collect { show() } }
+        viewModelScope.launch { monitor.announcements.collect { BannerMessage.resumed = false; show() } }
+        viewModelScope.launch { monitor.resumed.collect { BannerMessage.resumed = true; show() } }
     }
 
     internal fun show() {
@@ -79,6 +82,11 @@ class AutoStartBannerViewModel @Inject constructor(monitor: AutoStartMonitor) : 
     companion object {
         const val BANNER_MS = 3_000L
     }
+}
+
+/** 4.2.1: which message the banner and pill carry: a start (auto-start) or a resume (auto-resume). Set by the view model. */
+internal object BannerMessage {
+    var resumed by mutableStateOf(false)
 }
 
 /** Swipe distance that dismisses the banner, in pixels. */
@@ -109,7 +117,7 @@ internal fun AutoStartBanner(visible: Boolean, onDismiss: () -> Unit, modifier: 
                     onDragStarted = { dragged[0] = 0f },
                     onDragStopped = { if (abs(dragged[0]) > SWIPE_PX) onDismiss() },
                 )
-                .semantics { contentDescription = "Trip started" }
+                .semantics { contentDescription = if (BannerMessage.resumed) "Trip resumed" else "Trip started" }
                 .testTag("auto_start_banner"),
             contentAlignment = Alignment.Center,
         ) {
@@ -121,8 +129,8 @@ internal fun AutoStartBanner(visible: Boolean, onDismiss: () -> Unit, modifier: 
 @Composable
 private fun BannerText() {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Trip started", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = AppTheme.colors.text, maxLines = 1, softWrap = false)
-        Text("Riding detected", style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.textDim, maxLines = 1, softWrap = false)
+        Text(if (BannerMessage.resumed) "Trip resumed" else "Trip started", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = AppTheme.colors.text, maxLines = 1, softWrap = false)
+        Text(if (BannerMessage.resumed) "Moving again" else "Riding detected", style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.textDim, maxLines = 1, softWrap = false)
     }
 }
 

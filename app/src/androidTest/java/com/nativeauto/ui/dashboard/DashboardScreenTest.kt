@@ -750,7 +750,7 @@ class DashboardScreenTest {
             runBlocking {
                 resetSettings.settings.setAutoStartHoldS(20)
                 resetSettings.settings.setAutoStartMode(com.nativeauto.trip.AutoStartMode.TRIP)
-                // The scripted drive: stationary jitter, then 100 km/h; 20 s over 15 km/h completes inside it.
+                // The scripted drive: stationary jitter, then 100 km/h; 20 s over 10 km/h completes inside it.
                 resetSettings.settings.setUseFakeGps(true)
             }
             rule.waitUntil(120_000) { count("auto_start_banner").fetchSemanticsNodes().isNotEmpty() }
