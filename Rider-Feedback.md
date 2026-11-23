@@ -935,14 +935,7 @@ track keeps.
 
 ## WIP: licence (rider, 2026-11-16; decide before the repo goes public)
 
-**Done in the current tree (2026-11-24):** `LICENSE` is all rights reserved (view only), README updated. Still open: the
-history rewrite below (rider confirms first; it needs a force-push).
-
-The GitHub repo is private for now. The rider does **not** want others to reuse or
-modify the code. Before making the repo public:
-- Choose the licence (likely "all rights reserved" / no licence; source visible only).
-- Remove the MIT file from the **whole history** (rewrite + force-push to the private repo), not just the latest commit,
-  or old versions stay MIT.
-- README: replace "Code: MIT" and revisit "pull requests are welcome".
-- In the same rewrite: the old history still has the plate initials in test tags (`garage_bike_Gen 1` etc., missed by
-  the first rewrite's `\b`). Replace them without word boundaries (current files are already clean since 4.2.1).
+**Done (2026-11-24):** `LICENSE` is all rights reserved (read, and build for personal use; no publishing of copies,
+modified versions or derived apps); README explains it in a friendly tone (issues welcome, no pull requests). The
+history was rewritten locally so every past commit carries this licence and no plate initials; it waits for the
+rider's force-push. GitHub releases start at v4.3; earlier builds stay private test builds (no reason given publicly).

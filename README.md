@@ -29,11 +29,16 @@ sensors, adapter or account. It is the screen you glance at while riding, on the
 Native Auto was built by one rider working with [Claude Code](https://claude.com/claude-code): the rider
 sets the goals, tests on a real bike and decides; the AI writes most of the code. Design decisions and
 the reasons for them are written down in [`DECISIONS.md`](DECISIONS.md) and [`CLAUDE.md`](CLAUDE.md), so you
-can judge the choices yourself. Bug reports and ideas are welcome as issues; pull requests are not accepted.
+can judge the choices yourself.
+
+## Feedback
+
+Ideas, bug reports and ride stories are very welcome: open an issue. I'm not taking code contributions
+for now, so please don't open pull requests; every change goes through a test on the bike first.
 
 ## Build it
 
-Requirements: Android Studio (JDK 17+), Android SDK 37.
+You're welcome to build and run it on your own phone. Requirements: Android Studio (JDK 17+), Android SDK 37.
 
 ```
 ./gradlew assembleDebug          # debug build
@@ -51,7 +56,7 @@ Without a Google Maps key the app uses MapLibre with OpenFreeMap tiles, and with
 search uses Photon (OpenStreetMap). Both fallbacks need no key. `local.defaults.properties` holds the
 placeholders the build falls back to.
 
-Contributor and AI-assistant rules are in [`CLAUDE.md`](CLAUDE.md).
+The working rules for the AI assistant are in [`CLAUDE.md`](CLAUDE.md).
 
 ## Credits
 
@@ -61,8 +66,12 @@ contributors. Font: [Geist](https://vercel.com/font) (SIL OFL 1.1).
 
 ## Licence
 
-All rights reserved: the source is public to read, not to reuse, modify or redistribute. See [`LICENSE`](LICENSE).
-The Native Auto name and logo are not licensed. Third-party components keep their own licences.
+Native Auto is my first published app and an idea I care about, so the code is shared to be read, not
+reused. You're welcome to read it, learn from it, and build it for yourself. Please don't publish copies,
+modified versions or apps based on it. The details are in [`LICENSE`](LICENSE) (all rights reserved). If you'd
+like to use part of it, open an issue and ask; I'm happy to talk.
+
+The Native Auto name and logo are mine. Third-party libraries and the Geist font keep their own licences.
 
 Native Auto is an independent project. It is not affiliated with, endorsed by or connected to Google
 (Android, Android Auto, Google Maps), Apple (CarPlay), TomTom or any motorcycle maker. Those names belong to

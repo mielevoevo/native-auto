@@ -29,7 +29,7 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
 - Emulator launch: `. .dev/env.sh; "$EMU" -avd Medium_Phone_API_37.0 -memory 2048 -gpu swiftshader_indirect -no-snapshot-save`
   (run in the background). Its disk lives in `.dev/android-user/avd/`.
 - Files written only in: `app/`, `gradle/`, `baselineprofile/`, root build files,
-  `local.defaults.properties` (placeholders), `CLAUDE.md`, `Rider-Feedback.md`, `DECISIONS.md`,
+  `local.defaults.properties` (placeholders), `CLAUDE.md`, `Rider-Feedback.md`, `DECISIONS.md`, `DESIGN.md`, `README.md`, `LICENSE`,
   `.gitignore`, `.dev/`, `ios/` (Phase 15, iOS port; see `ios/CLAUDE.md`). Plus Claude Code's own memory folder. Scratch work goes in `.dev/scratch/`.
 - On C, only *run* the Android SDK and Android Studio's JBR (installed there); never write there.
   Known unavoidable: the emulator drops a tiny "running" marker in C's temp folder.
@@ -45,6 +45,9 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   exports its **own** release APK to `.dev/apk/NativeAuto-<version>-<sub>-release.apk` (never overwrite an
   earlier one: they are the fallback if 14b goes wrong), after the release smoke test. **14b (portrait, v4.0) is its own
   unattended run (user, 2026-11-14), spec in `.dev/Phase-14b-Portrait.md`; tests only what a change touches.** Every sub-phase build also adds its entry to `assets/changelog.md` (from 13a on).
+
+**Design review (user, 2026-11-24):** every UI change goes through `DESIGN.md` (gates, consistency locks, critique) before its
+commit; the result is logged in `DECISIONS.md`. Never a blocking question during an unattended run.
 
 ## Deliberate deviations from the handoff's reference code
 
