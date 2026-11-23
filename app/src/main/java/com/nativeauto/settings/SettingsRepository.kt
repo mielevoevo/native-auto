@@ -118,6 +118,14 @@ interface SettingsRepository {
     val orientationMode: Flow<OrientationMode> get() = flowOf(OrientationMode.LANDSCAPE)
     suspend fun setOrientationMode(mode: OrientationMode) {}
 
+    /** 4.3b: card titles as text (default) or as the pane's icon. Defaulted so the test fakes need no change. */
+    val cardTitleStyle: Flow<CardTitleStyle> get() = flowOf(CardTitleStyle.TEXT)
+    suspend fun setCardTitleStyle(style: CardTitleStyle) {}
+
+    /** 4.3b: a large, very faint pane icon behind Expanded / Fullscreen cards. Off by default. */
+    val paneWatermark: Flow<Boolean> get() = flowOf(false)
+    suspend fun setPaneWatermark(enabled: Boolean) {}
+
     /** 13a: the Garage card's tank icon. Gauge by default (and for installs from before it existed). */
     val tankIcon: Flow<TankIcon>
     suspend fun setTankIcon(icon: TankIcon)
@@ -283,6 +291,19 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override val callControls: Flow<Boolean> = prefs.map { it[CALL_CONTROLS] ?: true }.distinctUntilChanged()
 
+    override val cardTitleStyle: Flow<CardTitleStyle> =
+        prefs.map { enumOrDefault(it[CARD_TITLE_STYLE], CardTitleStyle.TEXT) }.distinctUntilChanged()
+
+    override suspend fun setCardTitleStyle(style: CardTitleStyle) {
+        store.edit { it[CARD_TITLE_STYLE] = style.name }
+    }
+
+    override val paneWatermark: Flow<Boolean> = prefs.map { it[PANE_WATERMARK] ?: false }.distinctUntilChanged()
+
+    override suspend fun setPaneWatermark(enabled: Boolean) {
+        store.edit { it[PANE_WATERMARK] = enabled }
+    }
+
     override suspend fun setCallControls(enabled: Boolean) {
         store.edit { it[CALL_CONTROLS] = enabled }
     }
@@ -422,6 +443,8 @@ class DataStoreSettingsRepository @Inject constructor(
         val ACCENT = intPreferencesKey("accent_color")
         val ROUTE_COLOR = intPreferencesKey("route_color")
         val CALL_CONTROLS = booleanPreferencesKey("call_controls")
+        val CARD_TITLE_STYLE = stringPreferencesKey("card_title_style")
+        val PANE_WATERMARK = booleanPreferencesKey("pane_watermark")
         val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
         val AUTO_START_HOLD_S = intPreferencesKey("auto_start_hold_s")
         val AUTO_RESUME = booleanPreferencesKey("auto_resume")

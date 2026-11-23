@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -546,12 +545,14 @@ private fun TransportControls(
     val haptics = rememberHaptics()
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // 4.3b: the skips sit on a quiet round plate, so their touch area shows (play keeps the bright one).
+        val plate = IconButtonDefaults.filledIconButtonColors(containerColor = AppTheme.colors.buttonQuiet, contentColor = AppTheme.colors.text)
         if (controls.showSkips) {
-            IconButton(onClick = { haptics.tap(); controls.onPrevious() }, modifier = Modifier.size(buttonSize).testTag("media_previous")) {
-                Icon(AppIcons.SkipPrevious, contentDescription = "Previous track", modifier = Modifier.size(buttonSize * 0.55f))
+            FilledIconButton(onClick = { haptics.tap(); controls.onPrevious() }, modifier = Modifier.size(buttonSize).testTag("media_previous"), colors = plate) {
+                Icon(AppIcons.SkipPrevious, contentDescription = "Previous track", modifier = Modifier.size(buttonSize * 0.5f))
             }
         }
         FilledIconButton(
@@ -570,8 +571,8 @@ private fun TransportControls(
             )
         }
         if (controls.showSkips) {
-            IconButton(onClick = { haptics.tap(); controls.onNext() }, modifier = Modifier.size(buttonSize).testTag("media_next")) {
-                Icon(AppIcons.SkipNext, contentDescription = "Next track", modifier = Modifier.size(buttonSize * 0.55f))
+            FilledIconButton(onClick = { haptics.tap(); controls.onNext() }, modifier = Modifier.size(buttonSize).testTag("media_next"), colors = plate) {
+                Icon(AppIcons.SkipNext, contentDescription = "Next track", modifier = Modifier.size(buttonSize * 0.5f))
             }
         }
     }

@@ -937,6 +937,23 @@ class DashboardScreenTest {
         tag("pick_MAP").assertIsDisplayed()
     }
 
+    // ---------------------------------------------------------------- 4.3b: look
+
+    @Test fun cardTitlesCanBeIconsAndTheFaintIconIsASetting() {
+        fun hasText(t: String) = rule.onNodeWithTag(t, useUnmergedTree = true).fetchSemanticsNode().config.contains(SemanticsProperties.Text)
+        assertTrue("text titles by default", hasText("header_title_SPEED"))
+        openSettings("DISPLAY")
+        click("settings_card_titles_ICON")
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.cardTitleStyle.first() } == com.nativeauto.settings.CardTitleStyle.ICON }
+        click("settings_pane_watermark")
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.paneWatermark.first() } }
+        closeSettings()
+        rule.waitUntil(5_000) { !hasText("header_title_SPEED") }
+        // The icon still says the pane's name to a screen reader.
+        tag("header_title_SPEED").assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Speed")))
+        tag("header_title_MAP").assertIsDisplayed()
+    }
+
     // ---------------------------------------------------------------- Phase 8b: layouts
 
     @Test fun everyPresetTilesTheScreen() {

@@ -1,5 +1,10 @@
 # What's new in Native Auto
 
+## 4.4 (29) · 2026-11-24
+- Card titles can be icons: Settings, Display, Card titles, Text or Icon. Icons are the ones in the hold menu, and they leave more room in the header for the clock and battery.
+- The media card's previous and next buttons now sit on round plates like play / pause, so you can see where to press.
+- Faint card icons (Settings, Display, off by default): a large, dim icon of the card behind big media, clock, navigation and Garage cards. Never on the map, the speed card or a call.
+
 ## 4.3 (28) · 2026-11-24
 - Settings keep one height whichever tab is open, with more room around the title and tabs. A tab that doesn't fit fades out instead of being cut off.
 - Every setting is now one row: title and description on the left, the button on the right. Reset trip, Reset app, Back up and Import follow it too.

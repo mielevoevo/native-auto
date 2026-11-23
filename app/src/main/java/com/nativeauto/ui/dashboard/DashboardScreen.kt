@@ -126,7 +126,8 @@ fun DashboardRoute(viewModel: DashboardViewModel = hiltViewModel()) {
     val battery by viewModel.battery.collectAsStateWithLifecycle()
     val refresh by viewModel.refreshMode.collectAsStateWithLifecycle()
     val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
-    DashboardScreen(layout, battery, refresh, dragHold)
+    val cardLook by viewModel.cardLook.collectAsStateWithLifecycle()
+    DashboardScreen(layout, battery, refresh, dragHold, cardLook)
 }
 
 /**
@@ -145,10 +146,11 @@ fun DashboardScreen(
     battery: BatteryStatus? = null,
     refresh: RefreshMode = RefreshMode.AUTO,
     dragHoldMs: Long = DEFAULT_DRAG_HOLD_MS,
+    cardLook: com.nativeauto.ui.components.CardLook = com.nativeauto.ui.components.CardLook(),
 ) {
     // 14b: everything below, sheets and dialogs included, knows the screen is portrait.
     CompositionLocalProvider(com.nativeauto.ui.components.LocalPortrait provides layout.portrait) {
-        DashboardScreenBody(layout, battery, refresh, dragHoldMs)
+        DashboardScreenBody(layout, battery, refresh, dragHoldMs, cardLook)
     }
 }
 
@@ -158,6 +160,7 @@ private fun DashboardScreenBody(
     battery: BatteryStatus?,
     refresh: RefreshMode,
     dragHoldMs: Long,
+    cardLook: com.nativeauto.ui.components.CardLook,
 ) {
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
@@ -210,6 +213,7 @@ private fun DashboardScreenBody(
         LocalStatusCorner provides corner,
         LocalPanePicker provides picker,
         com.nativeauto.ui.components.LocalHeaderZoom provides headerZoom,
+        com.nativeauto.ui.components.LocalCardLook provides cardLook,
         LocalPaneMotion provides motion,
         LocalMotionDemand provides demand,
         com.nativeauto.ui.components.LocalPortrait provides layout.portrait,

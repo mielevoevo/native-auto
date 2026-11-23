@@ -159,6 +159,19 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setSpeedUnit(unit) }
     }
 
+    val cardTitleStyle: StateFlow<com.nativeauto.settings.CardTitleStyle> =
+        settings.cardTitleStyle.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.nativeauto.settings.CardTitleStyle.TEXT)
+    val paneWatermark: StateFlow<Boolean> =
+        settings.paneWatermark.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setCardTitleStyle(style: com.nativeauto.settings.CardTitleStyle) {
+        viewModelScope.launch { settings.setCardTitleStyle(style) }
+    }
+
+    fun setPaneWatermark(enabled: Boolean) {
+        viewModelScope.launch { settings.setPaneWatermark(enabled) }
+    }
+
     fun setShowBattery(show: Boolean) {
         viewModelScope.launch { settings.setShowBattery(show) }
     }

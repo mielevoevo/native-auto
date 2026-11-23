@@ -55,6 +55,12 @@ class DashboardViewModel @Inject constructor(
         .flatMapLatest { show -> if (show) battery.status else flowOf(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** 4.3b: icon titles and the faint pane icon, read by every card's chrome. */
+    val cardLook: StateFlow<com.nativeauto.ui.components.CardLook> =
+        kotlinx.coroutines.flow.combine(settings.cardTitleStyle, settings.paneWatermark) { style, mark ->
+            com.nativeauto.ui.components.CardLook(iconTitles = style == com.nativeauto.settings.CardTitleStyle.ICON, watermark = mark)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.nativeauto.ui.components.CardLook())
+
     /** Planning, previewing or guiding: anything but idle. */
     val navigationActive: StateFlow<Boolean> = navigator.state
         .map { it !is NavState.Idle }

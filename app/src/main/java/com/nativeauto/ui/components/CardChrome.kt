@@ -48,6 +48,11 @@ import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
 import com.nativeauto.ui.theme.AppTheme
 import com.nativeauto.ui.theme.PaneTitle
+import androidx.compose.foundation.layout.size
+import com.nativeauto.ui.dashboard.icon
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clipToBounds
 
 private val CardShape = RoundedCornerShape(20.dp)
 
@@ -113,7 +118,7 @@ fun DashboardCard(
                 )
             }
         } else {
-            Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().then(paneWatermark(pane, mode))) {
                 CardChrome(title = title, pane = pane, mode = mode, layout = layout, headerActions = headerActions)
                 Column(Modifier.weight(1f).fillMaxWidth().then(body)) { content() }
             }
@@ -183,15 +188,25 @@ fun CardChrome(
     ) {
         HeaderRow(
             title = {
-                Text(
-                    text = title,
-                    style = PaneTitle,
-                    color = AppTheme.colors.textDim,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag("header_title_${pane.name}"),
-                )
+                // 4.3b: the pane's icon instead of its name, if the rider chose it (screen readers still hear the name).
+                if (LocalCardLook.current.iconTitles) {
+                    Icon(
+                        imageVector = pane.icon,
+                        contentDescription = title,
+                        tint = AppTheme.colors.textDim,
+                        modifier = Modifier.size(24.dp).testTag("header_title_${pane.name}"),
+                    )
+                } else {
+                    Text(
+                        text = title,
+                        style = PaneTitle,
+                        color = AppTheme.colors.textDim,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("header_title_${pane.name}"),
+                    )
+                }
             },
             clock = corner?.time?.let { time -> { StatusClock(time) } },
             battery = corner?.battery?.let { battery -> { BatteryIndicator(battery) } },
@@ -312,6 +327,44 @@ private const val MAX_HEADER_H = 4096
  * from its landscape namesake (a Wide row is 400 dp across, not 800; a Fullscreen card is tall, not wide).
  */
 val LocalPortrait = staticCompositionLocalOf { false }
+
+/** 4.3b: how cards look: icon titles, the faint pane icon. Provided by DashboardScreen from the settings. */
+@androidx.compose.runtime.Immutable
+data class CardLook(val iconTitles: Boolean = false, val watermark: Boolean = false)
+
+val LocalCardLook = staticCompositionLocalOf { CardLook() }
+
+/** 4.3b: the faint icon's strength, a fraction of the text colour (~5–6 %, DESIGN.md: it must not touch contrast). */
+internal const val WATERMARK_ALPHA = 0.055f
+
+/**
+ * 4.3b: a large, very faint pane icon behind the card's content, at the bottom right and partly past the edge. Only in
+ * Expanded / Fullscreen, and never on the map (full-bleed), the speed card (its hero number) or a call. Drawn in the
+ * draw phase only: nothing recomposes for it.
+ */
+@Composable
+private fun paneWatermark(pane: Pane, mode: CardMode): Modifier {
+    val show = LocalCardLook.current.watermark &&
+        (mode == CardMode.Expanded || mode == CardMode.Fullscreen) &&
+        pane != Pane.MAP && pane != Pane.SPEED && pane != Pane.CALL
+    if (!show) return Modifier
+    val painter = androidx.compose.ui.graphics.vector.rememberVectorPainter(pane.icon)
+    val tint = AppTheme.colors.text
+    return Modifier
+        .clipToBounds()
+        .drawBehind {
+            val side = minOf(size.width, size.height) * 0.8f
+            translate(left = size.width - side * 0.8f, top = size.height - side * 0.8f) {
+                with(painter) {
+                    draw(
+                        androidx.compose.ui.geometry.Size(side, side),
+                        alpha = WATERMARK_ALPHA,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tint),
+                    )
+                }
+            }
+        }
+}
 
 /**
  * 4.3a: per pane, whether its header shows its own maximize / fullscreen buttons. Filled by [CardChrome], read by

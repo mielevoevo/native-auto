@@ -50,6 +50,9 @@
     <string name="settings_total_period">Speed card total</string>
     <string name="settings_screen_options_hint">Refresh rate and battery</string>
     <string name="settings_battery">Battery indicator</string>
+    <string name="settings_card_titles">Card titles</string>
+    <string name="settings_pane_watermark">Faint card icons</string>
+    <string name="settings_pane_watermark_hint">A large, dim icon behind big cards</string>
     <string name="settings_battery_hint">Top right, with the clock</string>
     <string name="settings_trip">Trip</string>
     <string name="settings_reset_trip">Reset trip</string>

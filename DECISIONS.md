@@ -876,3 +876,33 @@ Backup "Hierarchy 2": two equal actions side by side, which is honest; a primary
 tab-scroll fix; ReleaseSmokeTest 2/2; the exported APK launched without a crash entry.
 **Phone checks:** the low-fuel icon in the header at real width; Slight left spoken by the phone's TTS; the fullscreen
 nav at the phone's real aspect.
+
+### 4.3b (v4.4, versionCode 29): look
+
+- **Card titles:** `SettingsRepository.cardTitleStyle` (`CardTitleStyle` TEXT default / ICON), Display → "Card titles". The
+  icon is the picker's (`Pane.icon`), 24 dp, `textDim`; its content description is the pane name, tag `header_title_<PANE>`
+  kept. Reaches the cards through `LocalCardLook` (`CardLook`, from `DashboardViewModel.cardLook`), like the status corner.
+- **Media plates:** previous / next are `FilledIconButton`s on `buttonQuiet` (52 / 60 dp as before, icon 50 %), gap 12 dp.
+  The call card already had plates on every button (Mute and Audio on `buttonQuiet`), so nothing changed there.
+- **Faint card icons:** `paneWatermark` (off by default), Display → "Faint card icons". Pane icon at 5.5 % of `text`, 80 %
+  of the card's short side, bottom right and partly past the edge; drawn in `drawBehind` (no recomposition). Expanded /
+  Fullscreen only. *Not* on the map (full-bleed, it would sit on tiles), the speed card (the spec forbids it behind the
+  hero number, and in Expanded the hero fills the card) or a call (urgent). Logged instead of half-hiding it on speed.
+- Display page in landscape: Theme, Colours, Card titles left; Screen options, Faint card icons, What's new right. Fits
+  without scrolling (shot `look_settings_DISPLAY`).
+
+**Design review:** G1–G6 pass (tokens only; the watermark is far below text contrast, G3 unaffected; both themes shot).
+C1–C7 pass: plates reuse play's shape and the quiet token; the icon set is the picker's (C7).
+
+| Screen | Hier. | Glance | Consist. | Touch | Copy | Calm |
+|---|---|---|---|---|---|---|
+| Dashboard, icon titles | 3 | 3 | 3 | 3 | 3 | 3 |
+| Media, plated skips (dark / light) | 3 | 3 | 3 | 3 | 3 | 3 |
+| Media Expanded + faint icon | 3 | 3 | 3 | 3 | 3 | 2 |
+| Settings, Display | 3 | 2 | 3 | 3 | 3 | 3 |
+
+Faint icon "Calm 2": it is decoration by definition; kept because it is an opt-in the rider asked for, off by default.
+
+**Tests:** unit green; device 21 (new `cardTitlesCanBeIconsAndTheFaintIconIsASetting`, the 52 dp plate check in
+`MediaCardTest`, CallCardTest, PortraitCardsTest, settings pages) green; ReleaseSmokeTest 2/2; the APK launched clean.
+**Phone checks:** whether 5.5 % is visible on the phone's OLED in daylight (it's a constant, `WATERMARK_ALPHA`).

@@ -11,6 +11,8 @@ import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
@@ -72,6 +74,11 @@ class MediaCardTest {
         fun assertBasics() {
             listOf("media_art", "media_title", "media_previous", "media_play_pause", "media_next")
                 .forEach { tag(it).assertIsDisplayed() }
+            // 4.3b: the skips are plated buttons with a visible touch area of at least 52 dp, like play / pause.
+            listOf("media_previous", "media_next").forEach { t ->
+                val b = tag(t).getBoundsInRoot()
+                assertTrue("$t plate", b.right - b.left >= 52.dp)
+            }
             rule.onNodeWithContentDescription("Album art", useUnmergedTree = true).assertIsDisplayed()
         }
         assertMode(CardMode.Compact); assertBasics()

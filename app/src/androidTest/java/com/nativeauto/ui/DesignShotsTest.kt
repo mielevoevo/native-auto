@@ -87,6 +87,31 @@ class DesignShotsTest {
         picker("land", Pane.SPEED)
     }
 
+    /** 4.3b: icon titles, faint card icons, plated media buttons; dark and light. */
+    @Test fun look() {
+        runBlocking {
+            resetSettings.settings.setCardTitleStyle(com.nativeauto.settings.CardTitleStyle.ICON)
+            resetSettings.settings.setPaneWatermark(true)
+        }
+        com.nativeauto.media.NotificationAccess.grant()
+        var player: com.nativeauto.media.TestPlayer? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            player = com.nativeauto.media.TestPlayer(InstrumentationRegistry.getInstrumentation().targetContext)
+        }
+        rule.waitUntil(10_000) { count("media_next") > 0 }
+        Thread.sleep(800)
+        shot("look_dashboard_icons")
+        click("maximize_MEDIA")
+        shot("look_media_expanded_dark")
+        runBlocking { resetSettings.settings.setThemeMode(com.nativeauto.settings.ThemeMode.LIGHT) }
+        Thread.sleep(1_200)
+        shot("look_media_expanded_light")
+        runBlocking { resetSettings.settings.setThemeMode(com.nativeauto.settings.ThemeMode.DARK) }
+        click("maximize_MEDIA")
+        settingsPages("look")
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { player?.close() }
+    }
+
     @Test fun portrait() {
         runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
         rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }

@@ -65,6 +65,12 @@ enum class OrientationMode(val label: String) {
     AUTO("Auto"),
 }
 
+/** 4.3b: card headers show the pane's name (default) or its icon (the pane picker's). */
+enum class CardTitleStyle(val label: String) {
+    TEXT("Text"),
+    ICON("Icon"),
+}
+
 /** 13a: how the Garage card draws the tank: the five-bar gauge (default) or a fixed pump icon. */
 enum class TankIcon(val label: String) {
     GAUGE("Gauge"),

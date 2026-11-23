@@ -238,6 +238,8 @@ private fun DisplayPage(
 ) {
     val theme by viewModel.themeMode.collectAsStateWithLifecycle()
     val accent by viewModel.accentColor.collectAsStateWithLifecycle()
+    val titleStyle by viewModel.cardTitleStyle.collectAsStateWithLifecycle()
+    val watermark by viewModel.paneWatermark.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
@@ -256,14 +258,28 @@ private fun DisplayPage(
                 tag = "settings_colours",
                 leading = { Box(Modifier.size(28.dp).clip(CircleShape).background(Color(accent)).testTag("settings_accent_swatch")) },
             ) { haptics.tap(); onColours() }
+            // 4.3b: the header shows the pane's name or its icon.
+            ChoiceRow(
+                label = R.string.settings_card_titles,
+                options = com.nativeauto.settings.CardTitleStyle.entries,
+                selected = titleStyle,
+                text = { it.label },
+                tag = { "settings_card_titles_${it.name}" },
+            ) { haptics.tick(); viewModel.setCardTitleStyle(it) }
         },
         right = {
             ActionRow(
                 title = stringResource(R.string.settings_screen_options),
-                hint = "Refresh rate, battery",
+                hint = stringResource(R.string.settings_screen_options_hint),
                 action = stringResource(R.string.settings_telemetry_choose),
                 tag = "settings_screen_options",
             ) { haptics.tap(); onScreen() }
+            SwitchRow(
+                label = R.string.settings_pane_watermark,
+                hint = R.string.settings_pane_watermark_hint,
+                checked = watermark,
+                tag = "settings_pane_watermark",
+            ) { haptics.toggle(it); viewModel.setPaneWatermark(it) }
             ActionRow(
                 title = stringResource(R.string.settings_whats_new),
                 hint = stringResource(R.string.settings_whats_new_hint),

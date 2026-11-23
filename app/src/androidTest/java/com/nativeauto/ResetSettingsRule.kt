@@ -62,6 +62,8 @@ class ResetSettingsRule : ExternalResource() {
         settings.setAccentColor(0xFF3FC8E0.toInt())
         settings.setRouteColor(null)
         settings.setCallControls(true)
+        settings.setCardTitleStyle(com.nativeauto.settings.CardTitleStyle.TEXT)
+        settings.setPaneWatermark(false)
         settings.setAutoStartMode(com.nativeauto.trip.AutoStartMode.OFF)
         settings.setAutoStartHoldS(com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S)
         settings.setTotalPeriod(com.nativeauto.settings.TotalPeriod.DAY)
