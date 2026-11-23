@@ -172,8 +172,12 @@ private fun DashboardScreenBody(
     val is24 = DateFormat.is24HourFormat(LocalContext.current)
     val time = if (layout.isOnScreen(Pane.CLOCK)) null else formatClockTime(now, ZoneId.systemDefault(), is24).digits
     // Remembered, so the headers only recompose when what they show changes (once a minute).
-    val corner = remember(battery, time) {
-        StatusCorner(time, battery, onOpenLayouts = { layoutsOpen = true }, onOpenSettings = { settingsOpen = true })
+    // 4.3a: the low-fuel pump lives with the battery in the header (was a lone icon on the speed card).
+    val garageCard: com.nativeauto.ui.garage.GarageCardViewModel = hiltViewModel()
+    val garage by garageCard.ui.collectAsStateWithLifecycle()
+    val lowFuel = garage.lowFuel && !layout.isOnScreen(Pane.GARAGE)
+    val corner = remember(battery, time, lowFuel) {
+        StatusCorner(time, battery, lowFuel, onOpenLayouts = { layoutsOpen = true }, onOpenSettings = { settingsOpen = true })
     }
     // The call card (14a) is nobody's choice: nothing to pick for it.
     val picker = remember { { pane: Pane -> if (pane != Pane.CALL) pickerFor = pane } }
@@ -200,10 +204,12 @@ private fun DashboardScreenBody(
     AdaptiveRefreshRate(refresh, demand) { drag.active || Pane.entries.any(motion) }
     // 11c: the Garage card's "Open Garage". Remembered, so the panes don't recompose for a new lambda.
     val openGarage = remember { { garageOpen = true } }
+    val headerZoom = remember { androidx.compose.runtime.mutableStateMapOf<Pane, Boolean>() }
 
     CompositionLocalProvider(
         LocalStatusCorner provides corner,
         LocalPanePicker provides picker,
+        com.nativeauto.ui.components.LocalHeaderZoom provides headerZoom,
         LocalPaneMotion provides motion,
         LocalMotionDemand provides demand,
         com.nativeauto.ui.components.LocalPortrait provides layout.portrait,
@@ -293,7 +299,7 @@ private fun DashboardScreenBody(
         )
     }
     if (layoutsOpen) LayoutSwitcherSheet(layout, onDismiss = { layoutsOpen = false })
-    pickerFor?.let { pane -> PanePickerSheet(layout, pane, onDismiss = { pickerFor = null }) }
+    pickerFor?.let { pane -> PanePickerSheet(layout, pane, ownZoom = headerZoom[pane] ?: true, onDismiss = { pickerFor = null }) }
 }
 
 @Composable

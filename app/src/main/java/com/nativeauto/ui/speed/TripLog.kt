@@ -33,6 +33,7 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -316,23 +317,27 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                 }
                 if (stacked) {
                     figuresColumn()
-                    if (saved != null && log.bikeName != null) DashPrompt(log, onAskDash, Modifier.padding(top = 8.dp))
+                    if (saved != null && log.bikeName != null) DashTile(log, onAskDash, Modifier.padding(top = 8.dp))
                 } else Row(verticalAlignment = Alignment.CenterVertically) {
                     figuresColumn()
                     if (saved != null && log.bikeName != null) {
-                        Spacer(Modifier.width(12.dp))
-                        DashPrompt(log, onAskDash)
+                        Spacer(Modifier.width(16.dp))
+                        DashTile(log, onAskDash)
                     }
                 }
                 if (outcome == TripOutcome.TooShort) SummaryNote(R.string.summary_too_short)
                 log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 6.dp)) }
             }
-            mode == CardMode.Wide -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 4.3a: starts right under the header like the other faces (it sat low in the card), and the dash km/L
+            // is a tile in the figures row instead of a small button under it.
+            mode == CardMode.Wide -> Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1.4f)) {
                     SummaryTitle()
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) { figures.take(4).forEach { InlineStat(it) } }
-                    if (saved != null) DashPrompt(log, onAskDash, Modifier.padding(top = 8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        figures.take(4).forEach { InlineStat(it) }
+                        if (saved != null) DashTile(log, onAskDash)
+                    }
                 }
                 Spacer(Modifier.width(16.dp))
                 SummaryRoute(saved, outcome, Modifier.weight(1f).fillMaxHeight())
@@ -348,7 +353,7 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
                         log.reminder?.let { ServiceBadge(it) }
                         SummaryNote(R.string.summary_close)
                     }
-                    if (saved != null) DashPrompt(log, onAskDash)
+                    if (saved != null) DashTile(log, onAskDash)
                 }
             }
         }
@@ -358,23 +363,40 @@ internal fun TripSummary(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi,
 /**
  * 12b (R1): the optional "what did the bike's dash say?" after a saved ride. Only with a bike in
  * the Garage; once answered it shows the figure instead. Never asked again for the same trip.
+ * 4.3a: a figure-sized tile that sits with the figures (label over value) in every layout; before an
+ * answer it has a quiet plate so it reads as a button (DESIGN.md G2), after it it is a plain figure.
  */
 @Composable
-private fun DashPrompt(log: TripLogUi, onAsk: () -> Unit, modifier: Modifier = Modifier) {
+private fun DashTile(log: TripLogUi, onAsk: () -> Unit, modifier: Modifier = Modifier) {
     if (log.bikeName == null) return
     val given = log.dashKmPerL
+    val content = @Composable { value: String ->
+        Column {
+            Text(
+                "DASH KM/L",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"),
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
+    }
     if (given != null) {
-        Text(
-            "Bike's ${formatKmPerL(given)} saved",
-            style = MaterialTheme.typography.bodyMedium,
-            color = AppTheme.colors.textDim,
-            maxLines = 1,
-            softWrap = false,
-            modifier = modifier.testTag("sum_dash_saved"),
-        )
+        Box(modifier.testTag("sum_dash_saved")) { content(formatKmPerL(given).removeSuffix(" km/L")) }
     } else {
-        FilledTonalButton(onClick = onAsk, modifier = modifier.heightIn(min = 56.dp).testTag("sum_dash")) {
-            Text("Bike's km/L", maxLines = 1, softWrap = false)
+        Surface(
+            onClick = onAsk,
+            shape = RoundedCornerShape(14.dp),
+            color = AppTheme.colors.buttonQuiet,
+            modifier = modifier.heightIn(min = 56.dp).semantics { contentDescription = "Add the bike's km/L" }.testTag("sum_dash"),
+        ) {
+            Box(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) { content("+ Add") }
         }
     }
 }

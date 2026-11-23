@@ -4,11 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +12,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.nativeauto.R
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -69,31 +66,38 @@ class BackupViewModel @Inject constructor(private val files: TripFiles) : ViewMo
     }
 }
 
+/** 4.3a: Back up and Import as two settings rows (button on the right), the message under them. */
 @Composable
-internal fun BackupSection(viewModel: BackupViewModel = hiltViewModel()) {
+internal fun BackupSection(wide: Boolean, viewModel: BackupViewModel = hiltViewModel()) {
     val message by viewModel.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptics = rememberHaptics()
     LaunchedEffect(viewModel) { viewModel.share.collect { context.startActivity(it) } }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::import) }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            "One ZIP with every trip (with its full track) and the Garage: bikes, odometer, fuel, services. Save it to Drive or Files; importing adds what is missing and never overwrites.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = AppTheme.colors.textDim,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FilledTonalButton(
-                onClick = { haptics.tap(); viewModel.backup() },
-                modifier = Modifier.heightIn(min = 56.dp).testTag("backup_export"),
-            ) { Text("Back up") }
-            FilledTonalButton(
-                onClick = { haptics.tap(); pick.launch(arrayOf("application/zip", "application/octet-stream")) },
-                modifier = Modifier.heightIn(min = 56.dp).testTag("backup_import"),
-            ) { Text("Import") }
-        }
+    val status = @Composable {
         message?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("backup_message"))
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.text, modifier = Modifier.testTag("backup_message"))
         }
     }
+    PageColumns(
+        wide,
+        left = {
+            ActionRow(
+                title = stringResource(R.string.settings_backup_title),
+                hint = stringResource(R.string.settings_backup_hint),
+                action = stringResource(R.string.settings_backup_action),
+                tag = "backup_export",
+            ) { haptics.tap(); viewModel.backup() }
+            if (wide) status()
+        },
+        right = {
+            ActionRow(
+                title = stringResource(R.string.settings_import_title),
+                hint = stringResource(R.string.settings_import_hint),
+                action = stringResource(R.string.settings_import_action),
+                tag = "backup_import",
+            ) { haptics.tap(); pick.launch(arrayOf("application/zip", "application/octet-stream")) }
+            if (!wide) status()
+        },
+    )
 }

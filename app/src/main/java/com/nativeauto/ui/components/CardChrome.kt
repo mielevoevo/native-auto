@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -154,6 +155,11 @@ fun CardChrome(
     val canMaximize = layout.canMaximize(pane)
     val fullscreen = layout.fullscreen == pane
     val corner = if (layout.statusPane == pane) LocalStatusCorner.current else null
+    // 4.3a: tells the pane picker whether this header has its own zoom buttons (it offers them only where not).
+    LocalHeaderZoom.current?.let { zoom ->
+        val own = headerActions == null && mode != CardMode.Mini && mode != CardMode.Narrow
+        SideEffect { if (zoom[pane] != own) zoom[pane] = own }
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -189,6 +195,9 @@ fun CardChrome(
             },
             clock = corner?.time?.let { time -> { StatusClock(time) } },
             battery = corner?.battery?.let { battery -> { BatteryIndicator(battery) } },
+            fuel = if (corner?.lowFuel == true) {
+                { com.nativeauto.ui.garage.LowFuelIcon(size = 22.dp, modifier = Modifier.padding(horizontal = 6.dp)) }
+            } else null,
         ) {
             if (corner != null) StatusButtons(corner)
             // 13b: a pane may put its own buttons here (the map while navigating: mute, End). Then
@@ -238,6 +247,7 @@ fun CardChrome(
 private const val SLOT_TITLE = "title"
 private const val SLOT_CLOCK = "clock"
 private const val SLOT_BATTERY = "battery"
+private const val SLOT_FUEL = "fuel"
 private const val SLOT_BUTTONS = "buttons"
 
 /**
@@ -251,6 +261,7 @@ private fun HeaderRow(
     title: @Composable () -> Unit,
     clock: (@Composable () -> Unit)?,
     battery: (@Composable () -> Unit)?,
+    fuel: (@Composable () -> Unit)? = null,
     buttons: @Composable RowScope.() -> Unit,
 ) {
     Layout(
@@ -258,6 +269,7 @@ private fun HeaderRow(
             Box(Modifier.layoutId(SLOT_TITLE)) { title() }
             if (clock != null) Box(Modifier.layoutId(SLOT_CLOCK)) { clock() }
             if (battery != null) Box(Modifier.layoutId(SLOT_BATTERY)) { battery() }
+            if (fuel != null) Box(Modifier.layoutId(SLOT_FUEL)) { fuel() }
             Row(Modifier.layoutId(SLOT_BUTTONS), verticalAlignment = Alignment.CenterVertically) { buttons() }
         },
     ) { measurables, constraints ->
@@ -276,14 +288,17 @@ private fun HeaderRow(
         fun fit(id: String) = find(id)?.measure(loose)?.takeIf { it.width <= room }?.also { room -= it.width }
         val batteryP = fit(SLOT_BATTERY)
         val clockP = fit(SLOT_CLOCK)
+        // 4.3a: the low-fuel pump yields first (the Garage card and the trip figures still say it).
+        val fuelP = fit(SLOT_FUEL)
 
-        val height = maxOf(buttonsP.height, titleP.height, batteryP?.height ?: 0, clockP?.height ?: 0)
+        val height = maxOf(buttonsP.height, titleP.height, batteryP?.height ?: 0, clockP?.height ?: 0, fuelP?.height ?: 0)
             .coerceIn(constraints.minHeight, constraints.maxHeight)
         val width = constraints.maxWidth
         layout(width, height) {
             titleP.place(0, (height - titleP.height) / 2)
             var x = width - buttonsP.width
             buttonsP.place(x, (height - buttonsP.height) / 2)
+            fuelP?.let { x -= it.width; it.place(x, (height - it.height) / 2) }
             batteryP?.let { x -= it.width; it.place(x, (height - it.height) / 2) }
             clockP?.let { x -= it.width; it.place(x, (height - it.height) / 2) }
         }
@@ -297,6 +312,12 @@ private const val MAX_HEADER_H = 4096
  * from its landscape namesake (a Wide row is 400 dp across, not 800; a Fullscreen card is tall, not wide).
  */
 val LocalPortrait = staticCompositionLocalOf { false }
+
+/**
+ * 4.3a: per pane, whether its header shows its own maximize / fullscreen buttons. Filled by [CardChrome], read by
+ * the pane picker. Provided by DashboardScreen; null in isolation.
+ */
+val LocalHeaderZoom = staticCompositionLocalOf<MutableMap<Pane, Boolean>?> { null }
 
 /** Opens the pane picker for a slot (by the pane in it). Provided by DashboardScreen; null in isolation. */
 val LocalPanePicker = compositionLocalOf<((Pane) -> Unit)?> { null }

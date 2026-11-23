@@ -177,34 +177,100 @@ internal fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMod
                 EtaText(eta, MaterialTheme.typography.titleMedium.fontSize, TextAlign.Start, Modifier.padding(start = indent))
             }
         }
-        else -> {
-            val big = mode == CardMode.Fullscreen
-            Column(
-                modifier = Modifier.fillMaxSize().wrapContentSize(unbounded = true),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(if (big) 180.dp else 132.dp)) }
-                DistanceText(distance, if (big) 88.sp else 64.sp)
-                RoadText(road, if (big) 32.sp else 24.sp, maxLines = 2, align = TextAlign.Center)
-                state.nextInstruction?.let {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Then ${it.bannerText()}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+        // 4.3a: a landscape card big enough for it uses the Compact / Wide arrangement scaled up (arrow on the left,
+        // distance + road + "Then" beside it, arrival line and End under that block), not one centred stack.
+        !portrait -> SideTurn(state, distance, road, eta, color, big = mode == CardMode.Fullscreen, onEnd = onEnd)
+        else -> StackedTurn(state, distance, road, eta, color, big = mode == CardMode.Fullscreen, onEnd = onEnd)
+    }
+}
+
+/** Portrait Expanded / Fullscreen: a tall card, one centred column. */
+@Composable
+private fun StackedTurn(
+    state: NavState.Navigating,
+    distance: String,
+    road: String,
+    eta: String,
+    color: androidx.compose.ui.graphics.Color,
+    big: Boolean,
+    onEnd: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().wrapContentSize(unbounded = true),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(if (big) 180.dp else 132.dp)) }
+        DistanceText(distance, if (big) 88.sp else 64.sp)
+        RoadText(road, if (big) 32.sp else 24.sp, maxLines = 2, align = TextAlign.Center)
+        state.nextInstruction?.let { ThenText(it.bannerText()) }
+        Spacer(Modifier.height(12.dp))
+        EtaText(eta, if (big) 28.sp else 22.sp, TextAlign.Center)
+        Spacer(Modifier.height(16.dp))
+        EndButton(onEnd, height = 56.dp)
+    }
+}
+
+/**
+ * Landscape Expanded / Fullscreen: the compact card's arrangement, scaled. Narrow cards (a half-width Expanded pane)
+ * fall back to the centred stack, which fits their width.
+ */
+@Composable
+private fun SideTurn(
+    state: NavState.Navigating,
+    distance: String,
+    road: String,
+    eta: String,
+    color: androidx.compose.ui.graphics.Color,
+    big: Boolean,
+    onEnd: () -> Unit,
+) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth < SIDE_TURN_MIN_WIDTH) {
+            StackedTurn(state, distance, road, eta, color, big, onEnd)
+            return@BoxWithConstraints
+        }
+        val glyphSize = if (big) 200.dp else 140.dp
+        val glyphGap = 28.dp
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 24.dp).testTag("next_turn_side"),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(glyphSize).testTag("next_turn_glyph")) }
+                Spacer(Modifier.width(glyphGap))
+                Column(Modifier.weight(1f)) {
+                    DistanceText(distance, if (big) 96.sp else 72.sp)
+                    RoadText(road, if (big) 34.sp else 26.sp, maxLines = 2)
+                    state.nextInstruction?.let { ThenText(it.bannerText(), align = TextAlign.Start) }
                 }
-                Spacer(Modifier.height(12.dp))
-                EtaText(eta, if (big) 28.sp else 22.sp, TextAlign.Center)
-                Spacer(Modifier.height(16.dp))
+            }
+            Spacer(Modifier.height(if (big) 20.dp else 12.dp))
+            val indent = if (state.instruction != null) glyphSize + glyphGap else 0.dp
+            Row(Modifier.fillMaxWidth().padding(start = indent), verticalAlignment = Alignment.CenterVertically) {
+                EtaText(eta, if (big) 30.sp else 22.sp, TextAlign.Start, Modifier.weight(1f))
+                Spacer(Modifier.width(16.dp))
                 EndButton(onEnd, height = 56.dp)
             }
         }
     }
 }
+
+@Composable
+private fun ThenText(next: String, align: TextAlign = TextAlign.Center) {
+    Spacer(Modifier.height(4.dp))
+    Text(
+        com.nativeauto.nav.thenLine(next),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = align,
+        modifier = Modifier.testTag("next_turn_then"),
+    )
+}
+
+private val SIDE_TURN_MIN_WIDTH = 520.dp
 
 /**
  * 14b: arrow, then the route name, then the navigation info (the distance to the turn, large; arrival time, time left

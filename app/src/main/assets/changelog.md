@@ -1,5 +1,14 @@
 # What's new in Native Auto
 
+## 4.3 (28) · 2026-11-24
+- Settings keep one height whichever tab is open, with more room around the title and tabs. A tab that doesn't fit fades out instead of being cut off.
+- Every setting is now one row: title and description on the left, the button on the right. Reset trip, Reset app, Back up and Import follow it too.
+- Holding a card: the menu no longer repeats Fullscreen and Maximize where the card has its own buttons. Cards without them (portrait slim rows) still get them in the menu.
+- Trip summary: the dash km/L is a tile next to the figures in every layout, so it's easy to hit in Rows too. In Rows the summary now starts right under the card title.
+- Low fuel: the red pump now sits in the top bar next to the battery, instead of floating on the speed card.
+- Fullscreen navigation: the arrow on the left, distance and road beside it, arrival and End below, like the smaller card.
+- Directions say "Slight left / right" instead of "Bear left / right", on screen and spoken, and "Then turn left" is no longer capitalised mid-sentence.
+
 ## 4.2.1 (27) · 2026-11-16
 - Auto-resume: a paused trip (paused by you or by auto-pause) carries on by itself once you ride steadily again, while the app is open. Settings, Trip and Garage, Trip options: Off, 5, 10 or 20 seconds (10 by default). A short "Trip resumed" note shows when it happens.
 - Auto-start now counts riding from 10 km/h (was 15). Underground or indoors it still waits for a good GPS fix, so it starts shortly after you are out in the open.

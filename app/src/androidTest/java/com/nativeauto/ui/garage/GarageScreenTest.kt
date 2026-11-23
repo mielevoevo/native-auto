@@ -304,7 +304,7 @@ class GarageScreenTest {
             entry.garage().logRefuel(gen1, com.nativeauto.garage.RefuelDraft(true, 5.0, 15_900.0, 79_500.0, FuelType.PERTAMAX, 12_000.0))
             gen1
         }.let { seedTrip(it, 200.0) } // 6.6 L − 200 km ÷ 36 km/L = 1.04 L: the last segment
-        // Duo shows no Garage card: the speed card carries the small red tank.
+        // Duo shows no Garage card: the header carries the small red pump beside the battery (4.3a).
         rule.waitUntil(5_000) { count("low_fuel").fetchSemanticsNodes().isNotEmpty() }
 
         // Put the Garage card in Media's slot.

@@ -196,75 +196,70 @@ private fun PresetThumb(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun PanePickerSheet(layout: DashboardLayoutState, slotPane: Pane, onDismiss: () -> Unit) {
+internal fun PanePickerSheet(layout: DashboardLayoutState, slotPane: Pane, ownZoom: Boolean, onDismiss: () -> Unit) {
     val haptics = rememberHaptics()
     val shown = layout.view.panes
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 900.dp,
+        // 4.3a: no drag handle (it only added space above the title); swipe down and back still close it.
+        dragHandle = null,
         modifier = Modifier.sheetTag("picker_sheet"),
     ) {
-        Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Show in this pane", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                // 13a: what a compact header no longer has room for lives here, under the hold.
-                TextButton(
-                    onClick = { haptics.tap(); layout.toggleFullscreen(slotPane); onDismiss() },
-                    modifier = Modifier.heightIn(min = 56.dp).testTag("pick_fullscreen"),
-                ) { Text(if (layout.fullscreen == slotPane) "Exit fullscreen" else "Fullscreen") }
-                if (layout.canMaximize(slotPane) && layout.fullscreen == null) {
-                    TextButton(
-                        onClick = { haptics.tap(); layout.toggleMaximized(slotPane); onDismiss() },
-                        modifier = Modifier.heightIn(min = 56.dp).testTag("pick_maximize"),
-                    ) { Text(if (layout.maximized == slotPane) "Restore" else "Maximize") }
-                }
-            }
+        Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 24.dp)) {
+            Text("Show in this pane", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(16.dp))
-            // One tile per pane. A tile is a fixed 128 x 104 dp in a row that scrolls sideways (landscape), or half the
-            // width in a two-column grid (portrait, 14b).
-            val tile = @Composable { pane: Pane, tileModifier: Modifier ->
-                val current = pane == slotPane
-                val elsewhere = !current && pane in shown
-                Surface(
-                    onClick = {
-                        if (current) {
-                            onDismiss()
-                        } else {
+            // One tile per pane: a fixed 128 x 104 dp in a row that scrolls sideways (landscape), or half the width
+            // in a two-column grid (portrait, 14b).
+            val tiles = @Composable { tileModifier: Modifier ->
+                Pane.entries.filter { it != Pane.CALL }.forEach { pane ->
+                    val current = pane == slotPane
+                    val elsewhere = !current && pane in shown
+                    PickerTile(
+                        modifier = tileModifier,
+                        tag = "pick_${pane.name}",
+                        current = current,
+                        icon = pane.icon,
+                        label = pane.label,
+                        note = when {
+                            current -> "Showing"
+                            elsewhere -> "Swap places"
+                            else -> " "
+                        },
+                    ) {
+                        if (!current) {
                             haptics.tick()
                             layout.assign(slotPane, pane)
-                            onDismiss()
                         }
-                    },
-                    modifier = tileModifier
-                        .semantics { selected = current }
-                        .testTag("pick_${pane.name}"),
-                    shape = ThumbShape,
-                    color = if (current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (current) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                    border = if (current) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Icon(pane.icon, contentDescription = null, modifier = Modifier.size(32.dp))
-                        Spacer(Modifier.height(6.dp))
-                        Text(pane.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                        Text(
-                            when {
-                                current -> "Showing"
-                                elsewhere -> "Swap places"
-                                else -> " "
-                            },
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1,
-                        )
+                        onDismiss()
+                    }
+                }
+                // 4.3a: the card's size controls only where its header has none of its own (portrait Mini / Narrow
+                // cards, a map whose header carries mute and End). Elsewhere the card's own buttons do this.
+                if (!ownZoom) {
+                    val full = layout.fullscreen == slotPane
+                    PickerTile(
+                        modifier = tileModifier,
+                        tag = "pick_fullscreen",
+                        current = false,
+                        icon = if (full) AppIcons.FullscreenExit else AppIcons.Fullscreen,
+                        label = if (full) "Exit full" else "Fullscreen",
+                        note = " ",
+                    ) { haptics.tap(); layout.toggleFullscreen(slotPane); onDismiss() }
+                    if (layout.canMaximize(slotPane) && layout.fullscreen == null) {
+                        val max = layout.maximized == slotPane
+                        PickerTile(
+                            modifier = tileModifier,
+                            tag = "pick_maximize",
+                            current = false,
+                            icon = if (max) AppIcons.Restore else AppIcons.Maximize,
+                            label = if (max) "Restore" else "Maximize",
+                            note = " ",
+                        ) { haptics.tap(); layout.toggleMaximized(slotPane); onDismiss() }
                     }
                 }
             }
-            val panes = Pane.entries.filter { it != Pane.CALL }
             if (com.nativeauto.ui.components.LocalPortrait.current) {
                 androidx.compose.foundation.layout.FlowRow(
                     modifier = Modifier.fillMaxWidth().testTag("picker_grid"),
@@ -272,16 +267,49 @@ internal fun PanePickerSheet(layout: DashboardLayoutState, slotPane: Pane, onDis
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     maxItemsInEachRow = 2,
                 ) {
-                    panes.forEach { tile(it, Modifier.weight(1f).height(96.dp)) }
+                    tiles(Modifier.weight(1f).height(96.dp))
                 }
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 ) {
-                    panes.forEach { tile(it, Modifier.size(width = 128.dp, height = 104.dp)) }
+                    tiles(Modifier.size(width = 128.dp, height = 104.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PickerTile(
+    modifier: Modifier,
+    tag: String,
+    current: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    note: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .semantics { selected = current }
+            .testTag(tag),
+        shape = ThumbShape,
+        color = if (current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (current) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = if (current) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+            Text(note, style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }
 }

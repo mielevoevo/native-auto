@@ -258,6 +258,7 @@ class DashboardScreenTest {
         click("settings_open")
         awaitSheet("settings_sheet")
         // 4.1.1: the sheet opens on Trip and Garage; tests that mean Display (the old first page) ask for it.
+        tag("settings_cat_${category ?: "DISPLAY"}").performScrollTo()
         click("settings_cat_${category ?: "DISPLAY"}")
     }
 
@@ -547,9 +548,9 @@ class DashboardScreenTest {
     @Test fun resetTripAsksForASecondTap() {
         openSettings("TRIP_GARAGE")
         click("settings_reset_trip")
-        rule.onNodeWithText("Tap again to reset", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("Tap again", useUnmergedTree = true).assertIsDisplayed()
         click("settings_reset_trip")
-        rule.onNodeWithText("Reset trip", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("Reset", useUnmergedTree = true).assertIsDisplayed()
         closeSettings()
     }
 
@@ -854,15 +855,13 @@ class DashboardScreenTest {
         }
     }
 
-    @Test fun theHoldMenuHoldsFullscreenAndMaximize() {
+    @Test fun theHoldMenuLeavesZoomToACardThatHasItsOwnButtons() {
+        // 4.3a: a landscape card has maximize / fullscreen in its header; the picker doesn't repeat them.
         openPicker(Pane.SPEED)
-        click("pick_maximize")
+        assertEquals(0, count("pick_maximize").fetchSemanticsNodes().size)
+        assertEquals(0, count("pick_fullscreen").fetchSemanticsNodes().size)
+        click("pick_SPEED") // the current pane: just closes
         awaitGone("picker_sheet")
-        assertMode(Pane.SPEED, CardMode.Expanded)
-        openPicker(Pane.SPEED)
-        click("pick_fullscreen")
-        awaitGone("picker_sheet")
-        assertMode(Pane.SPEED, CardMode.Fullscreen)
     }
 
     // ---------------------------------------------------------------- Phase 13c
@@ -874,16 +873,18 @@ class DashboardScreenTest {
             click("settings_cat_$cat")
             tag("settings_page_$cat").assertIsDisplayed()
         }
-        // The controls that used to sit in one sheet are where the categories say.
-        click("settings_cat_LAYOUT"); tag("settings_split_50").assertIsDisplayed(); tag("settings_drag_hold_1").assertIsDisplayed()
-        click("settings_cat_NAVIGATION"); tag("settings_unit_KMH").assertIsDisplayed(); tag("settings_auto_layout").assertIsDisplayed()
-        click("settings_cat_AUDIO"); tag("settings_voice").assertIsDisplayed()
-        click("settings_cat_TRIP_GARAGE")
+        // The controls that used to sit in one sheet are where the categories say. A tab is scrolled into view
+        // first: the row scrolls sideways, and a tab out of view can't be tapped (4.3a: the row is narrower).
+        fun tab(c: String) { tag("settings_cat_$c").performScrollTo(); click("settings_cat_$c") }
+        tab("LAYOUT"); tag("settings_split_50").assertIsDisplayed(); tag("settings_drag_hold_1").assertIsDisplayed()
+        tab("NAVIGATION"); tag("settings_unit_KMH").assertIsDisplayed(); tag("settings_auto_layout").assertIsDisplayed()
+        tab("AUDIO"); tag("settings_voice").assertIsDisplayed()
+        tab("TRIP_GARAGE")
         listOf("settings_history", "settings_garage", "settings_reset_trip", "settings_trip_options", "settings_auto_start").forEach { tag(it).assertIsDisplayed() }
-        click("settings_cat_PRIVACY"); tag("settings_privacy_permissions").assertIsDisplayed(); tag("settings_reset_app").assertIsDisplayed()
-        click("settings_cat_BACKUP"); tag("backup_export").assertIsDisplayed(); tag("backup_import").assertIsDisplayed()
-        click("settings_cat_DEBUG"); tag("debug_fake_gps").assertIsDisplayed()
-        click("settings_cat_DISPLAY"); tag("settings_colours").assertIsDisplayed(); tag("settings_whats_new").assertIsDisplayed()
+        tab("PRIVACY"); tag("settings_privacy_permissions").assertIsDisplayed(); tag("settings_reset_app").assertIsDisplayed()
+        tab("BACKUP"); tag("backup_export").assertIsDisplayed(); tag("backup_import").assertIsDisplayed()
+        tab("DEBUG"); tag("debug_fake_gps").assertIsDisplayed()
+        tab("DISPLAY"); tag("settings_colours").assertIsDisplayed(); tag("settings_whats_new").assertIsDisplayed()
     }
 
     @Test fun theAccentCanBePickedByPresetOrHexAndTheRouteColourFollowsOrOverrides() {

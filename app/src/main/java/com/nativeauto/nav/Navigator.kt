@@ -11,6 +11,8 @@ import com.nativeauto.settings.SettingsRepository
 import com.nativeauto.settings.SpeedUnit
 import com.nativeauto.trip.SpeedSample
 import com.stadiamaps.ferrostar.core.AndroidTtsObserver
+import com.stadiamaps.ferrostar.core.SpokenInstructionObserver
+import uniffi.ferrostar.SpokenInstruction
 import com.stadiamaps.ferrostar.core.AndroidTtsStatusListener
 import com.stadiamaps.ferrostar.core.FerrostarCore
 import com.stadiamaps.ferrostar.core.NavigationState
@@ -136,7 +138,7 @@ class FerrostarNavigator @Inject constructor(
                 if (on) {
                     val speaker = voice()
                     speaker.setMuted(false)
-                    core.spokenInstructionObserver = speaker
+                    core.spokenInstructionObserver = RiderPhrasingSpeaker(speaker)
                 } else {
                     core.spokenInstructionObserver = null
                     tts?.setMuted(true) // stops a sentence already being spoken
@@ -280,6 +282,17 @@ class FerrostarNavigator @Inject constructor(
     }
 }
 
+/** 4.3a: the spoken prompts in the rider's words ([riderPhrasing]); everything else goes to Ferrostar's own speaker. */
+private class RiderPhrasingSpeaker(private val inner: SpokenInstructionObserver) : SpokenInstructionObserver by inner {
+    override fun onSpokenInstructionTrigger(spokenInstruction: SpokenInstruction) =
+        inner.onSpokenInstructionTrigger(
+            spokenInstruction.copy(
+                text = riderPhrasing(spokenInstruction.text),
+                ssml = spokenInstruction.ssml?.let(::riderPhrasing),
+            ),
+        )
+}
+
 /** Ferrostar reads the shared fixes; it never opens its own GPS subscription. */
 private class LiveLocationProvider(private val live: LiveLocation) : NavigationLocationProviding {
     /** The fix Ferrostar is working on, to pair with the state it produces. */
@@ -320,7 +333,7 @@ internal fun NavigationState.toNavState(destination: Place, fix: SpeedSample?): 
     }
 
 internal fun VisualInstructionContent.toInstruction() = Instruction(
-    text = text,
+    text = riderPhrasing(text),
     kind = when (maneuverType) {
         ManeuverType.DEPART -> ManeuverKind.Depart
         ManeuverType.ARRIVE -> ManeuverKind.Arrive

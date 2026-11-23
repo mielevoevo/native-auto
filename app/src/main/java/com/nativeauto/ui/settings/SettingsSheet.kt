@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -49,6 +51,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -127,14 +135,18 @@ fun SettingsSheet(
         dragHandle = null,
         modifier = Modifier.sheetTag("settings_sheet"),
     ) {
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // 4.3a: one height for every category (the tallest page's room), so the sheet doesn't jump when the
+        // tab changes. Landscape: nearly the whole screen (the Trip page needs it); portrait: most of it.
+        val portrait = LocalConfiguration.current.let { it.screenHeightDp > it.screenWidthDp }
+        BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight(if (portrait) SHEET_HEIGHT_PORTRAIT else SHEET_HEIGHT_LANDSCAPE)) {
             val wide = maxWidth >= 600.dp
             Column(
-                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 val tabs = @Composable { modifier: Modifier ->
-                    Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val scroll = rememberScrollState()
+                    Row(modifier.fadingEdges(scroll).horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         SettingsCategory.entries.filter { it != SettingsCategory.DEBUG || BuildConfig.DEBUG }.forEach { c ->
                             FilterChip(
                                 selected = c == category,
@@ -153,8 +165,9 @@ fun SettingsSheet(
                     // Title, the categories and Done on one line: landscape has no height to spare.
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineSmall)
-                        Spacer(Modifier.width(20.dp))
+                        Spacer(Modifier.width(32.dp))
                         tabs(Modifier.weight(1f))
+                        Spacer(Modifier.width(8.dp))
                         TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp).testTag("settings_done")) {
                             Text(stringResource(R.string.settings_done))
                         }
@@ -168,14 +181,14 @@ fun SettingsSheet(
                     }
                     tabs(Modifier.fillMaxWidth())
                 }
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("settings_page_${category.name}")) {
+                Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).testTag("settings_page_${category.name}")) {
                     when (category) {
                         SettingsCategory.DISPLAY -> DisplayPage(viewModel, wide, onColours = { coloursOpen = true }, onScreen = { screenOpen = true }, onChangelog = { changelogOpen = true })
                         SettingsCategory.LAYOUT -> LayoutPage(viewModel, layout, wide)
                         SettingsCategory.NAVIGATION -> NavigationPage(viewModel, wide)
                         SettingsCategory.TRIP_GARAGE -> TripGaragePage(viewModel, wide, onOpenHistory, onOpenGarage, onOptions = { optionsOpen = true })
                         SettingsCategory.AUDIO -> AudioPage(viewModel, wide)
-                        SettingsCategory.BACKUP -> PageColumns(wide, left = { BackupSection() })
+                        SettingsCategory.BACKUP -> BackupSection(wide)
                         SettingsCategory.PRIVACY -> PrivacyPage(viewModel, wide)
                         SettingsCategory.DEBUG -> DebugPage(viewModel, wide)
                     }
@@ -199,7 +212,7 @@ enum class SettingsCategory(val label: String) {
 
 /** Two columns of rows on a wide screen, one stacked column on a narrow one. */
 @Composable
-private fun PageColumns(wide: Boolean, left: @Composable ColumnScope.() -> Unit, right: @Composable ColumnScope.() -> Unit = {}) {
+internal fun PageColumns(wide: Boolean, left: @Composable ColumnScope.() -> Unit, right: @Composable ColumnScope.() -> Unit = {}) {
     val gap = Arrangement.spacedBy(12.dp)
     if (wide) {
         Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
@@ -376,34 +389,19 @@ private fun TripGaragePage(
                 tag = "settings_garage",
                 icon = AppIcons.Bike,
             ) { haptics.tap(); onOpenGarage() }
-            // 4.1.1: the reset button with its description under it.
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FilledTonalButton(
-                    onClick = { if (viewModel.onResetTripTapped()) haptics.confirm() else haptics.tap() },
-                    modifier = Modifier.heightIn(min = 56.dp).testTag("settings_reset_trip"),
-                    colors = if (resetArmed) {
-                        ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    } else {
-                        ButtonDefaults.filledTonalButtonColors()
-                    },
-                ) {
-                    Text(stringResource(if (resetArmed) R.string.settings_reset_confirm else R.string.settings_reset_trip))
-                }
-                Text(
-                    stringResource(R.string.settings_reset_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            // 4.3a: the same row as every other setting (title + description left, the button right).
+            DangerRow(
+                title = stringResource(R.string.settings_reset_trip),
+                hint = stringResource(R.string.settings_reset_hint),
+                armed = resetArmed,
+                tag = "settings_reset_trip",
+            ) { if (viewModel.onResetTripTapped()) haptics.confirm() else haptics.tap() }
         },
         right = {
             ActionRow(
-                title = stringResource(R.string.settings_trip),
-                hint = null,
-                action = stringResource(R.string.settings_history),
+                title = stringResource(R.string.settings_history),
+                hint = stringResource(R.string.settings_history_hint),
+                action = stringResource(R.string.settings_open),
                 tag = "settings_history",
                 icon = AppIcons.History,
             ) { haptics.tap(); onOpenHistory() }
@@ -418,7 +416,7 @@ private fun TripGaragePage(
             // 4.1.1: one on/off switch (the old "odometer only" mode is gone).
             SwitchRow(
                 label = R.string.settings_auto_start,
-                hint = null,
+                hint = R.string.settings_auto_start_hint,
                 checked = autoStartMode != AutoStartMode.OFF,
                 tag = "settings_auto_start",
             ) { haptics.toggle(it); viewModel.setAutoStartMode(if (it) AutoStartMode.TRIP else AutoStartMode.OFF) }
@@ -432,11 +430,6 @@ private fun TripGaragePage(
                     stacked = true,
                 ) { haptics.tick(); viewModel.setAutoStartHoldS(it) }
             }
-            Text(
-                stringResource(R.string.settings_auto_start_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         },
     )
 }
@@ -472,33 +465,18 @@ private fun PrivacyPage(viewModel: SettingsViewModel, wide: Boolean) {
             }
         },
         right = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FilledTonalButton(
-                    onClick = {
-                        if (viewModel.onResetAppTapped()) {
-                            haptics.confirm()
-                            (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager).clearApplicationUserData()
-                        } else {
-                            haptics.tap()
-                        }
-                    },
-                    modifier = Modifier.heightIn(min = 56.dp).testTag("settings_reset_app"),
-                    colors = if (armed) {
-                        ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    } else {
-                        ButtonDefaults.filledTonalButtonColors()
-                    },
-                ) {
-                    Text(stringResource(if (armed) R.string.settings_reset_confirm else R.string.settings_reset_app))
+            DangerRow(
+                title = stringResource(R.string.settings_reset_app),
+                hint = stringResource(R.string.settings_reset_app_hint),
+                armed = armed,
+                tag = "settings_reset_app",
+            ) {
+                if (viewModel.onResetAppTapped()) {
+                    haptics.confirm()
+                    (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager).clearApplicationUserData()
+                } else {
+                    haptics.tap()
                 }
-                Text(
-                    stringResource(R.string.settings_reset_app_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         },
     )
@@ -663,23 +641,25 @@ private val SPLIT_PRESETS = listOf(0.4f, 0.5f, 0.6f)
 private val AUTO_PAUSE_CHOICES = listOf(0, 3, 5, 10)
 private val AUTO_END_CHOICES = listOf(0, 15, 30, 60)
 
-/** A title with a hint under it and one button: the row shape of every "open something" setting. */
+/**
+ * 4.3a: the one settings row (`DESIGN.md` C4): title + description on the left, the control on the right,
+ * vertically centred, the same minimum height everywhere.
+ */
 @Composable
-private fun ActionRow(
+internal fun SettingRow(
     title: String,
     hint: String?,
-    action: String,
-    tag: String,
+    modifier: Modifier = Modifier,
     hintTag: String? = null,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     leading: (@Composable () -> Unit)? = null,
-    onClick: () -> Unit,
+    control: @Composable () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().heightIn(min = ROW_MIN_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
         leading?.let { it(); Spacer(Modifier.width(12.dp)) }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             if (hint != null) {
+                Spacer(Modifier.height(2.dp))
                 Text(
                     hint,
                     style = MaterialTheme.typography.bodyMedium,
@@ -689,6 +669,23 @@ private fun ActionRow(
             }
         }
         Spacer(Modifier.width(16.dp))
+        control()
+    }
+}
+
+/** A row whose button opens something. */
+@Composable
+internal fun ActionRow(
+    title: String,
+    hint: String?,
+    action: String,
+    tag: String,
+    hintTag: String? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    leading: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    SettingRow(title, hint, hintTag = hintTag, leading = leading) {
         FilledTonalButton(onClick = onClick, modifier = Modifier.heightIn(min = 56.dp).testTag(tag)) {
             if (icon != null) {
                 Icon(icon, contentDescription = null)
@@ -698,6 +695,50 @@ private fun ActionRow(
         }
     }
 }
+
+/** A destructive row: the button arms on the first tap (red, "Tap again") and acts on the second. */
+@Composable
+private fun DangerRow(title: String, hint: String, armed: Boolean, tag: String, onClick: () -> Unit) {
+    SettingRow(title, hint) {
+        FilledTonalButton(
+            onClick = onClick,
+            modifier = Modifier.heightIn(min = 56.dp).testTag(tag),
+            colors = if (armed) {
+                ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            } else {
+                ButtonDefaults.filledTonalButtonColors()
+            },
+        ) {
+            Text(stringResource(if (armed) R.string.settings_reset_armed else R.string.settings_reset_action))
+        }
+    }
+}
+
+/** A fade at whichever end of a horizontal scroll still has more, instead of cutting a chip mid-word. */
+private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState): Modifier =
+    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+        drawContent()
+        val fade = 40.dp.toPx()
+        if (scroll.canScrollForward) {
+            drawRect(
+                brush = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+        if (scroll.canScrollBackward) {
+            drawRect(
+                brush = Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+    }
+
+private val ROW_MIN_HEIGHT = 64.dp
+private const val SHEET_HEIGHT_LANDSCAPE = 0.94f
+private const val SHEET_HEIGHT_PORTRAIT = 0.8f
 
 @Composable
 private fun <T> ChoiceRow(

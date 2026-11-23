@@ -160,7 +160,8 @@ class PortraitDashboardTest {
         val first = tag("pick_MAP").top()
         near("map and media share a row", first, tag("pick_MEDIA").top(), 1f)
         assertTrue("the third tile starts a new row", tag("pick_SPEED").top() > first + 10f)
-        assertEquals("three stacked panes can be maximized", 1, count("pick_maximize"))
+        // 4.3a: a three-stack card has its own maximize button, so the picker doesn't offer it again.
+        assertEquals("the card's own buttons do the zoom", 0, count("pick_maximize"))
         click("pick_MAP") // swap places with the map
         awaitGone("picker_sheet")
     }

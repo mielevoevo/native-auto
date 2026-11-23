@@ -833,3 +833,46 @@ Unattended run 15a -> 15b on the Mac (2026-11-16). Simulator: iPhone 17 (iOS 27.
 Spec: `.dev/Phase-4.3-Unattended.md` (rider's screenshots + notes, `Rider-Feedback.md` "Phase 4.3 plan"). Every UI change
 reviewed against `DESIGN.md`; each build's critique is logged below.
 
+
+### 4.3a (v4.3, versionCode 28): consistency fixes
+
+- **Settings sheet height:** fixed at 94% of the screen in landscape and 80% in portrait, whatever the tab, with the page scrolling
+  inside it. *Reason:* the rider saw the sheet jump between tabs; one height is the simplest rule that never jumps (C6).
+- **One row pattern (C4):** `SettingRow` (title + hint left, control right, min 64 dp) for every setting. Reset trip / Reset
+  app are `DangerRow`s ("Reset" → red "Tap again"); Trip history got a hint and an "Open" button; Backup is two `ActionRow`s
+  in the page's columns. *Reason:* the bare Reset button and the unstyled Backup page were the rider's two examples.
+- **Tabs:** the row fades out at the edges (`fadingEdges`) instead of cutting a tab; 32 dp from the title. Tests scroll a
+  tab into view before tapping it (`everySettingsCategoryHasItsPage` failed once on this: Privacy sat under the fade).
+- **Hold menu:** Fullscreen / Maximize tiles only for a card whose header has no zoom buttons of its own (Mini / Narrow
+  portrait rows, a guiding map). Read from `LocalHeaderZoom`, filled by `CardChrome`. *Reason:* the rider called them
+  redundant; dropping them everywhere would have left slim portrait rows without fullscreen.
+- **Low fuel:** the pump moved from floating on the speed card into the header's status corner, beside the battery, and is
+  dropped before the clock and battery when the header is short. *Reason:* the rider found its spot random; the corner is
+  where status already lives. Range text in the header was rejected by the rider (cramped), so only the icon.
+- **Dash km/L:** a `DashTile` (label + "+ Add" on a quiet plate, 56 dp min) inside the summary figures in every mode. Rows
+  summary aligned to the top. *Reason:* the old text link in Rows was too small for gloves.
+- **Fullscreen navigation (landscape ≥ 520 dp):** `SideTurn`, glyph left, distance / road / then-line right, arrival and End
+  under the text column. Narrower falls back to the centred stack. *Reason:* the stacked fullscreen left the screen half empty.
+- **Phrasing:** "Bear left/right" → "Slight left/right" on screen and in the voice (`RiderPhrasingSpeaker` wraps Ferrostar's
+  observer); "Then turn left" lower-cased after "Then", road names keep their capital.
+- **Emulator:** the system server kept dying (Wi-Fi network stack crash, `Could not create NetworkMonitor`). Cold boot +
+  `svc wifi disable` fixed it; mobile data is enough for routing. Not an app issue.
+
+**Design review (DESIGN.md):** gates G1–G6 pass (tokens only, no new accent, touch ≥ 48 dp, sentence case, no "!", both
+orientations shot). Consistency C1–C7 pass; C4 is the point of the build. Clarify pass: three hints shortened (Backup,
+Trip options, Auto-start) so no row wraps to three lines in landscape.
+
+| Screen | Hier. | Glance | Consist. | Touch | Copy | Calm |
+|---|---|---|---|---|---|---|
+| Settings, Trip and Garage | 3 | 2 | 3 | 3 | 3 | 3 |
+| Settings, Backup | 2 | 2 | 3 | 3 | 3 | 3 |
+| Hold menu (landscape / portrait grid) | 3 | 3 | 3 | 3 | 3 | 3 |
+| Trip summary, Rows | 3 | 3 | 3 | 3 | 3 | 3 |
+| Fullscreen navigation | 3 | 3 | 3 | 3 | 3 | 3 |
+
+Backup "Hierarchy 2": two equal actions side by side, which is honest; a primary/secondary split would be invented.
+
+**Tests:** unit all green; device 49 (Dashboard subset, Portrait dashboard/cards, TripSummaryDash, Garage) green after the
+tab-scroll fix; ReleaseSmokeTest 2/2; the exported APK launched without a crash entry.
+**Phone checks:** the low-fuel icon in the header at real width; Slight left spoken by the phone's TTS; the fullscreen
+nav at the phone's real aspect.

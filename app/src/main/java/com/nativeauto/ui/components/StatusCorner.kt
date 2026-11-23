@@ -33,6 +33,8 @@ import com.nativeauto.device.BatteryStatus
 class StatusCorner(
     val time: String?,
     val battery: BatteryStatus?,
+    /** 4.3a: the tank is in its last segment and no Garage card is on screen: a red pump beside the battery. */
+    val lowFuel: Boolean = false,
     val onOpenLayouts: () -> Unit,
     val onOpenSettings: () -> Unit,
 )
