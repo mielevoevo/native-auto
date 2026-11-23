@@ -847,17 +847,14 @@ phone has an older build than 4.2.1.
 
 ## Phase 4.3 plan: coherence, greeting, riding behaviour (rider, 2026-11-24; WIP, not started)
 
-Comes from the rider's phone screenshots (`screenshots/nat-auto1..7`) and notes. The rider decides the version numbers;
-**proposed:** 4.3a = v4.3 (vc 28), 4.3b = v4.4 (vc 29), 4.3c = v4.5 (vc 30), 4.3d = v4.6 (vc 31). Same rules as before: one commit,
+Comes from the rider's phone screenshots (`screenshots/nat-auto1..7`) and notes. **Versions (agreed
+2026-11-24):** 4.3a = v4.3 (vc 28), 4.3b = v4.4 (vc 29), 4.3c = v4.5 (vc 30), 4.3d = v4.6 (vc 31). Same rules as before: one commit,
 a changelog entry and a release APK per sub-phase.
 
 ### 4.3a · Fixes and one design system for settings and dialogs
 
 Overall finding: everything works, but the screens don't follow one pattern. This sub-phase picks a pattern and
 applies it everywhere.
-- **The system status bar draws over the dashboard** (nat-auto1, 2, 5: the phone's clock sits on the "Speed" title,
-  and the status icons cover the header buttons). It should stay hidden. Re-hide it after sheets, dialogs and the
-  share sheet, and check `WindowInsetsController` behaviour on the rider's HyperOS. **Bug, first.**
 - **Settings sheet:**
   - one fixed height for every tab (it grows and shrinks per tab now);
   - more room between "Settings", the tab row and the page;
@@ -874,9 +871,9 @@ applies it everywhere.
     those two, as icon tiles at the end of the grid, not header links.
 - **Dash km/L button in Rows:** the button is tiny there. Move it into the summary's figure row as a figure-sized
   tile ("km/L +"), the same in every layout.
-- **Low-fuel icon:** it now floats at the speed card's top right, apart from everything. Proposed: in the header
-  beside the battery, as a status item (red pump + range, e.g. "⛽ 18 km"), so it reads like the battery warning.
-  Alternative: inline before the figures row. **Rider picks.**
+- **Low-fuel icon:** it now floats at the speed card's top right, apart from everything. **Decided (rider,
+  2026-11-24):** the red pump icon alone in the header's status items (beside the battery), no range text: the header
+  is already full. Dropped first, like the battery, when the title needs the room.
 - **Trip complete in Rows** sits low, in the lower 60% of the card. Centre the block vertically, or start it under
   the header like the other faces.
 - **Fullscreen Navigation card:** the arrow, distance, road, "Then" and arrival line are stacked in one column now.

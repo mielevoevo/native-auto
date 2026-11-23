@@ -13,6 +13,7 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   **Phase 15 = iOS port (user, 2026-11-16):** its own version line, 0.1 at 15a, +0.1 per sub-phase, 1.0 at parity with Android. Plan: `ios/PLAN.md`. Built on the rider's Mac; it comes before the Android next update.
   **Unattended again (user, 2026-11-14): v4.1 (logo, versionCode 24) -> v4.1.1 (follow-ups, 25) -> v4.2 (first-run setup pages, 26).**
   Spec and rules in `.dev/Phase-4.1-4.2-Unattended.md` (same rules as 13a -> 14a; a failing test or build is fixed at once, not handed back).
+  **Phase 4.3 (user, 2026-11-24):** 4.3a v4.3 (vc 28), 4.3b v4.4 (29), 4.3c v4.5 (30), 4.3d v4.6 (31). Plan in `Rider-Feedback.md` "Phase 4.3 plan".
   **Phase 12 is one version (user, 2026-11-09):** 3.3 for the whole phase (12a, 12b); `versionCode` still +1
   per sub-phase build (3.2.1 = 15, Phase 12 starts at 16).
 - `MAPS_API_KEY` goes in `local.properties` only (fallback placeholder in `local.defaults.properties`).
