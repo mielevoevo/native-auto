@@ -51,6 +51,8 @@
     <string name="settings_screen_options_hint">Refresh rate and battery</string>
     <string name="settings_battery">Battery indicator</string>
     <string name="settings_card_titles">Card titles</string>
+    <string name="settings_daily_greeting">Daily greeting</string>
+    <string name="settings_daily_greeting_hint">Range and bike status on the first open of the day</string>
     <string name="settings_pane_watermark">Faint card icons</string>
     <string name="settings_pane_watermark_hint">A large, dim icon behind big cards</string>
     <string name="settings_battery_hint">Top right, with the clock</string>

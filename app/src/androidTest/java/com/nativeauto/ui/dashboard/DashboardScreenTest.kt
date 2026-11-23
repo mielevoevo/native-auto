@@ -880,7 +880,7 @@ class DashboardScreenTest {
         tab("NAVIGATION"); tag("settings_unit_KMH").assertIsDisplayed(); tag("settings_auto_layout").assertIsDisplayed()
         tab("AUDIO"); tag("settings_voice").assertIsDisplayed()
         tab("TRIP_GARAGE")
-        listOf("settings_history", "settings_garage", "settings_reset_trip", "settings_trip_options", "settings_auto_start").forEach { tag(it).assertIsDisplayed() }
+        listOf("settings_history", "settings_garage", "settings_reset_trip", "settings_daily_greeting", "settings_trip_options", "settings_auto_start").forEach { tag(it).assertIsDisplayed() }
         tab("PRIVACY"); tag("settings_privacy_permissions").assertIsDisplayed(); tag("settings_reset_app").assertIsDisplayed()
         tab("BACKUP"); tag("backup_export").assertIsDisplayed(); tag("backup_import").assertIsDisplayed()
         tab("DEBUG"); tag("debug_fake_gps").assertIsDisplayed()

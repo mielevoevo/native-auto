@@ -64,6 +64,8 @@ class ResetSettingsRule : ExternalResource() {
         settings.setCallControls(true)
         settings.setCardTitleStyle(com.nativeauto.settings.CardTitleStyle.TEXT)
         settings.setPaneWatermark(false)
+        settings.setDailyGreeting(true)
+        entry.greetingStore().markGreeted(java.time.LocalDate.now())
         settings.setAutoStartMode(com.nativeauto.trip.AutoStartMode.OFF)
         settings.setAutoStartHoldS(com.nativeauto.trip.DEFAULT_AUTO_START_HOLD_S)
         settings.setTotalPeriod(com.nativeauto.settings.TotalPeriod.DAY)

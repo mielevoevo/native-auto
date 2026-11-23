@@ -41,4 +41,6 @@ interface SettingsEntryPoint {
     fun changelogStore(): com.nativeauto.changelog.ChangelogStore
     /** 4.2: tests mark the first-run setup done, so its pages never cover the UI under test (one test reopens it). */
     fun setupState(): com.nativeauto.setup.SetupState
+    /** 4.3c: tests mark today greeted, so the greeting never covers the UI under test (its own test clears it). */
+    fun greetingStore(): com.nativeauto.greeting.GreetingStore
 }

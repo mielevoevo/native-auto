@@ -30,6 +30,7 @@ class SetupViewModel @Inject constructor(
     private val location: LocationPermissionState,
     private val media: MediaSessionRepository,
     private val phone: PhoneCallSource,
+    private val greeting: com.nativeauto.greeting.GreetingStore,
 ) : ViewModel() {
 
     private fun <T> kotlinx.coroutines.flow.Flow<T>.hot(initial: T): StateFlow<T> =
@@ -66,5 +67,9 @@ class SetupViewModel @Inject constructor(
     fun setVoice(on: Boolean) = viewModelScope.launch { settings.setVoiceGuidance(on) }
 
     /** "Start riding": the pages are done and never come back on their own. */
-    fun finish() = viewModelScope.launch { setup.complete() }
+    fun finish() = viewModelScope.launch {
+        // 4.3c: the day of the setup has had its welcome; the greeting starts tomorrow.
+        greeting.markGreeted(java.time.LocalDate.now())
+        setup.complete()
+    }
 }

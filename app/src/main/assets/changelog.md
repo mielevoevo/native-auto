@@ -1,5 +1,9 @@
 # What's new in Native Auto
 
+## 4.5 (30) · 2026-11-24
+- Daily greeting: the first time you open the app each day, a short sheet says good morning (or afternoon, or evening) with your bike's range left and tank, the odometer and this week's riding, plus a service if one is due. Tap anywhere to close it; it also goes away by itself once a trip is running. Never during a trip or navigation, and not on the day you set the app up. Turn it off in Settings, Trip and Garage.
+- Settings, Display: the theme choice sits beside its label in landscape, so the page fits without scrolling.
+
 ## 4.4 (29) · 2026-11-24
 - Card titles can be icons: Settings, Display, Card titles, Text or Icon. Icons are the ones in the hold menu, and they leave more room in the header for the clock and battery.
 - The media card's previous and next buttons now sit on round plates like play / pause, so you can see where to press.

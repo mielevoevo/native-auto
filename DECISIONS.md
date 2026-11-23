@@ -906,3 +906,37 @@ Faint icon "Calm 2": it is decoration by definition; kept because it is an opt-i
 **Tests:** unit green; device 21 (new `cardTitlesCanBeIconsAndTheFaintIconIsASetting`, the 52 dp plate check in
 `MediaCardTest`, CallCardTest, PortraitCardsTest, settings pages) green; ReleaseSmokeTest 2/2; the APK launched clean.
 **Phone checks:** whether 5.5 % is visible on the phone's OLED in daylight (it's a constant, `WATERMARK_ALPHA`).
+
+### 4.3c (v4.5, versionCode 30): daily greeting
+
+- **Rule (`greeting/Greeting.kt`, pure):** `shouldGreet(today, lastDay, enabled, busy)`; busy = trip running / paused or
+  navigation not idle, which makes it wait for the next open that day. `greetingFor(hour)`: morning 04–11, afternoon
+  12–17, evening otherwise. `GreetingStore` keeps `greeting_last_day` (ISO date) in the settings DataStore file, outside
+  `SettingsRepository`, like the changelog.
+- **"Not on the setup day":** `SetupViewModel.finish()` marks today greeted, instead of a setup-day parameter in the rule.
+  *Reason:* one stored fact, no second key, and the pure rule stays four inputs.
+- **When it's checked:** `GreetingSheet` calls `onOpened()` under `repeatOnLifecycle(STARTED)`, so every return to the app
+  counts as an open (rotations don't recreate the activity). The day is marked the moment it shows, so a process death
+  never repeats it.
+- **Before the changelog:** the dashboard composes `ChangelogSheet` only while the greeting is down.
+- **Auto close:** 8 s after the trip state turns Running (`GreetingViewModel.AUTO_CLOSE_MS`). "Moving" = Running: auto-start
+  only starts a trip on movement, and a manual Start means the rider is leaving.
+- **Content:** bike name, `TankGauge` + cautious range (56 sp, red in the last segment), odometer, this week (Monday on,
+  saved trips + the live one) in km like the Garage, service only when SOON / OVERDUE. No bike: "Add your bike to see its
+  range here" + Open Garage. Wide (≥ 600 dp): figures beside the range so the sheet stays short.
+- **Setting moved:** "Daily greeting" lives on **Trip and Garage**, not Display (spec). *Reason:* on Display it fell below
+  the fold in landscape (4.2 no-scroll rule), and the greeting is bike status. Display's Theme row is now inline on wide pages.
+
+**Design review:** G1–G6 pass (tokens; red only for low fuel, amber / red for service status; sentence case, no "!").
+C1–C7 pass (one sheet pattern with Done like the changelog; spacing 16/20/24/32).
+
+| Screen | Hier. | Glance | Consist. | Touch | Copy | Calm |
+|---|---|---|---|---|---|---|
+| Greeting, landscape | 3 | 3 | 3 | 3 | 3 | 3 |
+| Greeting, portrait | 3 | 3 | 3 | 3 | 3 | 3 |
+| Settings, Trip and Garage / Display | 3 | 2 | 3 | 3 | 3 | 3 |
+
+**Tests:** `GreetingTest` (unit); `GreetingSheetTest` (device: once a day, no bike → Garage, bike → range first, off stays
+away), settings pages, `SetupFlowTest`; ReleaseSmokeTest 2/2; APK launched clean.
+**Phone checks:** the greeting the morning after installing (it skips the setup day on purpose); that it doesn't pop up
+when coming back from Maps mid-day (same day = no).

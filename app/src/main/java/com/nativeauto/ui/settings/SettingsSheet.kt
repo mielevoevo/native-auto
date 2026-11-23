@@ -249,7 +249,8 @@ private fun DisplayPage(
                 selected = theme,
                 text = { it.label },
                 tag = { "settings_theme_${it.name}" },
-                stacked = true,
+                // 4.3c: beside its label on a wide page (room for the greeting row), stacked on a narrow one.
+                stacked = !wide,
             ) { haptics.tick(); viewModel.setThemeMode(it) }
             ActionRow(
                 title = "Colours",
@@ -393,6 +394,7 @@ private fun TripGaragePage(
     val resetArmed by viewModel.resetArmed.collectAsStateWithLifecycle()
     val autoStartMode by viewModel.autoStartMode.collectAsStateWithLifecycle()
     val autoStartHold by viewModel.autoStartHoldS.collectAsStateWithLifecycle()
+    val greeting by viewModel.dailyGreeting.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
@@ -412,6 +414,13 @@ private fun TripGaragePage(
                 armed = resetArmed,
                 tag = "settings_reset_trip",
             ) { if (viewModel.onResetTripTapped()) haptics.confirm() else haptics.tap() }
+            // 4.3c: the day's first open shows the bike's range (on this page: Display has no room left in landscape).
+            SwitchRow(
+                label = R.string.settings_daily_greeting,
+                hint = R.string.settings_daily_greeting_hint,
+                checked = greeting,
+                tag = "settings_daily_greeting",
+            ) { haptics.toggle(it); viewModel.setDailyGreeting(it) }
         },
         right = {
             ActionRow(

@@ -85,6 +85,7 @@ abstract class DataBindings {
     // 11b: the trip in progress is checkpointed for recovery after a kill.
     @Binds abstract fun bindTripCheckpoints(impl: RoomTripCheckpoints): TripCheckpoints
     // 13a: the changelog and the last version the rider has seen it for.
+    @Binds abstract fun bindGreetingStore(impl: com.nativeauto.greeting.DataStoreGreetingStore): com.nativeauto.greeting.GreetingStore
     @Binds abstract fun bindChangelogStore(impl: com.nativeauto.changelog.DataStoreChangelogStore): com.nativeauto.changelog.ChangelogStore
     // 4.2: whether the first-run setup pages are still to be shown.
     @Binds abstract fun bindSetupState(impl: com.nativeauto.setup.DataStoreSetupState): com.nativeauto.setup.SetupState

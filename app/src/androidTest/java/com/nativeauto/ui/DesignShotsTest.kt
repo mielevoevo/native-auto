@@ -112,6 +112,37 @@ class DesignShotsTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync { player?.close() }
     }
 
+    /** 4.3c: the daily greeting, with a bike, landscape and portrait. */
+    @Test fun greeting() {
+        val entry = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        )
+        runBlocking {
+            val g = entry.garage()
+            val id = g.addBike(
+                com.nativeauto.garage.BikeDraft("Gen 1", com.nativeauto.garage.BikeModel.NMAX_GEN1, 6.6, 1.3, com.nativeauto.garage.FuelType.PERTAMAX, com.nativeauto.garage.DEFAULT_KM_PER_L),
+                odometerKm = 12_000.0,
+            )
+            g.setFuelLevel(id, 4, 6, 12_000.0)
+        }
+        fun greet(name: String) {
+            runBlocking { entry.greetingStore().clear() }
+            rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+            rule.waitUntil(5_000) { count("greeting_sheet") > 0 }
+            shot(name)
+            click("greeting_done")
+            rule.waitUntil(5_000) { count("greeting_sheet") == 0 }
+        }
+        greet("greeting_land")
+        runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
+        rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
+        Thread.sleep(1_500)
+        greet("greeting_port")
+        runBlocking { entry.garageDao().clear(); entry.greetingStore().markGreeted(java.time.LocalDate.now()) }
+    }
+
     @Test fun portrait() {
         runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
         rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }

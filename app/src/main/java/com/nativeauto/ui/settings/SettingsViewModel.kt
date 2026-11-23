@@ -164,6 +164,13 @@ class SettingsViewModel @Inject constructor(
     val paneWatermark: StateFlow<Boolean> =
         settings.paneWatermark.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val dailyGreeting: StateFlow<Boolean> =
+        settings.dailyGreeting.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setDailyGreeting(enabled: Boolean) {
+        viewModelScope.launch { settings.setDailyGreeting(enabled) }
+    }
+
     fun setCardTitleStyle(style: com.nativeauto.settings.CardTitleStyle) {
         viewModelScope.launch { settings.setCardTitleStyle(style) }
     }

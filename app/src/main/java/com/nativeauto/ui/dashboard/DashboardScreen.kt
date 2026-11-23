@@ -283,8 +283,12 @@ private fun DashboardScreenBody(
             AutoStartPill(visible = autoStarted && !layout.isOnScreen(Pane.SPEED), onDismiss = dismissAutoStarted)
             // 11a: the away-km question and (debug) "which bike?".
             GaragePrompts()
+            // 4.3c: the day's first open greets (range first); the changelog waits until it's gone.
+            val greeting: com.nativeauto.greeting.GreetingViewModel = hiltViewModel()
+            val greetingUp by greeting.showing.collectAsStateWithLifecycle()
+            com.nativeauto.ui.greeting.GreetingSheet(onOpenGarage = openGarage, viewModel = greeting)
             // 13a: what changed, once after an update (waits while a trip or navigation runs).
-            ChangelogSheet()
+            if (!greetingUp) ChangelogSheet()
         }
     }
 
