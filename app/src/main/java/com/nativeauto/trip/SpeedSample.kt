@@ -15,6 +15,8 @@ data class SpeedSample(
      * is then meaningless. The map and navigation still use the position; the trip ignores it.
      */
     val hasSpeed: Boolean = true,
+    /** 4.3d: metres above the WGS84 ellipsoid, when the fix has one. Only the riding load reads it (climb). */
+    val altitudeM: Double? = null,
 )
 
 enum class GpsStatus { Searching, Fix, Stale, Disabled, PermissionDenied }

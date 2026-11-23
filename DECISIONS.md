@@ -940,3 +940,71 @@ C1–C7 pass (one sheet pattern with Done like the changelog; spacing 16/20/24/3
 away), settings pages, `SetupFlowTest`; ReleaseSmokeTest 2/2; APK launched clean.
 **Phone checks:** the greeting the morning after installing (it skips the setup day on purpose); that it doesn't pop up
 when coming back from Maps mid-day (same day = no).
+
+### 4.3d (v4.6, versionCode 31): riding behaviour in the fuel estimate
+
+- **Model (`garage/RidingLoad.kt`):** per trip, running sums over the accepted fixes (`LoadAccumulator`, no allocation per
+  fix): distance, Σv²·Δd, Σmax(0,Δv)·v on an exponentially smoothed speed (α 0.5, so GPS jitter isn't "speeding up"),
+  climb (10-fix moving average of altitude, 2 m dead band, descents not credited), stops (1 m/s after 3 m/s). A gap over
+  10 s (pause, tunnel) adds no distance and restarts the smoothing. **Load = J per kg per km**: g·Crr + (½ρCdA/m)·v² +
+  accel + g·climb, with scooter constants (Crr 0.015, CdA 0.6 m², 200 kg). *Reason:* a physical sum puts the four parts on
+  one scale without tuning weights by hand; its absolute size doesn't matter, the fit calibrates it.
+- **Stored:** Room v7 (`MIGRATION_6_7`): `trips.loadIndex` (the J/kg/km figure) + the raw sums, all nullable.
+  `SpeedSample.altitudeM` (defaulted). Backup format stays 2 with optional fields.
+- **Not "relative to the bike's baseline" (spec):** the fit uses the absolute figure, and the factor compares the recent
+  load with the spans' own mean load. *Reason:* a median-of-trips baseline would drift as trips are added and change the
+  fit's input after the fact; a ratio of two fitted km/L values needs no baseline and means the same thing.
+- **Learning:** used full-to-full spans (`TankMeasure` gained `startTimeMs`), each with the distance-weighted load of the
+  trips ending inside it, only if those trips cover ≥ 50 % of the span's odometer km. **Weighted least squares** in
+  closed form (recent spans weighted (1 − 0.3)^age, like `learnConsumption`) instead of recursive least squares. *Reason:*
+  with 4–30 spans, recomputing from scratch is cheap and gives the same answer, and it can't drift from a bad old state.
+  Kept only with ≥ 4 spans, distinct loads, slope < 0 (harder riding costs km/L) and a residual per degree of freedom
+  below the plain mean's.
+- **Range:** `factor = kmPerL(recent load) / kmPerL(mean load)`, clamped 0.8–1.2, applied to the **range only**
+  (`FuelLevel.loadFactor`). Litres left still burn at the cautious km/L. *Reason:* the level is a measurement walked from
+  the last fill; the range is the forecast.
+- **Recent load:** the live trip (published by `TripRecorder` at each 60 s checkpoint through `LiveRidingLoad`, so the
+  Garage doesn't redraw at 1 Hz) and then saved trips, newest first, until 20 km.
+- **Note:** "Riding hard: −8%" / "Riding easy: +6%" (`garage_load_note`, textDim) under the range in the bike detail and
+  the expanded Garage card, only beyond ±5 %. No colour: it explains the number, it isn't a warning.
+- **Cost:** per fix one haversine, a few multiplies and a 10-slot ring buffer; no new GPS request, no per-fix storage
+  beyond the track that was already kept.
+
+**Design review:** G1–G6 pass (text only, tokens). C1–C7 pass (same text style as the fuel line). Garage detail with the
+note: Hierarchy 3, Glanceable 3, Consistency 3, Touch n/a (3), Copy 3, Calm 3.
+
+**Tests:** `RidingLoadTest` (sums, smoothing, gap, climb + dead band, fit rules, clamp, note, recent load, span coverage),
+`GarageRepositoryTest` (3 spans: factor 1.0; 4 spans + hard recent riding: lower range + note), `TripRecorderTest` (sums
+saved), `GpxBackupTest` (fields round-trip, old trips without them); device `MigrationTest` (v1 under v7, load query),
+`GarageScreenTest.hardRidingLatelyLowersTheRangeWithANote`, TripFilesTest, trip/summary/history tests; ReleaseSmokeTest 2/2.
+**Phone checks:** whether the phone's altitude is steady enough for climb (if it is noisy, the dead band can grow, constant
+`LOAD_ALT_DEAD_BAND_M`); the note only appears after four full fills with trips recorded on v4.6, so not on the first rides.
+
+### Run 4.3 summary (finished 2026-11-24)
+
+| Build | Version | Commit | APK |
+|---|---|---|---|
+| 4.3a consistency fixes | 4.3 (28) | see git log | `.dev/apk/NativeAuto-4.3-4.3a-release.apk` |
+| 4.3b look | 4.4 (29) | | `.dev/apk/NativeAuto-4.4-4.3b-release.apk` |
+| 4.3c daily greeting | 4.5 (30) | | `.dev/apk/NativeAuto-4.5-4.3c-release.apk` |
+| 4.3d riding load | 4.6 (31) | | `.dev/apk/NativeAuto-4.6-4.3d-release.apk` |
+
+- Every build: the tests of what it touched, ReleaseSmokeTest 2/2 on the minified build, the exported APK launched with no
+  crash entry. Design shots in `.dev/scratch/design/` (overwritten per run; the scores above are the record).
+- **Emulator:** the system server crashed in a loop at the start (Wi-Fi network stack). Cold boot + `svc wifi disable`.
+- **Line endings:** Python rewrites on Windows turned some files to CRLF in the 4.3 commits; the four commits were rewritten
+  locally (not pushed) to keep each file's original endings, so their diffs show only real changes.
+- **Deviations from the spec, each with its reason above:** Daily greeting switch on Trip and Garage (not Display); load
+  compared with the spans' mean, not a trip-median baseline; closed-form weighted fit, not RLS; no watermark on the speed,
+  map or call cards; the call card already had plated buttons.
+
+**Phone checks, all builds:**
+1. Settings: every tab the same height; nothing cut off; Reset trip / Reset app turn red on the first tap.
+2. Hold a card: no Fullscreen / Maximize tiles where the card has its own buttons; portrait slim rows still offer them.
+3. Low fuel: the red pump in the top bar beside the battery, and gone when the Garage card is on screen.
+4. Rows trip summary: the "+ Add" km/L tile is easy to hit with gloves.
+5. Fullscreen navigation (landscape): arrow left, distance and road beside it; "Slight left" spoken.
+6. Icon titles and faint card icons (Settings, Display): readable in sun; the faint icon really faint on OLED.
+7. Media skips on their plates; swipe still changes track.
+8. Next morning: the greeting with the range; not again that day; not during a trip.
+9. Range: unchanged until four full fills on v4.6; then a "Riding hard / easy" note only past 5 %.

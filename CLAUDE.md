@@ -14,7 +14,7 @@ Read `NativeAuto-Handoff.md` first. It holds the architecture rules, layout spec
   **Unattended again (user, 2026-11-14): v4.1 (logo, versionCode 24) -> v4.1.1 (follow-ups, 25) -> v4.2 (first-run setup pages, 26).**
   Spec and rules in `.dev/Phase-4.1-4.2-Unattended.md` (same rules as 13a -> 14a; a failing test or build is fixed at once, not handed back).
   **Phase 4.3 (user, 2026-11-24):** 4.3a v4.3 (vc 28), 4.3b v4.4 (29), 4.3c v4.5 (30), 4.3d v4.6 (31). Plan in `Rider-Feedback.md` "Phase 4.3 plan".
-  **Unattended (user, 2026-11-24): 4.3a -> 4.3d, whole cycle,** spec and rules in `.dev/Phase-4.3-Unattended.md`; starts on the user's "start".
+  **Unattended (user, 2026-11-24): 4.3a -> 4.3d, whole cycle,** spec and rules in `.dev/Phase-4.3-Unattended.md`. **Done 2026-11-24** (v4.6, vc 31; section "Run 4.3" below).
   **Phase 12 is one version (user, 2026-11-09):** 3.3 for the whole phase (12a, 12b); `versionCode` still +1
   per sub-phase build (3.2.1 = 15, Phase 12 starts at 16).
 - `MAPS_API_KEY` goes in `local.properties` only (fallback placeholder in `local.defaults.properties`).
@@ -838,3 +838,53 @@ Major drop: a vertically mounted phone. Spec `.dev/Phase-14b-Portrait.md`; choic
 - `AUTO_START_KMH` = 10 (was 15).
 - **Media:** landscape Compact / Wide / Expanded / Fullscreen wrap in `SwipeToChange` (`SwipeCentred`), skips kept.
   Test: `PortraitCardsTest.landscapeMediaCardsChangeTrackBySwipeAndKeepSkips`.
+
+## Run 4.3 (built 2026-11-24, unattended; choices in DECISIONS.md "Run 4.3")
+
+### 4.3a: consistency fixes (v4.3, versionCode 28)
+- **Settings sheet (`SettingsSheet.kt`):** one height per orientation (94 % landscape, 80 % portrait), the page scrolls inside;
+  the tab row fades at its edges (`fadingEdges`); 32 dp between the title and the tabs. Tests scroll a tab into view before
+  tapping it (`tab()` / `openSettings`). **One row pattern:** `SettingRow` (title + hint left, control right, 64 dp min);
+  `ActionRow` and the new `DangerRow` (Reset trip / Reset app: "Reset" → red "Tap again") are built on it; Backup is two
+  `ActionRow`s in `PageColumns` (`backup_export`, `backup_import`).
+- **Pane picker:** no drag handle; Fullscreen / Maximize tiles (`pick_fullscreen`, `pick_maximize`) only for a card whose
+  header has no zoom buttons of its own. `CardChrome` writes that into `LocalHeaderZoom` (a map provided by the dashboard).
+- **Low fuel:** the pump is a header slot (`HeaderRow` `fuel`, `StatusCorner.lowFuel`), dropped first when short; the floating
+  icon on the speed card is gone.
+- **Trip summary:** `DashTile` ("DASH KM/L" + "+ Add" plate, `sum_dash`; `sum_dash_saved` once answered) inside the figures in
+  every mode; Rows top-aligned.
+- **Navigation:** `SideTurn` for wide (≥ 520 dp) landscape Expanded / Fullscreen (`next_turn_side`); `nav/RiderPhrasing.kt`:
+  "Bear" → "Slight" on the banner (`toInstruction`) and the voice (`RiderPhrasingSpeaker` wraps the observer); `thenLine`.
+- **Design screenshots:** `DesignShotsTest` / `DesignCardShotsTest` run only with
+  `-Pandroid.testInstrumentationRunnerArguments.designShots=1`; shots land in `/data/local/tmp/design/` (pull with
+  `MSYS_NO_PATHCONV=1 adbe pull`).
+
+### 4.3b: look (v4.4, versionCode 29)
+- `SettingsRepository.cardTitleStyle` (`CardTitleStyle` TEXT / ICON, Display "Card titles", `settings_card_titles_<NAME>`) and
+  `paneWatermark` (Display "Faint card icons", `settings_pane_watermark`), both defaulted members. They reach the cards as
+  `LocalCardLook` (`CardLook`, from `DashboardViewModel.cardLook`). Icon titles keep the tag `header_title_<PANE>` and the pane
+  name as content description. The watermark (`WATERMARK_ALPHA` 5.5 % of `text`) is drawn behind Expanded / Fullscreen media,
+  clock, navigation and Garage cards only (not map, speed, call), in `drawBehind`.
+- Media previous / next are `FilledIconButton`s on `buttonQuiet` (52 / 60 dp).
+
+### 4.3c: daily greeting (v4.5, versionCode 30)
+- `greeting/Greeting.kt`: pure `shouldGreet`, `greetingFor(hour)`; `GreetingStore` (`greeting_last_day`, own key like the
+  changelog's). `GreetingViewModel.onOpened()` runs under `repeatOnLifecycle(STARTED)` from `GreetingSheet`; the day is marked
+  when it shows; busy (trip running / paused, navigation) waits for a later open; it closes 8 s after a trip runs. Finishing the
+  setup marks the day. The changelog sheet waits while it is up.
+- `ui/greeting/GreetingSheet.kt` (`greeting_sheet`, `greeting_title|bike|range|odometer|week|service|done|add_bike`); figures
+  beside the range when ≥ 600 dp. Setting `dailyGreeting` (default on) on **Trip and Garage** (`settings_daily_greeting`).
+- `ResetSettingsRule` marks today greeted (`SettingsEntryPoint.greetingStore()`); `GreetingSheetTest` clears it and moves the
+  activity to CREATED and back to RESUMED to simulate an app open.
+
+### 4.3d: riding load in the range (v4.6, versionCode 31)
+- `garage/RidingLoad.kt`: `LoadAccumulator` (O(1) per accepted fix, fed by `TripRecorder.Recording.add`), `LoadSums`
+  (`energyPerKm` = J/kg/km), `spanLoads` / `fitLoad` (weighted least squares, ≥ 4 spans, slope < 0, beats the mean),
+  `recentLoad` (live trip + newest trips to 20 km), `rangeLoad` (0.8–1.2), `RangeLoad.note`, `LiveRidingLoad` (live sums,
+  published at the 60 s checkpoint).
+- `SpeedSample.altitudeM`; **Room v7** (`MIGRATION_6_7`: `trips.loadIndex`, `loadDistanceM`, `loadAero`, `loadAccel`,
+  `loadClimbM`, `loadStops`, nullable); `GarageDao.observeTripLoads`; backup fields optional (format 2).
+- `FuelLevel.loadFactor` multiplies the **range** only; `FuelState.load`; the note `garage_load_note` under the range (bike
+  detail, expanded Garage card) beyond ±5 %.
+- **Line endings:** Python on Windows writes CRLF in text mode. Edit files with the Edit tool, or `open(p, newline='')`
+  keeping the file's own endings; check `git diff --numstat` before a commit.

@@ -115,6 +115,8 @@ internal fun FuelSection(
         }
     }
     fuel?.let { f ->
+        // 4.3d: only when the riding lately moves the range by 5 % or more.
+        f.load.note?.let { LoadNote(it) }
         Text(fuelLine(f), style = MaterialTheme.typography.bodyMedium, color = colors.textDim, modifier = Modifier.testTag("garage_fuel_line"))
         f.level.sinceRefuelKm?.let {
             Text(
@@ -172,6 +174,12 @@ internal fun kmplSource(c: Consumption): String {
 }
 
 /** 12b: " · range at 34.0 km/L" when recent tanks are below the long run (the range uses those). */
+/** 4.3d: "Riding hard: −12%" under the range. textDim like the fuel line: it explains the number, it's no warning. */
+@Composable
+internal fun LoadNote(note: String) {
+    Text(note, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim, modifier = Modifier.testTag("garage_load_note"))
+}
+
 internal fun cautiousNote(f: FuelState): String =
     if (f.consumption.cautiousKmPerL < f.consumption.kmPerL - 0.05) " · range at ${formatKmPerL(f.consumption.cautiousKmPerL)}" else ""
 

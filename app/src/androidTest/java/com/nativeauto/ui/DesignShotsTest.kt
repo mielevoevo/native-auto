@@ -143,6 +143,45 @@ class DesignShotsTest {
         runBlocking { entry.garageDao().clear(); entry.greetingStore().markGreeted(java.time.LocalDate.now()) }
     }
 
+    /** 4.3d: the riding-load note under the range (Garage detail). */
+    @Test fun loadNote() {
+        val entry = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        )
+        val day = 86_400_000L
+        val t0 = System.currentTimeMillis() - 10 * day
+        val trips = mutableListOf<Long>()
+        runBlocking {
+            val id = entry.garage().addBike(
+                com.nativeauto.garage.BikeDraft("Gen 1", com.nativeauto.garage.BikeModel.NMAX_GEN1, 6.6, 1.3, com.nativeauto.garage.FuelType.PERTAMAX, com.nativeauto.garage.DEFAULT_KM_PER_L),
+                odometerKm = 800.0,
+            )
+            fun energy(v2: Double) = com.nativeauto.garage.LoadSums(1000.0, v2 * 1000).energyPerKm!!
+            fun trip(end: Long, km: Double, v2: Double) = com.nativeauto.history.TripRecord(
+                startedAtMs = end - 3_600_000, endedAtMs = end, durationMs = 3_600_000, movingMs = 3_600_000, distanceM = km * 1000,
+                maxSpeedMps = 20f, startLat = 0.0, startLon = 0.0, endLat = 0.0, endLon = 0.0, track = "", bikeId = id,
+                loadIndex = energy(v2), loadDistanceM = km * 1000, loadAero = v2 * km * 1000, loadAccel = 0.0,
+            )
+            fun fill(i: Int, litres: Double) = com.nativeauto.garage.RefuelRecord(
+                bikeId = id, timeMs = t0 + i * day, odometerKm = i * 200.0, litres = litres, pricePerL = 12_500.0,
+                totalRp = litres * 12_500, full = true, fuelType = "PERTAMAX",
+            )
+            entry.garageDao().insertRefuel(fill(0, 5.0))
+            listOf(100.0, 200.0, 300.0, 400.0).forEachIndexed { i, v2 ->
+                trips += entry.tripDao().insert(trip(t0 + i * day + day / 2, 200.0, v2))
+                entry.garageDao().insertRefuel(fill(i + 1, 200.0 / (48 - 0.015 * energy(v2))))
+            }
+            trips += entry.tripDao().insert(trip(t0 + 4 * day + 60_000, 20.0, 400.0))
+        }
+        click("settings_open")
+        rule.waitUntil(5_000) { count("settings_sheet") > 0 }
+        click("settings_garage")
+        rule.waitUntil(5_000) { count("garage_load_note") > 0 }
+        shot("load_note_garage")
+        runBlocking { trips.forEach { entry.tripDao().delete(it) }; entry.garageDao().clear() }
+    }
+
     @Test fun portrait() {
         runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
         rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }

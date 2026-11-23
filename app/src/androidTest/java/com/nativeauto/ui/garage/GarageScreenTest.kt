@@ -35,6 +35,7 @@ import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -184,6 +185,36 @@ class GarageScreenTest {
         scrollClick("garage_refuel_delete")
         rule.waitUntil(5_000) { count("garage_refuel_row").fetchSemanticsNodes().isEmpty() }
         rule.waitUntil(5_000) { tag("garage_range").fetchText() == "—" }
+    }
+
+    /** 4.3d: four full-to-full spans ridden at different loads teach the range; hard riding lately lowers it, with a note. */
+    @Test fun hardRidingLatelyLowersTheRangeWithANote() {
+        val day = 86_400_000L
+        val t0 = System.currentTimeMillis() - 10 * day
+        runBlocking {
+            val id = entry.garage().addBike(nmax, odometerKm = 0.0)
+            fun energy(v2: Double) = com.nativeauto.garage.LoadSums(1000.0, v2 * 1000).energyPerKm!!
+            fun trip(end: Long, km: Double, v2: Double) = TripRecord(
+                startedAtMs = end - 3_600_000, endedAtMs = end, durationMs = 3_600_000, movingMs = 3_600_000, distanceM = km * 1000,
+                maxSpeedMps = 20f, startLat = 0.0, startLon = 0.0, endLat = 0.0, endLon = 0.0, track = "", bikeId = id,
+                loadIndex = energy(v2), loadDistanceM = km * 1000, loadAero = v2 * km * 1000, loadAccel = 0.0,
+            )
+            fun fill(i: Int, litres: Double) = com.nativeauto.garage.RefuelRecord(
+                bikeId = id, timeMs = t0 + i * day, odometerKm = i * 200.0, litres = litres, pricePerL = 12_500.0,
+                totalRp = litres * 12_500, full = true, fuelType = FuelType.PERTAMAX.name,
+            )
+            val dao = entry.garageDao()
+            dao.insertRefuel(fill(0, 5.0))
+            listOf(100.0, 200.0, 300.0, 400.0).forEachIndexed { i, v2 ->
+                seededTrips += entry.tripDao().insert(trip(t0 + i * day + day / 2, 200.0, v2))
+                dao.insertRefuel(fill(i + 1, 200.0 / (48 - 0.015 * energy(v2))))
+            }
+            seededTrips += entry.tripDao().insert(trip(t0 + 4 * day + 60_000, 20.0, 400.0))
+        }
+        openGarage()
+        await("garage_bike_Gen 1")
+        await("garage_load_note")
+        assertTrue(tag("garage_load_note").fetchText().startsWith("Riding hard: −"))
     }
 
     @Test fun aPriceEditedInTheGarageIsTheNextRefuelsPrice() {

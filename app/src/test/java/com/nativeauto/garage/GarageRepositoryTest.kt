@@ -281,6 +281,43 @@ class GarageRepositoryTest {
         assertEquals(12_500.0, f.pricePerL, 0.0)
     }
 
+    @Test fun `riding harder than usual lowers the range once four spans have taught it`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 0.0)
+        val t0 = rig.now()
+        val day = 86_400_000L
+        // Five full fills 200 km apart; between each pair a 200 km trip ridden at a different load.
+        // km/L follows the load: 48 - 0.015 * (J/kg/km).
+        val v2s = listOf(100.0, 200.0, 300.0, 400.0)
+        fun energy(v2: Double) = LoadSums(1000.0, v2 * 1000).energyPerKm!!
+        fun loadTrip(id: Long, end: Long, km: Double, v2: Double) = TripRecord(
+            id = id, startedAtMs = end - 3_600_000, endedAtMs = end, durationMs = 3_600_000, movingMs = 3_600_000,
+            distanceM = km * 1000, maxSpeedMps = 20f, startLat = 0.0, startLon = 0.0, endLat = 0.0, endLon = 0.0, track = "",
+            bikeId = gen1, loadIndex = energy(v2), loadDistanceM = km * 1000, loadAero = v2 * km * 1000, loadAccel = 0.0,
+            loadClimbM = 0.0, loadStops = 0,
+        )
+        fun fill(i: Int, litres: Double) = RefuelRecord(
+            id = i + 1L, bikeId = gen1, timeMs = t0 + i * day, odometerKm = i * 200.0, litres = litres,
+            pricePerL = 12_500.0, totalRp = litres * 12_500, full = true, fuelType = FuelType.PERTAMAX.name,
+        )
+        rig.dao.refuels.value = listOf(fill(0, 5.0))
+        v2s.forEachIndexed { i, v2 ->
+            rig.dao.trips.value += loadTrip(i + 1L, t0 + i * day + day / 2, 200.0, v2)
+            if (i < 3) rig.dao.refuels.value += fill(i + 1, 200.0 / (48 - 0.015 * energy(v2)))
+        }
+        // Three spans: nothing learned yet, the range is the plain one.
+        var f = rig.garage.fuel(gen1).first()
+        assertEquals(1.0, f.load.factor, 0.0)
+        assertNull(f.load.note)
+        rig.dao.refuels.value += fill(4, 200.0 / (48 - 0.015 * energy(400.0)))
+        // The last 20 km ridden hard (like the hardest span): the range drops below the plain figure.
+        rig.dao.trips.value += loadTrip(9, t0 + 4 * day + 1_000, 20.0, 400.0)
+        f = rig.garage.fuel(gen1).first()
+        assertTrue("factor ${f.load.factor}", f.load.factor < 0.95)
+        assertEquals(f.level.litres!! * f.level.kmPerL * f.load.factor, f.level.rangeKm!!, 1e-9)
+        assertTrue(f.load.note!!.startsWith("Riding hard"))
+    }
+
     @Test fun `away km make the fuel unknown until the next full fill`() = runTest {
         val rig = Rig(this)
         val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)

@@ -19,6 +19,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.float
 import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -94,6 +96,13 @@ object Backup {
                     put("endAddress", r.endAddress)
                     put("track", r.track)
                     put("bikeId", r.bikeId)
+                    // 4.3d: optional (format stays 2); absent on trips without them, and older files read fine.
+                    r.loadIndex?.let { put("loadIndex", it) }
+                    r.loadDistanceM?.let { put("loadDistanceM", it) }
+                    r.loadAero?.let { put("loadAero", it) }
+                    r.loadAccel?.let { put("loadAccel", it) }
+                    r.loadClimbM?.let { put("loadClimbM", it) }
+                    r.loadStops?.let { put("loadStops", it) }
                     // Compact: one array per point, [timeMs, lat, lon, speed, bearing|null, accuracy].
                     putJsonArray("points") {
                         t.points.forEach { p ->
@@ -145,6 +154,12 @@ object Backup {
                 endAddress = text("endAddress"),
                 track = text("track") ?: "",
                 bikeId = text("bikeId"),
+                loadIndex = o["loadIndex"]?.jsonPrimitive?.doubleOrNull,
+                loadDistanceM = o["loadDistanceM"]?.jsonPrimitive?.doubleOrNull,
+                loadAero = o["loadAero"]?.jsonPrimitive?.doubleOrNull,
+                loadAccel = o["loadAccel"]?.jsonPrimitive?.doubleOrNull,
+                loadClimbM = o["loadClimbM"]?.jsonPrimitive?.doubleOrNull,
+                loadStops = o["loadStops"]?.jsonPrimitive?.intOrNull,
             )
             val points = (o["points"] as? JsonArray).orEmpty().map { pe ->
                 val a = pe.jsonArray

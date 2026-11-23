@@ -229,6 +229,15 @@ interface GarageDao {
     @Query("SELECT * FROM trips WHERE bikeId = :bikeId ORDER BY endedAtMs DESC LIMIT 1")
     suspend fun lastTrip(bikeId: String): TripRecord?
 
+    /** 4.3d: the bike's trips that carry riding-load sums, newest first. */
+    @Query(
+        "SELECT endedAtMs, loadDistanceM AS distanceM, loadAero AS aero, loadAccel AS accel, " +
+            "COALESCE(loadClimbM, 0) AS climbM, COALESCE(loadStops, 0) AS stops FROM trips " +
+            "WHERE bikeId = :bikeId AND loadDistanceM IS NOT NULL AND loadAero IS NOT NULL AND loadAccel IS NOT NULL " +
+            "ORDER BY endedAtMs DESC",
+    )
+    fun observeTripLoads(bikeId: String): Flow<List<TripLoad>>
+
     // ---- 11b: fuel ----
 
     @Query("SELECT * FROM refuels WHERE bikeId = :bikeId ORDER BY timeMs DESC, id DESC")

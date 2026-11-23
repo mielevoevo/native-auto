@@ -6,7 +6,7 @@ Native Auto shows speed, a map, music, turn-by-turn navigation, calls and trip h
 built to be read at a glance and used with gloves on. It also keeps a Garage: your bikes, odometer, fuel
 and service reminders. Landscape and portrait mounts are both supported.
 
-Current version: **4.2.1** (Android 8.0+, `com.nativeauto`). An iOS port is in progress in [`ios/`](ios/).
+Current version: **4.6** (Android 8.0+, `com.nativeauto`). An iOS port is in progress in [`ios/`](ios/).
 
 ## What it does
 

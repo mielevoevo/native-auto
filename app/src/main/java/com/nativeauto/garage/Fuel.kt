@@ -118,6 +118,8 @@ data class TankMeasure(
     val km: Double,
     val litres: Double,
     val used: Boolean,
+    /** 4.3d: when the span began (the full fill before it); 0 for spans built elsewhere. */
+    val startTimeMs: Long = 0,
 ) {
     val kmPerL: Double get() = if (litres > 0) km / litres else 0.0
 }
@@ -195,9 +197,9 @@ fun learnConsumption(
                 estimate += (if (accepted == 0) KMPL_FIRST_WEIGHT else KMPL_WEIGHT) * (measured - estimate)
                 accepted++
             }
-            measures += TankMeasure(r.id, r.timeMs, km, litres, used = plausible)
+            measures += TankMeasure(r.id, r.timeMs, km, litres, used = plausible, startTimeMs = lastFull.timeMs)
         } else if (km > 0 && litres > 0) {
-            measures += TankMeasure(r.id, r.timeMs, km, litres, used = false)
+            measures += TankMeasure(r.id, r.timeMs, km, litres, used = false, startTimeMs = lastFull.timeMs)
         }
         lastFull = r
         litres = 0.0
@@ -219,12 +221,14 @@ data class FuelLevel(
     val unknownBecause: UnknownFuel? = null,
     /** 12b: walked from a gauge reading ("Set fuel level"), not from a full fill. */
     val fromGauge: Boolean = false,
+    /** 4.3d: how the riding lately moves the range ([rangeLoad]); 1.0 until the fill-ups have taught it. */
+    val loadFactor: Double = 1.0,
 ) {
     /** 12b: the one number the rider sees: [rangeKm] rounded down to 5 km. */
     val cautiousRangeKm: Long? get() = rangeKm?.let { (floor(it / RANGE_STEP_KM) * RANGE_STEP_KM).toLong() }
 
     /** Upper bound between readings: untracked km only show up at the next reading. */
-    val rangeKm: Double? get() = litres?.let { it * kmPerL }
+    val rangeKm: Double? get() = litres?.let { it * kmPerL * loadFactor }
     val fraction: Double? get() = litres?.let { (it / tankLitres).coerceIn(0.0, 1.0) }
     /** Litres to fill up now. */
     val toFillLitres: Double? get() = litres?.let { (tankLitres - it).coerceAtLeast(0.0) }

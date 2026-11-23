@@ -58,6 +58,14 @@ class GpxBackupTest {
         assertNull(back.points[1].bearingDeg)
     }
 
+    @Test fun `the riding load travels in the backup, and a trip without it reads back without it`() {
+        val loaded = trip.copy(loadIndex = 412.5, loadDistanceM = 600.0, loadAero = 60_000.0, loadAccel = 12.5, loadClimbM = 3.0, loadStops = 2)
+        val back = Backup.decode(Backup.encode(listOf(Backup.TripWithTrack(loaded, points), Backup.TripWithTrack(trip, points))))
+        assertEquals(loaded.copy(id = 0), back[0].trip)
+        assertNull(back[1].trip.loadIndex)
+        assertNull(back[1].trip.loadDistanceM)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `a newer backup format is refused`() {
         Backup.decode("""{"format": 99, "trips": []}""")

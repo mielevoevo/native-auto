@@ -393,6 +393,7 @@ private fun ExpandedGarage(
             color = colors.textDim,
             modifier = Modifier.testTag("garage_card_kmpl_source"),
         )
+        state.fuel.load.note?.let { LoadNote(it) }
         OutlinedButton(onClick = { haptics.tap(); onSetLevel() }, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_card_set_level")) {
             Text("Set fuel level")
         }

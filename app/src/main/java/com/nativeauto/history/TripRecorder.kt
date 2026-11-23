@@ -47,6 +47,8 @@ class TripRecorder @Inject constructor(
     private val clock: MonotonicClock,
     private val wall: WallClock,
     @ApplicationScope private val scope: CoroutineScope,
+    /** 4.3d: the live trip's riding load, for the range (published at each checkpoint). */
+    private val liveLoad: com.nativeauto.garage.LiveRidingLoad = com.nativeauto.garage.LiveRidingLoad(),
 ) {
     /** The short-trip limits; tests lower them to check the path geometry on short drives. */
     internal var minDistanceM = MIN_DISTANCE_M
@@ -76,10 +78,13 @@ class TripRecorder @Inject constructor(
         var checkpointed = 0
         var checkpointAtNanos = startedAtNanos
         var checkpointedPaused = false
+        /** 4.3d: the riding load's running sums (O(1) per fix). */
+        val load = com.nativeauto.garage.LoadAccumulator()
 
         fun add(sample: SpeedSample) {
             lastSample = sample
             fixes += sample
+            load.add(sample)
             val p = GeoPoint(sample.latitude, sample.longitude)
             val prev = points.lastOrNull()
             if (prev == null || haversineMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) >= MIN_STEP_M) {
@@ -103,6 +108,7 @@ class TripRecorder @Inject constructor(
                     if (r.startedAtNanos != key) {
                         // Cleared without ending: discarded (Reset), so nothing is saved.
                         rec = null
+                        liveLoad.publish(null)
                         if (!r.saved) clearCheckpoint()
                     }
                 }
@@ -116,6 +122,7 @@ class TripRecorder @Inject constructor(
                 if (sample != null && sample !== r.lastSample) r.add(sample)
                 if (state == TripState.Ended && !r.saved) {
                     r.saved = true
+                    liveLoad.publish(null)
                     save(r, endNanos = stats.endedAtNanos ?: clock.nowNanos())
                     clearCheckpoint()
                 } else if (state == TripState.Running || state == TripState.Paused) {
@@ -132,6 +139,7 @@ class TripRecorder @Inject constructor(
     /** Writes the figures and the new fixes in the background: the collector never waits on disk. */
     private fun checkpoint(r: Recording, stats: TripStats, paused: Boolean, nowNanos: Long) {
         r.checkpointAtNanos = nowNanos
+        liveLoad.publish(r.load.sums)
         r.checkpointedPaused = paused
         val from = r.checkpointed
         val newFixes = r.fixes.subList(from, r.fixes.size).toList()
@@ -232,7 +240,7 @@ class TripRecorder @Inject constructor(
                 stoppedMs = (s.elapsedNanos(endNanos) - s.movingNanos).coerceAtLeast(0) / 1_000_000,
                 // 11a: the bike selected last (a switch mid-trip moves the whole trip to it).
                 bikeId = bike.id(),
-            )
+            ).withLoad(r.load.sums)
         val full = r.fixes.map {
             TrackPointRecord(
                 tripId = 0,
@@ -289,3 +297,13 @@ sealed interface TripOutcome {
     /** Under the short-trip limits (or no usable path): not kept. */
     data object TooShort : TripOutcome
 }
+
+/** 4.3d: the riding load's sums on a trip record (the index is null on a trip too short to say). */
+internal fun TripRecord.withLoad(l: com.nativeauto.garage.LoadSums) = copy(
+    loadIndex = l.energyPerKm,
+    loadDistanceM = l.distanceM,
+    loadAero = l.aero,
+    loadAccel = l.accel,
+    loadClimbM = l.climbM,
+    loadStops = l.stops,
+)

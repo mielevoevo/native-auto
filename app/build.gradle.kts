@@ -39,8 +39,8 @@ android {
         // 26 is the floor for Location.speedAccuracyMetersPerSecond.
         minSdk = 26
         targetSdk = 37
-        versionCode = 30
-        versionName = "4.5"
+        versionCode = 31
+        versionName = "4.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_GOOGLE_MAPS_KEY", hasGoogleMapsKey.toString())

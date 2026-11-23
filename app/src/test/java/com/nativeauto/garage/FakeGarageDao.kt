@@ -44,6 +44,11 @@ internal class FakeGarageDao : GarageDao {
     override fun observeMetersSince(bikeId: String, sinceMs: Long, offsetM: Double) = trips.map { meters(it, bikeId, sinceMs, offsetM) }
     override suspend fun metersSince(bikeId: String, sinceMs: Long, offsetM: Double) = meters(trips.value, bikeId, sinceMs, offsetM)
     override suspend fun lastTrip(bikeId: String) = trips.value.filter { it.bikeId == bikeId }.maxByOrNull { it.endedAtMs }
+    override fun observeTripLoads(bikeId: String) = trips.map { list ->
+        list.filter { it.bikeId == bikeId && it.loadDistanceM != null && it.loadAero != null && it.loadAccel != null }
+            .sortedByDescending { it.endedAtMs }
+            .map { TripLoad(it.endedAtMs, it.loadDistanceM!!, it.loadAero!!, it.loadAccel!!, it.loadClimbM ?: 0.0, it.loadStops ?: 0) }
+    }
     override suspend fun deleteAllBikes() { bikes.value = emptyList() }
     val refuels = MutableStateFlow<List<RefuelRecord>>(emptyList())
     val prices = MutableStateFlow<List<FuelPrice>>(emptyList())

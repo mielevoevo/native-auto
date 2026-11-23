@@ -1,5 +1,10 @@
 # What's new in Native Auto
 
+## 4.6 (31) · 2026-11-24
+- The fuel range now learns how you ride. Each trip notes how hard it was ridden (speed, speeding up, stop-and-go, climbs), from the GPS fixes it already gets: no extra battery. Once four full-to-full fill-ups have shown how that changes your km/L, the range follows your last ~20 km of riding, at most 20% either way. Until then nothing changes.
+- When riding moves the range by 5% or more, the Garage says so under it ("Riding hard: −8%").
+- Backups carry the new trip figures; older backups still import.
+
 ## 4.5 (30) · 2026-11-24
 - Daily greeting: the first time you open the app each day, a short sheet says good morning (or afternoon, or evening) with your bike's range left and tank, the odometer and this week's riding, plus a service if one is due. Tap anywhere to close it; it also goes away by itself once a trip is running. Never during a trip or navigation, and not on the day you set the app up. Turn it off in Settings, Trip and Garage.
 - Settings, Display: the theme choice sits beside its label in landscape, so the page fits without scrolling.

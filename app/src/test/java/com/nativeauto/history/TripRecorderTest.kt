@@ -160,6 +160,11 @@ class TripRecorderTest {
         assertEquals(600.0, track.last().latitude * METERS_PER_DEGREE_LAT, 1.2)
         assertEquals("N 0 m", t.startAddress)
         assertEquals("N 600 m", t.endAddress)
+        // 4.3d: the riding load's sums go with it (steady speed: drag and rolling, no speeding up).
+        assertEquals(600.0, t.loadDistanceM!!, 1e-6)
+        assertEquals(SPEED.toDouble() * SPEED * 600.0, t.loadAero!!, 1.0)
+        assertEquals(0.0, t.loadAccel!!, 1e-9)
+        assertTrue(t.loadIndex!! > 0)
     }
 
     @Test fun `a trip under 100 m isn't kept`() = runTest {

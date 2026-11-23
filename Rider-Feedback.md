@@ -845,7 +845,7 @@ Status: the media swipe, auto-resume and the 10 km/h threshold shipped in **4.2.
 is under Trip options ("Auto-resume": off / 5 / 10 / 20 s). If the phone's Trip options row doesn't show it, the
 phone has an older build than 4.2.1.
 
-## Phase 4.3 plan: coherence, greeting, riding behaviour (rider, 2026-11-24; WIP, not started)
+## Phase 4.3 plan: coherence, greeting, riding behaviour (rider, 2026-11-24; DONE 2026-11-24: v4.3 to v4.6, see DECISIONS.md "Run 4.3")
 
 Comes from the rider's phone screenshots (`screenshots/nat-auto1..7`) and notes. **Versions (agreed
 2026-11-24):** 4.3a = v4.3 (vc 28), 4.3b = v4.4 (vc 29), 4.3c = v4.5 (vc 30), 4.3d = v4.6 (vc 31). Same rules as before: one commit,

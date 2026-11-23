@@ -56,7 +56,7 @@ class MigrationTest {
             db.version = 1
         }
 
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7).build()
         try {
             val dao = room.trips()
             val old = dao.observeAll().first().single()
@@ -131,6 +131,17 @@ class MigrationTest {
             assertEquals(1, live.points().size)
             live.clear()
             assertNull(live.trip())
+            // v7 (4.3d): the old trip has no riding load; a new one carries it, and the bike's load query reads it.
+            assertNull(dao.observe(old.id).first()?.loadIndex)
+            val loaded = dao.insertWithTrack(
+                old.copy(id = 0, bikeId = "b3", endedAtMs = 99, loadIndex = 400.0, loadDistanceM = 5_000.0, loadAero = 500_000.0, loadAccel = 30.0),
+                emptyList(),
+            )
+            assertEquals(400.0, dao.observe(loaded).first()!!.loadIndex!!, 0.0)
+            val loads = garage.observeTripLoads("b3").first()
+            assertEquals(1, loads.size)
+            assertEquals(0.0, loads.single().climbM, 0.0) // null climb reads as 0
+            assertEquals(5_000.0, loads.single().distanceM, 0.0)
         } finally {
             room.close()
         }

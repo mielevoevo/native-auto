@@ -80,6 +80,8 @@ data class FuelState(
     val refuels: List<RefuelRecord>,
     /** Rp per litre of the bike's fuel: the last price logged, else the default. */
     val pricePerL: Double,
+    /** 4.3d: the riding-load adjustment already in [level]'s range (factor 1.0 until learned). */
+    val load: RangeLoad = RangeLoad(),
 )
 
 /** What the rider types when adding or editing a service item (11c). */
@@ -120,6 +122,8 @@ class GarageRepository @Inject constructor(
     private val clock: MonotonicClock,
     private val wall: WallClock,
     @ApplicationScope private val scope: CoroutineScope,
+    /** 4.3d: the trip in progress' riding load (about once a minute). */
+    private val liveLoad: LiveRidingLoad = LiveRidingLoad(),
 ) : ActiveBike {
 
     val bikes: Flow<List<BikeRecord>> = dao.observeBikes()
@@ -192,18 +196,38 @@ class GarageRepository @Inject constructor(
             dao.observeRefuels(bikeId),
             dao.observeReadings(bikeId).map { rs -> rs.filter { it.readingKind == ReadingKind.AWAY }.map { it.timeMs } }.distinctUntilChanged(),
             odometer(bikeId).map { it.estimateKm },
-            combine(dao.observePrices(), dao.observeFuelMarks(bikeId), dao.observeDashKmPerL(bikeId), ::Triple),
-        ) { bike, refuels, away, odo, (prices, marks, dash) ->
+            combine(
+                dao.observePrices(),
+                dao.observeFuelMarks(bikeId),
+                dao.observeDashKmPerL(bikeId),
+                dao.observeTripLoads(bikeId),
+                dao.observeActive().map { it?.id == bikeId }.distinctUntilChanged()
+                    .flatMapLatest { isActive -> if (isActive) liveLoad.sums else flowOf(null) },
+                ::FuelExtras,
+            ),
+        ) { bike, refuels, away, odo, x ->
             val tank = bike?.tankLitres ?: BikeModel.OTHER.tankLitres
-            val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away, dash)
+            val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away, x.dash)
+            // 4.3d: the range follows how the bike is ridden lately, once the fill-ups have shown how that matters.
+            val load = rangeLoad(fitLoad(spanLoads(consumption.measures, x.loads.reversed())), recentLoad(x.loads, x.live))
             FuelState(
                 // 12b: the level burns at the cautious figure, so litres left and range lean low together.
-                level = fuelLevel(tank, consumption.cautiousKmPerL, refuels, away, odo, marks),
+                level = fuelLevel(tank, consumption.cautiousKmPerL, refuels, away, odo, x.marks).copy(loadFactor = load.factor),
                 consumption = consumption,
                 refuels = refuels,
-                pricePerL = priceOf(bike?.fuel ?: FuelType.PERTAMAX, prices),
+                pricePerL = priceOf(bike?.fuel ?: FuelType.PERTAMAX, x.prices),
+                load = load,
             )
         }.distinctUntilChanged()
+
+    private data class FuelExtras(
+        val prices: List<FuelPrice>,
+        val marks: List<FuelMark>,
+        val dash: List<DashKmPerL>,
+        /** Newest first. */
+        val loads: List<TripLoad>,
+        val live: LoadSums?,
+    )
 
     /**
      * Logs a fill-up. The odometer typed at the pump is the truth: if it differs from the

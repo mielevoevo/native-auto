@@ -51,6 +51,16 @@ data class TripRecord(
     @ColumnInfo(defaultValue = "0") val stoppedMs: Long = 0,
     /** The bike that was active (9c: the field only; the Garage fills it in phase 11). */
     val bikeId: String? = null,
+    /**
+     * 4.3d: the riding load ([com.nativeauto.garage.LoadSums]): energy per km (J/kg/km) and the raw sums it came from.
+     * Null for trips from before v4.6 and imported ones without it.
+     */
+    val loadIndex: Double? = null,
+    val loadDistanceM: Double? = null,
+    val loadAero: Double? = null,
+    val loadAccel: Double? = null,
+    val loadClimbM: Double? = null,
+    val loadStops: Int? = null,
 ) {
     val averageSpeedMps: Float get() = if (durationMs < 1_000) 0f else (distanceM / (durationMs / 1000.0)).toFloat()
     val movingAverageMps: Float get() = if (movingMs < 1_000) 0f else (distanceM / (movingMs / 1000.0)).toFloat()
@@ -148,7 +158,7 @@ interface RecentPlaceDao {
         RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
         ServiceItem::class, ServiceRecord::class, FuelMark::class, DashKmPerL::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -267,5 +277,13 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
                 "kmPerL REAL NOT NULL, tripKm REAL NOT NULL)",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS index_dash_kmpl_bikeId ON dash_kmpl (bikeId)")
+    }
+}
+
+/** 4.3d: the riding load on each trip (nullable: older trips have none). */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        listOf("loadIndex REAL", "loadDistanceM REAL", "loadAero REAL", "loadAccel REAL", "loadClimbM REAL", "loadStops INTEGER")
+            .forEach { db.execSQL("ALTER TABLE trips ADD COLUMN $it") }
     }
 }
