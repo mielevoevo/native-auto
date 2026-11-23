@@ -16,7 +16,7 @@ the Mac.
 - **Privacy (rider, 2026-11-16):** never write the rider's bike plate initials, home base or real email into files or
   commits. Bikes in tests and examples are "Gen 1" / "Gen 2". Commits use the GitHub no-reply address.
 - Git: branch `main`, one commit per finished sub-phase, push to the private GitHub repo when the rider says so.
-  Licence is WIP (see `Rider-Feedback.md`): keep MIT for now, don't add another.
+  Licence: all rights reserved (root `LICENSE`, 2026-11-24). Never add an open-source licence.
 - `ios/NativeAuto/Core/` is pure Swift (Foundation only), ported from the Kotlin with its tests; UI and platform code
   live elsewhere. Keep the figures identical to Android (same thresholds, same filters).
 

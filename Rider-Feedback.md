@@ -841,9 +841,107 @@ Short overview. Details are added once the rider's latest phone-test feedback is
   GitHub release;** the first release APK should be this update.
 - Version bump + changelog entry as usual; release smoke test before the APK.
 
+Status: the media swipe, auto-resume and the 10 km/h threshold shipped in **4.2.1** (versionCode 27). Auto-resume
+is under Trip options ("Auto-resume": off / 5 / 10 / 20 s). If the phone's Trip options row doesn't show it, the
+phone has an older build than 4.2.1.
+
+## Phase 4.3 plan: coherence, greeting, riding behaviour (rider, 2026-11-24; WIP, not started)
+
+Comes from the rider's phone screenshots (`screenshots/nat-auto1..7`) and notes. The rider decides the version numbers;
+**proposed:** 4.3a = v4.3 (vc 28), 4.3b = v4.4 (vc 29), 4.3c = v4.5 (vc 30), 4.3d = v4.6 (vc 31). Same rules as before: one commit,
+a changelog entry and a release APK per sub-phase.
+
+### 4.3a · Fixes and one design system for settings and dialogs
+
+Overall finding: everything works, but the screens don't follow one pattern. This sub-phase picks a pattern and
+applies it everywhere.
+- **The system status bar draws over the dashboard** (nat-auto1, 2, 5: the phone's clock sits on the "Speed" title,
+  and the status icons cover the header buttons). It should stay hidden. Re-hide it after sheets, dialogs and the
+  share sheet, and check `WindowInsetsController` behaviour on the rider's HyperOS. **Bug, first.**
+- **Settings sheet:**
+  - one fixed height for every tab (it grows and shrinks per tab now);
+  - more room between "Settings", the tab row and the page;
+  - the tab row fades out before "Done" instead of cutting a tab off ("Privac").
+- **One settings row pattern:** title + description on the left, the control on the right, the same height
+  everywhere. Applies to:
+  - Reset trip (now a bare button with the note under it);
+  - Backup (buttons are below the text now; Back up / Import go to the right of their descriptions);
+  - Reset app (button above its text);
+  - "Trip" + Trip history (the row has no description).
+- **Pane picker ("Show in this pane"):**
+  - less space above the title; drop the drag handle;
+  - remove Fullscreen and Maximize: the card's own buttons do this. Portrait Mini cards that have no buttons keep
+    those two, as icon tiles at the end of the grid, not header links.
+- **Dash km/L button in Rows:** the button is tiny there. Move it into the summary's figure row as a figure-sized
+  tile ("km/L +"), the same in every layout.
+- **Low-fuel icon:** it now floats at the speed card's top right, apart from everything. Proposed: in the header
+  beside the battery, as a status item (red pump + range, e.g. "⛽ 18 km"), so it reads like the battery warning.
+  Alternative: inline before the figures row. **Rider picks.**
+- **Trip complete in Rows** sits low, in the lower 60% of the card. Centre the block vertically, or start it under
+  the header like the other faces.
+- **Fullscreen Navigation card:** the arrow, distance, road, "Then" and arrival line are stacked in one column now.
+  Use the Compact/Wide arrangement instead (arrow on the left, distance + road beside it, arrival line under that
+  block), scaled up.
+- **"Bear left" → "Slight left"** (the same for right) in the banner text and the voice. Valhalla's English says
+  "bear". Rewrite it in `toInstruction` and in the spoken text before TTS. Also lower-case "Then Turn left" →
+  "Then turn left".
+
+### 4.3b · Look: icon titles, media buttons, faint icons
+
+- **Card titles as icons** (setting: Text / Icon, default Text so nothing changes until chosen). Icon mode uses the
+  picker's icons (map, note, gauge, turn, clock, pump). This also frees header room for the battery and clock.
+- **Media buttons with clear touch areas:** skip and previous get the same round, filled `buttonQuiet` plate as
+  play/pause (smaller), so all three read as buttons. The same in the call card.
+- **Faint pane icons (option, off by default):** a large, very low-contrast (~5–6% white on black) icon of the pane
+  behind its content (clock dial outline, gauge, note…). Only in Expanded / Fullscreen, never behind numbers in
+  Compact. Settings → Display.
+
+### 4.3c · Daily greeting (once per day)
+
+- On the first app open of the day (local date, stored in its own DataStore key like the changelog's), a sheet or
+  card: greeting by time of day plus a bike status, most of all the **cautious fuel range** and the tank gauge. Then
+  odometer, the next service (if due soon), and yesterday's or this week's ride total.
+- Not while a trip runs or navigation is active; not on the same day as first-run setup. If the changelog is
+  pending too, the greeting comes first and the changelog after it.
+- Dismiss with a tap or swipe; it goes away by itself after ~8 s once moving. No bike → a short greeting only.
+- Setting to turn it off (Display).
+
+### 4.3d · Riding behaviour in the fuel estimate (design first, kept light)
+
+Goal: the range reacts to *how* the bike is ridden now, not only to the long-run km/L. Constraint: no new sensors
+or extra GPS. Use only the fixes the trip already gets, O(1) work per fix, no per-fix storage beyond what the
+track keeps.
+- **Per fix (1 Hz), running sums only:** speed² (aerodynamic load ∝ v²·distance), positive acceleration × speed
+  (energy spent speeding up), climb (Δaltitude > 0, smoothed; GPS altitude is noisy, so a ~10 s moving average and
+  a 2 m dead band), stop-start count.
+- **Per trip:** a "load index" = the energy estimate per km against the rider's own baseline (median of past
+  trips). Stored on the trip row (Room migration, one or two columns).
+- **Learning:** at each full-to-full refuel span, fit km/L against the span's mean load index (one-variable
+  least-squares, updated by recursive sums, weighted like `learnConsumption`). Until there are enough spans
+  (≥ 4), the factor stays 1.0. The model is not used if the fit doesn't explain anything.
+- **Range now:** `cautiousKmPerL × f(load of the last ~20 km)`, clamped to ±20%. It is shown as the same range
+  number, so the screen doesn't change. A small note ("riding hard: −12%") is shown only when the factor is beyond
+  ±5%.
+- First step: record the sums on trips for a while (cheap), check them against real refuels, and only then switch
+  the range over. Pure Kotlin with unit tests (`RidingLoadTest`).
+
+### WIP ideas (not scheduled)
+
+- **Export a ride as a game track.** A cleaned centreline (projected to metres, resampled, smoothed, a minimum bend
+  radius, optional closed loop), as GPX or CSV for **Assetto Corsa** / BeamNG tools, or for GT6 through eran0004's
+  *Track Layout Creator* (GPX/CSV in → `.ted` out; GTPlanet "Course Maker Toolbox"). The rider has a HEN PS3; test the
+  chain by hand first (GPX from History → Track Layout Creator → `.ted` → PS3). Writing `.ted` from the app comes
+  only if that works.
+- **"Ride as a circuit" view.** The trip drawn as a circuit (no map), coloured by speed, with 3 sectors, top speed,
+  the sharpest bend, start/finish, and a badge when the ride is a closed loop. A face in the trip summary / history
+  detail.
+
 ## WIP: licence (rider, 2026-11-16; decide before the repo goes public)
 
-The GitHub repo is private for now; the MIT `LICENSE` stays until then. The rider does **not** want others to reuse or
+**Done in the current tree (2026-11-24):** `LICENSE` is all rights reserved (view only), README updated. Still open: the
+history rewrite below (rider confirms first; it needs a force-push).
+
+The GitHub repo is private for now. The rider does **not** want others to reuse or
 modify the code. Before making the repo public:
 - Choose the licence (likely "all rights reserved" / no licence; source visible only).
 - Remove the MIT file from the **whole history** (rewrite + force-push to the private repo), not just the latest commit,

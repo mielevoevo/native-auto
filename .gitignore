@@ -28,3 +28,6 @@ Screenshot*
 /ios/.spm/
 xcuserdata/
 DerivedData/
+
+# Portfolio notes (local only)
+/TECH-STACK.md

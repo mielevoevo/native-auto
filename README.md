@@ -6,7 +6,7 @@ Native Auto shows speed, a map, music, turn-by-turn navigation, calls and trip h
 built to be read at a glance and used with gloves on. It also keeps a Garage: your bikes, odometer, fuel
 and service reminders. Landscape and portrait mounts are both supported.
 
-Current version: **4.2** (Android 8.0+, `com.nativeauto`).
+Current version: **4.2.1** (Android 8.0+, `com.nativeauto`). An iOS port is in progress in [`ios/`](ios/).
 
 ## What it does
 
@@ -29,7 +29,7 @@ sensors, adapter or account. It is the screen you glance at while riding, on the
 Native Auto was built by one rider working with [Claude Code](https://claude.com/claude-code): the rider
 sets the goals, tests on a real bike and decides; the AI writes most of the code. Design decisions and
 the reasons for them are written down in [`DECISIONS.md`](DECISIONS.md) and [`CLAUDE.md`](CLAUDE.md), so you
-can judge the choices yourself. Bug reports and ideas are welcome as issues.
+can judge the choices yourself. Bug reports and ideas are welcome as issues; pull requests are not accepted.
 
 ## Build it
 
@@ -61,7 +61,8 @@ contributors. Font: [Geist](https://vercel.com/font) (SIL OFL 1.1).
 
 ## Licence
 
-All rights reserved: see [LICENSE](LICENSE).
+All rights reserved: the source is public to read, not to reuse, modify or redistribute. See [`LICENSE`](LICENSE).
+The Native Auto name and logo are not licensed. Third-party components keep their own licences.
 
 Native Auto is an independent project. It is not affiliated with, endorsed by or connected to Google
 (Android, Android Auto, Google Maps), Apple (CarPlay), TomTom or any motorcycle maker. Those names belong to
