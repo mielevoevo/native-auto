@@ -935,7 +935,6 @@ track keeps.
 
 ## WIP: licence (rider, 2026-11-16; decide before the repo goes public)
 
-**Done (2026-11-24):** `LICENSE` is all rights reserved (read, and build for personal use; no publishing of copies,
-modified versions or derived apps); README explains it in a friendly tone (issues welcome, no pull requests). The
-history was rewritten locally so every past commit carries this licence and no plate initials; it waits for the
-rider's force-push. GitHub releases start at v4.3; earlier builds stay private test builds (no reason given publicly).
+**Done (2026-11-24):** `LICENSE` is **PolyForm Strict 1.0.0** (rider chose the standard licence over the custom notice:
+noncommercial use only, no changes, redistribution or derived works; name and logo not licensed); README explains it in a friendly tone (issues welcome, no pull requests). History rewritten and force-pushed (no MIT, no plate initials); old history purged locally. Commits before
+this one carry the earlier custom all-rights-reserved notice. GitHub releases start at v4.3; earlier builds stay private test builds (no reason given publicly).

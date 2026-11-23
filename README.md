@@ -67,11 +67,11 @@ contributors. Font: [Geist](https://vercel.com/font) (SIL OFL 1.1).
 ## Licence
 
 Native Auto is my first published app and an idea I care about, so the code is shared to be read, not
-reused. You're welcome to read it, learn from it, and build it for yourself. Please don't publish copies,
-modified versions or apps based on it. The details are in [`LICENSE`](LICENSE) (all rights reserved). If you'd
-like to use part of it, open an issue and ask; I'm happy to talk.
+reused. It is under the [PolyForm Strict License 1.0.0](LICENSE): you're welcome to read it, learn from it and
+build it for your own noncommercial use, but please don't change it, redistribute it or build new apps on it.
+If you'd like to use part of it, open an issue and ask; I'm happy to talk.
 
-The Native Auto name and logo are mine. Third-party libraries and the Geist font keep their own licences.
+The Native Auto name and logo are mine and are not licensed. Third-party libraries and the Geist font keep their own licences.
 
 Native Auto is an independent project. It is not affiliated with, endorsed by or connected to Google
 (Android, Android Auto, Google Maps), Apple (CarPlay), TomTom or any motorcycle maker. Those names belong to
