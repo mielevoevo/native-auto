@@ -827,3 +827,9 @@ Unattended run 15a -> 15b on the Mac (2026-11-16). Simulator: iPhone 17 (iOS 27.
 - **Landscape media swipe:** Compact, Wide, Expanded and Fullscreen landscape cards take the portrait swipe; unlike
   portrait's small cards they **keep** their skip buttons (room for them, and gloves). No other horizontal gesture on
   those cards to clash with.
+
+## Run 4.3 (unattended, 4.3a -> 4.3d, started 2026-11-24)
+
+Spec: `.dev/Phase-4.3-Unattended.md` (rider's screenshots + notes, `Rider-Feedback.md` "Phase 4.3 plan"). Every UI change
+reviewed against `DESIGN.md`; each build's critique is logged below.
+
