@@ -924,6 +924,9 @@ track keeps.
 
 ### WIP ideas (not scheduled)
 
+- **Repo screenshot:** replace `nativeauto_v1.1.jpg` (old v1.1 look, a real album cover in the media card) with a current
+  emulator screenshot that has no third-party artwork, and show it in the README.
+
 - **Export a ride as a game track.** A cleaned centreline (projected to metres, resampled, smoothed, a minimum bend
   radius, optional closed loop), as GPX or CSV for **Assetto Corsa** / BeamNG tools, or for GT6 through eran0004's
   *Track Layout Creator* (GPX/CSV in → `.ted` out; GTPlanet "Course Maker Toolbox"). The rider has a HEN PS3; test the
