@@ -158,7 +158,7 @@ interface RecentPlaceDao {
         RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
         ServiceItem::class, ServiceRecord::class, FuelMark::class, DashKmPerL::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -285,5 +285,12 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         listOf("loadIndex REAL", "loadDistanceM REAL", "loadAero REAL", "loadAccel REAL", "loadClimbM REAL", "loadStops INTEGER")
             .forEach { db.execSQL("ALTER TABLE trips ADD COLUMN $it") }
+    }
+}
+
+/** 4.6.1: each bike's low-fuel warning, in km of range left. */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE bikes ADD COLUMN lowFuelKm INTEGER NOT NULL DEFAULT 30")
     }
 }

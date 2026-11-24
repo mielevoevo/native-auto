@@ -941,3 +941,70 @@ track keeps.
 **Done (2026-11-24):** `LICENSE` is **PolyForm Strict 1.0.0** (rider chose the standard licence over the custom notice:
 noncommercial use only, no changes, redistribution or derived works; name and logo not licensed); README explains it in a friendly tone (issues welcome, no pull requests). History rewritten and force-pushed (no MIT, no plate initials); old history purged locally. Commits before
 this one carry the earlier custom all-rights-reserved notice. GitHub releases start at v4.3; earlier builds stay private test builds (no reason given publicly).
+
+## Plan v4.6.1 to v4.7 (rider, 2026-11-24; kept, NOT started: waits for "start" after the v5.0 brainstorm)
+
+Found on the phone with v4.6. Proposals the rider has not explicitly confirmed are marked (proposed).
+- **v4.6.1 fixes:** settings sheet jumps when scrolled up (not reproduced; suspect the sheet's nested scroll: stop swipes
+  moving it); 4-stack (Mini) headers too close to the top, match landscape margins; the speed card shows the log face first
+  (a trip's end scrolls to it and it stays while the process lives); Today as the sixth figure tile on the half-size log
+  face (rider: option A), nothing clipped. Range adjustment off until v4.7 and changelog corrected (proposed).
+  Speed or log face first: **decided**, see "Roadmap v4.6.1 to v5.0". Cards kept together (proposed).
+- **v4.6.2 settings:** no Audio, Backup or Privacy tabs; Others holds What's new, Backup, permissions, Reset app; voice
+  guidance with navigation; call controls to Display; permission named "Call permission"; auto-start moved; Colours no longer
+  between Theme and Card titles; every menu balance-checked with DESIGN.md. Greeting: once a day / every open / off.
+  Proposed: merge Layout and Navigation (four tabs); "Trip automation" holds auto-start, pause, resume, end.
+- **v4.6.3 portrait:** larger text, uniform sizes per role; faint icon stays on the card edge (rider), smaller, clear of
+  the buttons (proposed).
+- **v4.7 fuel:** traffic jams, uphill jams and other factors (rider). 4.3d counts stops but does not use them, and idling is
+  ignored, so a jam can read as easy riding. Discuss the starting costs before building.
+- **Later:** Google SDK replaces OpenFreeMap eventually (rider). iOS on hold (rider).
+
+## Idea: v5.0 car mode (rider, 2026-11-24; PARKED until the rider calls for it)
+
+- An extension of the app, not a second app. For the rider's car with no head unit (phone, sound over AUX): one central
+  control. Also useful for the tablet idea. Motorcycle stays the focus; the rider tests in the car later.
+- Overlaps AGAMA, DMD2, MotoNAVApp: fine as a category, but copy no names, icons, artwork, themes or distinctive layouts.
+- Proposed (not confirmed): the vehicle chosen in the Garage sets routing, fuel and layout; Bluetooth picks the vehicle;
+  range left at the destination. With AUX, Bluetooth can't identify the car, so it needs another trigger.
+- Needs: car routing (tolls), car Garage, car fuel figures, larger text, tablets. No electric cars in v5.0.
+- **Garage polish (rider, motorcycle first; to discuss):** more logic and fine-tuning options for added vehicles.
+
+### Garage direction (rider, 2026-11-24; NOT started)
+
+- **Universal bikes**, not NMAX only: general all-rounders such as Vario 110 to 160, BeAT, PCX.
+- **Low-fuel threshold chosen by the rider**, with a default. The warning at about 50 km left felt too cautious.
+- v4.x is expected to be mostly QoL updates.
+- Proposed: pick a type and tank size (model presets only prefill, sourced from spec sheets); threshold in km, per bike,
+  default 30 km (20 / 30 / 40 / 50 / custom); gauge, fine-tuning and threshold in v4.7, fill-up review, range caution,
+  service sets and custom fuels in v4.8.
+
+## Roadmap v4.6.1 to v5.0 (rider, 2026-11-24; agreed, NOT started: builds wait for the rider's "start")
+
+| Version | Contents |
+|---|---|
+| 4.6.1 | Fixes, Today tile, low-fuel threshold (30 km default), range adjustment off until 4.7 |
+| 4.6.2 | Settings tabs, greeting choices, call permission |
+| 4.6.3 | Portrait sizes as one shared scale (4.9 reuses it), smaller faint icon on the card edge |
+| 4.7 | Traffic-aware fuel, universal bikes, gauge per bike, Fine-tuning |
+| 4.8 | Fill-up review, range caution, service sets, custom fuels |
+| 4.9 | Tablet preview (bike mode), below |
+| 5.0 | Car mode (parked until the rider calls for it) |
+| 5.1 | App tutorial: how to use the app, on first install or after Reset app (rider; WIP) |
+
+Speed or log face (4.6.1, rider): opened while stationary shows the log face (Start); while moving shows speed.
+Proposed details: moving = 10 km/h for 3 s; no fix yet counts as stationary; a running trip stays on speed at stops, a
+paused one shows the log face; a swipe by hand wins until the app is next opened or the trip changes.
+
+Still open: fuel starting costs (discuss before 4.7).
+
+### 4.9 · Tablet preview (bike mode)
+Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 2021 Wi-Fi assumed).
+- **Detection, no mode switch:** window's smaller side >= 600 dp. Split screen falls back to the phone layout. Layouts saved
+  separately from the phone's. One setting, **only on large screens**: Layout > "Large-screen view" Auto / Phone view.
+- **Enlarged by role, not zoom:** speed, clock and turn distance most, text moderately, headers least (4.6.3 scale).
+- **Layouts:** map + three (default, map ~60 %), map + four (2 x 2), six grid (3 x 2), wide map + strip of four; portrait: big map
+  over a 2 x 2 grid. Phone layouts that still work stay. Settings, Garage and history adapted to large screens.
+- **GPS without Google services:** `FusedSpeedSampleSource` is the only reader and needs Play services; fall back to Android's
+  LocationManager. No GPS: say so plainly. Keep MapLibre as the fallback when Google's map / Navigation SDK arrives.
+- Rider's check beforehand: does v4.6 open on the MatePad, does the map draw, does the speed move (outdoors)?

@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.requiredHeightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -123,10 +125,8 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
             Box(Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
                 LogControls(ui.tripState, log.endArmed, actions)
             }
-            StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = 2, tileHeight = 76.dp)
+            StatGrid(ui.tripStats(log.visible, prefix = "log_") + periodStat(log, ui), columns = 2, tileHeight = 76.dp)
             log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) }
-            Spacer(Modifier.height(12.dp))
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { PeriodTotal(log, ui, small = false) }
         }
         mode == CardMode.Wide -> Row(
             Modifier.requiredHeightIn(min = 112.dp).fillMaxSize().padding(horizontal = 24.dp),
@@ -139,14 +139,20 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
                 ui.tripStats(log.visible, prefix = "log_").take(4).forEach { InlineStat(it) }
             }
         }
-        mode == CardMode.Expanded -> Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+        // 4.6.1: the period total is the last tile (it was a line under the tiles, cut off on a half-height card). Sizes
+        // follow the number of rows, not the measured height (rule #6); a short phone scrolls instead of clipping.
+        mode == CardMode.Expanded -> Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        ) {
+            val stats = ui.tripStats(log.visible, prefix = "log_") + periodStat(log, ui)
+            val columns = if (portrait) 2 else 3
+            val rows = (stats.size + columns - 1) / columns
+            val dense = rows > 3 || (rows == 3 && log.reminder != null)
             Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                 LogControls(ui.tripState, log.endArmed, actions)
             }
             log.reminder?.let { ServiceBadge(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp)) }
-            StatGrid(ui.tripStats(log.visible, prefix = "log_"), columns = if (portrait) 2 else 3, tileHeight = 76.dp)
-            Spacer(Modifier.height(12.dp))
-            PeriodTotal(log, ui, small = false)
+            StatGrid(stats, columns, tileHeight = if (dense) 52.dp else 72.dp, dense = dense)
         }
         else -> Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
             Column(Modifier.weight(1.1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
@@ -173,9 +179,9 @@ private fun LogCompact(ui: SpeedometerUiState, log: TripLogUi, actions: TripLogA
         LogControls(ui.tripState, log.endArmed, actions, small = small)
         Spacer(Modifier.height(10.dp))
         Text(
-            "${formatElapsed(ui.elapsed)} · ${"%.1f".format(ui.distance)} ${ui.unit.distanceLabel}",
-            style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
-            color = AppTheme.colors.textDim,
+            "Trip ${"%.1f".format(ui.distance)} ${ui.unit.distanceLabel} · ${formatElapsed(ui.elapsed)}",
+            style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
+            color = AppTheme.colors.text,
             maxLines = 1,
             softWrap = false,
             modifier = Modifier.testTag("log_line"),
@@ -244,6 +250,12 @@ private fun LogButton(
     ) {
         Icon(icon, contentDescription = stringResource(description), modifier = Modifier.size(if (size < 60.dp) 28.dp else 32.dp))
     }
+}
+
+/** 4.6.1: the period total as a tile ("TODAY", 42.3 km), after the trip's figures. */
+private fun periodStat(log: TripLogUi, ui: SpeedometerUiState): Stat {
+    val text = formatDistance(log.periodM, ui.unit)
+    return Stat("log_period", log.period.lead.uppercase(), text.substringBeforeLast(' '), text.substringAfterLast(' '))
 }
 
 /** 12b (R2): "Today 42.3 km", in the speed unit's distance, saved trips plus the live one. */

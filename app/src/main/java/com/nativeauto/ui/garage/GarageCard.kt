@@ -87,8 +87,8 @@ import kotlinx.coroutines.launch
 
 /** The active bike's card, or null with no bike; [loaded] false until the database answers. */
 data class GarageCardUi(val loaded: Boolean = false, val state: GarageCardState? = null) {
-    /** The tank's last segment (§6): the speed card's small red icon, and red on the Garage card. */
-    val lowFuel: Boolean get() = state?.fuel?.level?.fraction?.let { it <= LOW_FUEL_FRACTION } == true
+    /** 4.6.1: the bike's own warning (km left): the header's red pump. */
+    val lowFuel: Boolean get() = state?.fuel?.level?.low == true
 
     /** The service reminder for the log face and the trip summary (§6 "When reminders appear"). */
     val reminder: ServiceDue? get() = state?.reminder
@@ -149,25 +149,25 @@ fun tankSegments(fraction: Double, previous: Int?): Int {
 }
 
 /**
- * A fuel-tank icon of stacked bars, like a retro battery meter: lit segments white; at the last
- * one it turns red (no amber step, no blinking); empty slots stay as faint outlines, so the
+ * A fuel-tank icon of stacked bars, like a retro battery meter: lit segments white; red when [low]
+ * (4.6.1: the bike's own warning, not the last segment; no amber step, no blinking); empty slots stay as faint outlines, so the
  * tank's shape is always there. Unknown fuel: all outlines.
  */
 @Composable
-fun TankGauge(fraction: Double?, modifier: Modifier = Modifier, icon: TankIcon = TankIcon.GAUGE) {
+fun TankGauge(fraction: Double?, modifier: Modifier = Modifier, icon: TankIcon = TankIcon.GAUGE, low: Boolean = false) {
     val colors = AppTheme.colors
     val held = remember { intArrayOf(-1) }
     val lit = fraction?.let { tankSegments(it, held[0].takeIf { h -> h >= 0 }) } ?: 0
     held[0] = if (fraction == null) -1 else lit
-    val fill = if (fraction != null && lit <= 1) colors.red else colors.text
+    val fill = if (low) colors.red else colors.text
     val outline = colors.outline
     val description = if (fraction == null) "Fuel unknown" else "Fuel $lit of $TANK_SEGMENTS"
     if (icon == TankIcon.PLAIN) {
-        // 13a: a fixed pump icon, red in the last segment (like the gauge), no other states.
+        // 13a: a fixed pump icon, red when low (like the gauge), no other states.
         Icon(
             AppIcons.Fuel,
             contentDescription = description,
-            tint = if (fraction != null && lit <= 1) colors.red else colors.text,
+            tint = fill,
             modifier = modifier.testTag("garage_tank"),
         )
         return
@@ -280,7 +280,7 @@ private fun bigValue(state: GarageCardState, value: GarageValue): BigValue {
             // 12b (R1): one cautious number, rounded down to 5 km.
             val level = state.fuel.level
             val range = level.cautiousRangeKm
-            val low = (level.fraction ?: 1.0) <= LOW_FUEL_FRACTION
+            val low = level.low
             val label = when {
                 range == null && level.unknownBecause == UnknownFuel.AWAY -> "fill up or set level"
                 range == null -> "set fuel level"
@@ -332,6 +332,7 @@ private fun SmallGarage(state: GarageCardState, value: GarageValue, mode: CardMo
                 state.fuel.level.fraction,
                 Modifier.size(width = if (wide) 44.dp else if (small) 32.dp else 40.dp, height = if (wide) 80.dp else if (small) 60.dp else 72.dp),
                 tankIcon,
+                state.fuel.level.low,
             )
             Spacer(Modifier.width(if (small) 10.dp else 16.dp))
         }
@@ -372,7 +373,7 @@ private fun ExpandedGarage(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TankGauge(state.fuel.level.fraction, Modifier.size(width = 48.dp, height = 88.dp), tankIcon)
+            TankGauge(state.fuel.level.fraction, Modifier.size(width = 48.dp, height = 88.dp), tankIcon, state.fuel.level.low)
             Spacer(Modifier.width(16.dp))
             ValueText(bigValue(state, GarageValue.RANGE), 48.sp)
             Spacer(Modifier.weight(1f))

@@ -45,6 +45,9 @@ import com.nativeauto.ui.components.PinnedActionDialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nativeauto.garage.BikeDraft
+import com.nativeauto.garage.DEFAULT_LOW_FUEL_KM
+import com.nativeauto.garage.LOW_FUEL_CHOICES_KM
+import com.nativeauto.garage.LOW_FUEL_RANGE_KM
 import com.nativeauto.garage.BikeModel
 import com.nativeauto.garage.BikeRecord
 import com.nativeauto.garage.DEFAULT_KM_PER_L
@@ -101,12 +104,17 @@ internal fun BikeEditor(
     var reserve by rememberSaveable { mutableStateOf(trimNumber(bike?.reserveLitres ?: model.reserveLitres)) }
     var kmPerL by rememberSaveable { mutableStateOf(trimNumber(bike?.startKmPerL ?: DEFAULT_KM_PER_L)) }
     var odometer by rememberSaveable { mutableStateOf("") }
+    // 4.6.1: the low-fuel warning; null = a custom number in the field.
+    val savedLow = bike?.lowFuelKm ?: DEFAULT_LOW_FUEL_KM
+    var lowChoice by rememberSaveable { mutableStateOf(savedLow.takeIf { it in LOW_FUEL_CHOICES_KM }) }
+    var lowCustom by rememberSaveable { mutableStateOf("$savedLow") }
+    val lowKm = lowChoice ?: parseNumber(lowCustom)?.toInt()?.takeIf { it in LOW_FUEL_RANGE_KM }
 
     val tankL = parseNumber(tank)?.takeIf { it in 1.0..50.0 }
     val reserveL = parseNumber(reserve)?.takeIf { tankL != null && it < tankL }
     val kmL = parseNumber(kmPerL)?.takeIf { it in 5.0..150.0 }
     val odoKm = if (odometer.isBlank()) null else parseNumber(odometer, thousands = true)
-    val valid = name.isNotBlank() && tankL != null && reserveL != null && kmL != null && (odometer.isBlank() || odoKm != null)
+    val valid = name.isNotBlank() && tankL != null && reserveL != null && kmL != null && lowKm != null && (odometer.isBlank() || odoKm != null)
 
     GarageDialog(
         tag = "garage_editor",
@@ -117,7 +125,7 @@ internal fun BikeEditor(
             Spacer(Modifier.width(8.dp))
             FilledTonalButton(
                 onClick = {
-                    onSave(BikeDraft(name.trim(), model, tankL!!, reserveL!!, fuel, kmL!!), odoKm)
+                    onSave(BikeDraft(name.trim(), model, tankL!!, reserveL!!, fuel, kmL!!, lowKm!!), odoKm)
                 },
                 enabled = valid,
                 modifier = Modifier.heightIn(min = 56.dp).testTag("garage_save"),
@@ -150,6 +158,17 @@ internal fun BikeEditor(
                     NumberField(reserve, { reserve = it }, "Reserve (L)", reserveL == null, "garage_reserve", Modifier.weight(1f))
                 }
                 NumberField(kmPerL, { kmPerL = it }, "Starting km/L", kmL == null, "garage_kmpl", Modifier.fillMaxWidth())
+                Text("Warn when low, km left", style = MaterialTheme.typography.titleMedium)
+                Segments<Int?>(LOW_FUEL_CHOICES_KM + null, lowChoice, { it?.toString() ?: "Other" }, { "garage_low_${it ?: "OTHER"}" }) {
+                    haptics.tick()
+                    lowChoice = it
+                }
+                if (lowChoice == null) {
+                    NumberField(
+                        lowCustom, { lowCustom = it }, "Warn at (${LOW_FUEL_RANGE_KM.first} to ${LOW_FUEL_RANGE_KM.last} km)", lowKm == null,
+                        "garage_low_input", Modifier.fillMaxWidth(), whole = true,
+                    )
+                }
                 if (bike == null) {
                     NumberField(
                         odometer, { odometer = it }, "Odometer now (km, optional)", odometer.isNotBlank() && odoKm == null,

@@ -56,7 +56,7 @@ class MigrationTest {
             db.version = 1
         }
 
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7, com.nativeauto.history.MIGRATION_7_8).build()
         try {
             val dao = room.trips()
             val old = dao.observeAll().first().single()
@@ -101,6 +101,10 @@ class MigrationTest {
             garage.upsertPrice(com.nativeauto.garage.FuelPrice("PERTAMAX", 12_900.0, 1))
             garage.upsertPrice(com.nativeauto.garage.FuelPrice("PERTAMAX", 13_000.0, 2))
             assertEquals(13_000.0, garage.observePrices().first().single().pricePerL, 0.0)
+            // v8 (4.6.1): the low-fuel warning.
+            assertEquals(30, garage.bike("b1")!!.lowFuelKm)
+            garage.updateBike(garage.bike("b1")!!.copy(lowFuelKm = 50))
+            assertEquals(50, garage.bike("b1")!!.lowFuelKm)
             garage.deleteBike("b1")
             assertTrue(garage.observeRefuels("b1").first().isEmpty())
             // v5: a service item, marked done; deleting its bike takes it and its history.

@@ -59,10 +59,17 @@ class TripSummaryDashTest {
         rule.setContent {
             NativeAutoTheme { LogFace(CardMode.Expanded, idle, log, TripLogActions.None) }
         }
-        rule.waitUntil(5_000) { text("log_period") == "This week 42.3 km" }
+        rule.waitUntil(5_000) { tile("log_period") == listOf("THIS WEEK", "42.3", "km") }
         log = log.copy(period = TotalPeriod.MONTH, periodM = 120_000.0)
-        rule.waitUntil(5_000) { text("log_period") == "This month 120.0 km" }
+        rule.waitUntil(5_000) { tile("log_period") == listOf("THIS MONTH", "120.0", "km") }
     }
+
+    /** A tile's texts, top to bottom. */
+    private fun tile(t: String): List<String> =
+        rule.onAllNodes(androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.hasTestTag(t)), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .filter { androidx.compose.ui.semantics.SemanticsProperties.Text in it.config }
+            .map { n -> n.config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString { it.text } }
 
     private fun text(t: String): String? = rule.onAllNodesWithTag(t, useUnmergedTree = true).fetchSemanticsNodes()
         .firstOrNull()?.config?.let { c -> if (androidx.compose.ui.semantics.SemanticsProperties.Text in c) c[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString { it.text } else null }

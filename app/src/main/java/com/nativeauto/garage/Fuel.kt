@@ -223,7 +223,12 @@ data class FuelLevel(
     val fromGauge: Boolean = false,
     /** 4.3d: how the riding lately moves the range ([rangeLoad]); 1.0 until the fill-ups have taught it. */
     val loadFactor: Double = 1.0,
+    /** 4.6.1: the bike's low-fuel warning: at or below this many km on the range shown. */
+    val lowFuelKm: Int = DEFAULT_LOW_FUEL_KM,
 ) {
+    /** The one low-fuel rule (header pump, Garage card, bike detail, greeting). Unknown fuel is never low. */
+    val low: Boolean get() = cautiousRangeKm?.let { it <= lowFuelKm } == true
+
     /** 12b: the one number the rider sees: [rangeKm] rounded down to 5 km. */
     val cautiousRangeKm: Long? get() = rangeKm?.let { (floor(it / RANGE_STEP_KM) * RANGE_STEP_KM).toLong() }
 
@@ -235,6 +240,13 @@ data class FuelLevel(
 }
 
 enum class UnknownFuel { NO_FULL_FILL, AWAY }
+
+/** 4.6.1 (rider): the low-fuel warning, in km left, per bike. */
+const val DEFAULT_LOW_FUEL_KM = 30
+val LOW_FUEL_CHOICES_KM = listOf(20, 30, 40, 50)
+
+/** What a custom warning may be; below 20 km the estimate isn't exact enough to rely on. */
+val LOW_FUEL_RANGE_KM = 20..150
 
 /** The range is rounded down to this. */
 const val RANGE_STEP_KM = 5.0

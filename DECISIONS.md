@@ -1008,3 +1008,36 @@ saved), `GpxBackupTest` (fields round-trip, old trips without them); device `Mig
 7. Media skips on their plates; swipe still changes track.
 8. Next morning: the greeting with the range; not again that day; not during a trip.
 9. Range: unchanged until four full fills on v4.6; then a "Riding hard / easy" note only past 5 %.
+
+## Run 4.6.1-4.6.3 (unattended, rider's "Start 4.6.1 to 4.6.3 unattended", 2026-11-24)
+
+**Not done in this run: anything that needs the emulator.** Claude Code had stopped it because the PC was low on memory, with
+the instruction to restart it only when the rider asks. So for these builds the device tests, the design shots, the release
+smoke test, the launch of the exact APK and the APK export are **pending**. Unit tests and compiles ran. No APK goes to the
+phone before the smoke test (the v3.2 rule). Device tests were updated with the code but have not been run.
+
+### 4.6.1 (versionCode 32)
+
+- **Settings jump:** not reproduced. `sheetGesturesEnabled = false` on the settings sheet only: its nested-scroll link is the
+  suspect, and cutting it removes the hand-over of a fling. Cost: no swipe-down to close (Done, Back, tap outside). Each tab
+  also keeps its own scroll position now.
+- **Face rule (`ui/speed/SpeedFace.kt`, rider):** `SpeedFaceState` (pure) + `RidingDetector` (auto-start's 10 km/h proof, held 3 s;
+  the first usable fix after opening needs no hold). Replaces 13a's "always opens on the speed face". No location access or
+  location off shows the speed face: that is where Allow / Turn on sits.
+- **Today tile (rider, option A):** `periodStat` is the last tile on the Expanded log face and portrait Fullscreen. Tile size
+  follows the number of rows (rule #6, never the measured height); a short phone scrolls. Landscape Fullscreen keeps the big
+  line: it has half a screen to itself. Small log faces label two lines, "Trip 3.4 km · 12:04" and "Today 42.3 km". *Reason
+  against the one line proposed earlier:* it would lose the trip time or overflow a half-width card.
+- **Header:** four stacked cards get the same 6 + 48 dp as the other portrait cards; only slim rows beside a maximized card stay lower.
+- **Low fuel (rider; 30 km proposed, taken with "start"):** `bikes.lowFuelKm` (Room **v8**, `MIGRATION_7_8`), `FuelLevel.low`
+  (the range shown <= the warning) is the one rule for the header pump, Garage card, bike detail and greeting. `TankGauge` turns
+  red on it, not on the last segment. Own values 20 to 150 km. Backup field optional, format 2 unchanged.
+- **Range adjustment off (`RANGE_FOLLOWS_RIDING`)** until 4.7; trips still record the load. The 4.6 changelog's "stop-and-go" was
+  wrong (stops were counted but unused) and is corrected.
+
+**Design review (by reading; shots pending):** G2 pass (choices 56 dp), G4 pass (one low-fuel rule; Today labelled), G6 pass (the
+slide happens once on setting off, at the rider's request). C1, C4 pass. G1, G3, G5 and the critique scores wait for the shots.
+
+**Tests:** `SpeedFaceTest` (8), GarageRepository / backup cases; 507 unit tests green. Device tests changed, **not run**:
+DashboardScreenTest, GarageScreenTest, TripSummaryDashTest, MigrationTest (v1 to v8).
+**Phone checks:** the settings scroll; the face slides when setting off and stays at lights; the 30 km warning against the dash.

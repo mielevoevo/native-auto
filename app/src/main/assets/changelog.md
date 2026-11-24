@@ -1,7 +1,15 @@
 # What's new in Native Auto
 
+## 4.6.1 (32) · 2026-11-24
+- The speed card opens on the log face while you are standing still, ready for Start, and slides to the speed once you ride (10 km/h for 3 seconds). It doesn't slide back at lights or in traffic. Pausing or ending a trip shows the log face again. If you swipe by hand, that face stays until you open the app again or the trip changes.
+- Low-fuel warning: choose how many km are left when it turns red, per bike (Garage, Edit: 20, 30, 40, 50 or your own). 30 km by default; it used to be the last fifth of the tank, about 50 km on an NMAX.
+- Today's distance is now a tile with the trip figures, so it is no longer cut off on a half-height card. Small log faces label both lines: Trip and Today.
+- Four stacked portrait cards have the same space above their titles as the other cards.
+- Settings no longer jump around when you scroll past the end of a page. Close them with Done, Back or a tap outside.
+- The range no longer follows how you ride for now: it ignored stops and idling, so a traffic jam could have read as easy riding. Trips keep recording what it needs, and it comes back with jams counted.
+
 ## 4.6 (31) · 2026-11-24
-- The fuel range now learns how you ride. Each trip notes how hard it was ridden (speed, speeding up, stop-and-go, climbs), from the GPS fixes it already gets: no extra battery. Once four full-to-full fill-ups have shown how that changes your km/L, the range follows your last ~20 km of riding, at most 20% either way. Until then nothing changes.
+- The fuel range now learns how you ride. Each trip notes how hard it was ridden (speed, speeding up, climbs), from the GPS fixes it already gets: no extra battery. Once four full-to-full fill-ups have shown how that changes your km/L, the range follows your last ~20 km of riding, at most 20% either way. Until then nothing changes.
 - When riding moves the range by 5% or more, the Garage says so under it ("Riding hard: −8%").
 - Backups carry the new trip figures; older backups still import.
 

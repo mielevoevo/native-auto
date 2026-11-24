@@ -187,8 +187,8 @@ class GarageScreenTest {
         rule.waitUntil(5_000) { tag("garage_range").fetchText() == "—" }
     }
 
-    /** 4.3d: four full-to-full spans ridden at different loads teach the range; hard riding lately lowers it, with a note. */
-    @Test fun hardRidingLatelyLowersTheRangeWithANote() {
+    /** 4.6.1: the riding load is recorded but leaves the range alone (and says nothing) until 4.7. */
+    @Test fun hardRidingLeavesTheRangeAloneForNow() {
         val day = 86_400_000L
         val t0 = System.currentTimeMillis() - 10 * day
         runBlocking {
@@ -213,8 +213,8 @@ class GarageScreenTest {
         }
         openGarage()
         await("garage_bike_Gen 1")
-        await("garage_load_note")
-        assertTrue(tag("garage_load_note").fetchText().startsWith("Riding hard: −"))
+        await("garage_range")
+        assertTrue(count("garage_load_note").fetchSemanticsNodes().isEmpty())
     }
 
     @Test fun aPriceEditedInTheGarageIsTheNextRefuelsPrice() {
@@ -334,7 +334,7 @@ class GarageScreenTest {
             val gen1 = entry.garage().addBike(nmax, odometerKm = 12_000.0)
             entry.garage().logRefuel(gen1, com.nativeauto.garage.RefuelDraft(true, 5.0, 15_900.0, 79_500.0, FuelType.PERTAMAX, 12_000.0))
             gen1
-        }.let { seedTrip(it, 200.0) } // 6.6 L − 200 km ÷ 36 km/L = 1.04 L: the last segment
+        }.let { seedTrip(it, 210.0) } // 6.6 L − 210 km ÷ 36 km/L = 0.77 L: 27.6 km, under the 30 km warning (4.6.1)
         // Duo shows no Garage card: the header carries the small red pump beside the battery (4.3a).
         rule.waitUntil(5_000) { count("low_fuel").fetchSemanticsNodes().isNotEmpty() }
 
@@ -348,7 +348,7 @@ class GarageScreenTest {
         click("pick_GARAGE")
         awaitGone("picker_sheet")
         rule.waitUntil(5_000) { count("garage_card_value").fetchSemanticsNodes().isNotEmpty() }
-        assertEquals("35 km", tag("garage_card_value").fetchText()) // 37.6, rounded down to 5 km (12b)
+        assertEquals("25 km", tag("garage_card_value").fetchText()) // 27.6, rounded down to 5 km (12b)
         awaitText("Garage · Gen 1")
         await("garage_tank")
         // The card shows it now, so the speed card doesn't.

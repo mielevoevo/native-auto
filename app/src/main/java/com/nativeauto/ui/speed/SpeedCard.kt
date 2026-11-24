@@ -10,6 +10,11 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.drop
 import com.nativeauto.ui.garage.GarageCardViewModel
 import com.nativeauto.ui.components.rememberHaptics
 import androidx.compose.foundation.background
@@ -81,6 +86,7 @@ fun SpeedCard(
     viewModel: SpeedometerViewModel = hiltViewModel(),
     logViewModel: TripLogViewModel = hiltViewModel(),
     garageViewModel: GarageCardViewModel = hiltViewModel(),
+    faceViewModel: SpeedFaceViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val garage by garageViewModel.ui.collectAsStateWithLifecycle()
@@ -118,6 +124,12 @@ fun SpeedCard(
             onDismiss = { askingDash = false },
         )
     }
+    // 4.6.1: which face shows (stationary: log; riding: speed), watched while the app is open.
+    val face by faceViewModel.state.collectAsStateWithLifecycle()
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LaunchedEffect(owner, faceViewModel) { owner.repeatOnLifecycle(Lifecycle.State.STARTED) { faceViewModel.watch() } }
+    val blocked = ui.gps == GpsStatus.PermissionDenied || ui.gps == GpsStatus.Disabled
+    LaunchedEffect(blocked) { faceViewModel.onBlocked(blocked) }
     val (autoStartBanner, dismissAutoStartBanner) = rememberAutoStartBanner()
     SpeedCardContent(
         mode, layout, ui,
@@ -126,6 +138,8 @@ fun SpeedCard(
         // 13b: only a speed card on screen shows it; otherwise the dashboard's pill does.
         announcement = autoStartBanner && layout.isOnScreen(Pane.SPEED),
         onDismissAnnouncement = dismissAutoStartBanner,
+        face = face.face,
+        onFaceSwiped = { faceViewModel.onSwiped(it) },
     )
 }
 
@@ -143,19 +157,23 @@ fun SpeedCardContent(
     actions: TripLogActions = TripLogActions.None,
     announcement: Boolean = false,
     onDismissAnnouncement: () -> Unit = {},
+    face: SpeedFace = SpeedFace.SPEED,
+    onFaceSwiped: (SpeedFace) -> Unit = {},
 ) {
     DashboardCard(title = "Speed", pane = Pane.SPEED, mode = mode, layout = layout) {
-        // 13a: the card always opens on the speed face. Not saved across a recreation: a pager state
-        // that remembers page 1 brought the log face back after a rotation or a restart.
-        val pager = remember { PagerState(pageCount = { FACES }) }
-        // After a trip ends, dismissing the summary lands on the log face, ready for the next Start.
-        // Only on a change: a card first composed with an Ended trip (the app reopened) stays on the speed face.
-        var shownState by remember { mutableStateOf(ui.tripState) }
-        LaunchedEffect(ui.tripState) {
-            val before = shownState
-            shownState = ui.tripState
-            when {
-                ui.tripState == TripState.Ended && before != TripState.Ended -> pager.scrollToPage(LOG_FACE)
+        // 4.6.1: the face is [SpeedFaceState]'s; the pager follows it and reports the rider's own swipes. Not saved
+        // across a recreation: each app open starts from the rule again.
+        val pager = remember { PagerState(currentPage = face.ordinal, pageCount = { FACES }) }
+        val shownFace by rememberUpdatedState(face)
+        LaunchedEffect(face) {
+            if (pager.currentPage != face.ordinal) {
+                // A parked card has no size to animate in.
+                if (pager.layoutInfo.viewportSize.width > 0) pager.animateScrollToPage(face.ordinal) else pager.scrollToPage(face.ordinal)
+            }
+        }
+        LaunchedEffect(pager) {
+            snapshotFlow { pager.settledPage }.drop(1).collect { page ->
+                if (page != shownFace.ordinal) onFaceSwiped(SpeedFace.entries[page])
             }
         }
         // Clip so content overflowing a still-small card never draws over the header.
@@ -475,13 +493,13 @@ internal fun SpeedometerUiState.telemetry(): List<Stat> = listOf(
 @Composable
 internal fun TelemetryGrid(ui: SpeedometerUiState, columns: Int, tileHeight: Dp) = StatGrid(ui.telemetry(), columns, tileHeight)
 
-/** Tiles in rows of [columns]; a short last row keeps the tile width. */
+/** Tiles in rows of [columns]; a short last row keeps the tile width. [dense]: smaller tiles, closer together. */
 @Composable
-internal fun StatGrid(stats: List<Stat>, columns: Int, tileHeight: Dp) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+internal fun StatGrid(stats: List<Stat>, columns: Int, tileHeight: Dp, dense: Boolean = false) {
+    Column(verticalArrangement = Arrangement.spacedBy(if (dense) 8.dp else 12.dp)) {
         stats.chunked(columns).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { StatTile(it, Modifier.weight(1f).height(tileHeight)) }
+                row.forEach { StatTile(it, Modifier.weight(1f).height(tileHeight), dense) }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
@@ -510,12 +528,12 @@ internal fun SpeedometerUiState.tripStats(visible: Set<TelemetryStat>, prefix: S
 }
 
 @Composable
-internal fun StatTile(stat: Stat, modifier: Modifier) {
+internal fun StatTile(stat: Stat, modifier: Modifier, dense: Boolean = false) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(AppTheme.colors.buttonQuiet)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .padding(horizontal = 14.dp, vertical = if (dense) 2.dp else 8.dp)
             .testTag(stat.tag),
         verticalArrangement = Arrangement.Center,
     ) {
@@ -530,7 +548,7 @@ internal fun StatTile(stat: Stat, modifier: Modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = stat.value,
-                style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                style = (if (dense) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium).copy(fontFeatureSettings = "tnum"),
                 maxLines = 1,
                 softWrap = false,
                 modifier = Modifier.alignByBaseline(),

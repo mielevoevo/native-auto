@@ -283,6 +283,7 @@ class GarageRepositoryTest {
 
     @Test fun `riding harder than usual lowers the range once four spans have taught it`() = runTest {
         val rig = Rig(this)
+        rig.garage.rangeFollowsRiding = true // off in the app until 4.7
         val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 0.0)
         val t0 = rig.now()
         val day = 86_400_000L

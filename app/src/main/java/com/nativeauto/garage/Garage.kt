@@ -1,5 +1,6 @@
 package com.nativeauto.garage
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Index
@@ -69,6 +70,9 @@ data class BikeRecord(
     /** When the bike stopped being the active one (or was created): the away-km check (§6). */
     val lastUsedAtMs: Long,
     val createdAtMs: Long,
+    /** 4.6.1: warn at this many km of range left. */
+    @ColumnInfo(defaultValue = "30")
+    val lowFuelKm: Int = DEFAULT_LOW_FUEL_KM,
 ) {
     val bikeModel: BikeModel get() = BikeModel.entries.firstOrNull { it.name == model } ?: BikeModel.OTHER
     val fuel: FuelType get() = FuelType.entries.firstOrNull { it.name == fuelType } ?: FuelType.PERTAMAX

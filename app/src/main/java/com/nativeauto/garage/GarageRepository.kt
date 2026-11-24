@@ -43,7 +43,12 @@ data class BikeDraft(
     val reserveLitres: Double,
     val fuel: FuelType,
     val startKmPerL: Double,
+    /** 4.6.1: warn at this many km of range left. */
+    val lowFuelKm: Int = DEFAULT_LOW_FUEL_KM,
 )
+
+/** 4.6.1: the riding load is recorded but doesn't move the range until 4.7 counts stops, idling and jams. */
+const val RANGE_FOLLOWS_RIDING = false
 
 /** A question the dashboard shows as a dialog (never while a pane is being used for riding info). */
 sealed interface GaragePrompt {
@@ -129,6 +134,9 @@ class GarageRepository @Inject constructor(
     val bikes: Flow<List<BikeRecord>> = dao.observeBikes()
     val active: Flow<BikeRecord?> = dao.observeActive()
 
+    /** 4.6.1: whether the riding load moves the range ([RANGE_FOLLOWS_RIDING]); the unit tests turn it on. */
+    internal var rangeFollowsRiding: Boolean = RANGE_FOLLOWS_RIDING
+
     private val _prompt = MutableStateFlow<GaragePrompt?>(null)
     val prompt: StateFlow<GaragePrompt?> = _prompt.asStateFlow()
 
@@ -209,10 +217,11 @@ class GarageRepository @Inject constructor(
             val tank = bike?.tankLitres ?: BikeModel.OTHER.tankLitres
             val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away, x.dash)
             // 4.3d: the range follows how the bike is ridden lately, once the fill-ups have shown how that matters.
-            val load = rangeLoad(fitLoad(spanLoads(consumption.measures, x.loads.reversed())), recentLoad(x.loads, x.live))
+            // 4.6.1: off until 4.7 (it ignores stops and idling, so a traffic jam reads as easy riding).
+            val load = if (!rangeFollowsRiding) RangeLoad() else rangeLoad(fitLoad(spanLoads(consumption.measures, x.loads.reversed())), recentLoad(x.loads, x.live))
             FuelState(
                 // 12b: the level burns at the cautious figure, so litres left and range lean low together.
-                level = fuelLevel(tank, consumption.cautiousKmPerL, refuels, away, odo, x.marks).copy(loadFactor = load.factor),
+                level = fuelLevel(tank, consumption.cautiousKmPerL, refuels, away, odo, x.marks).copy(loadFactor = load.factor, lowFuelKm = bike?.lowFuelKm ?: DEFAULT_LOW_FUEL_KM),
                 consumption = consumption,
                 refuels = refuels,
                 pricePerL = priceOf(bike?.fuel ?: FuelType.PERTAMAX, x.prices),
@@ -418,6 +427,7 @@ class GarageRepository @Inject constructor(
                 reserveLitres = draft.reserveLitres,
                 fuelType = draft.fuel.name,
                 startKmPerL = draft.startKmPerL,
+                lowFuelKm = draft.lowFuelKm,
                 active = first,
                 lastUsedAtMs = now,
                 createdAtMs = now,
@@ -438,6 +448,7 @@ class GarageRepository @Inject constructor(
                 reserveLitres = draft.reserveLitres,
                 fuelType = draft.fuel.name,
                 startKmPerL = draft.startKmPerL,
+                lowFuelKm = draft.lowFuelKm,
             ),
         )
     }

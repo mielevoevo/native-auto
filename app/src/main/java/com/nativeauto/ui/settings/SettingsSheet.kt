@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -133,6 +134,9 @@ fun SettingsSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 1200.dp,
         dragHandle = null,
+        // 4.6.1: a page flung past its end handed the rest of the swipe to the sheet, which sprang around. The page
+        // scrolls, the sheet stays; Done, Back and a tap outside close it.
+        sheetGesturesEnabled = false,
         modifier = Modifier.sheetTag("settings_sheet"),
     ) {
         // 4.3a: one height for every category (the tallest page's room), so the sheet doesn't jump when the
@@ -181,7 +185,9 @@ fun SettingsSheet(
                     }
                     tabs(Modifier.fillMaxWidth())
                 }
-                Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).testTag("settings_page_${category.name}")) {
+                // Each page starts at its top.
+                val pageScroll = key(category) { rememberScrollState() }
+                Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(pageScroll).testTag("settings_page_${category.name}")) {
                     when (category) {
                         SettingsCategory.DISPLAY -> DisplayPage(viewModel, wide, onColours = { coloursOpen = true }, onScreen = { screenOpen = true }, onChangelog = { changelogOpen = true })
                         SettingsCategory.LAYOUT -> LayoutPage(viewModel, layout, wide)

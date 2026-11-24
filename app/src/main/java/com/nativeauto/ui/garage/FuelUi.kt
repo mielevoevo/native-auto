@@ -67,9 +67,6 @@ import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.roundToLong
 
-/** The last segment of the tank (Rider-Feedback §6): range and number turn red at or below it. */
-internal const val LOW_FUEL_FRACTION = 0.2
-
 /**
  * 11b: the bike's fuel in the Garage: range, the Refuel button, km since the last fill-up,
  * learned km/L, the refill cost (hidden until asked) and the refuel log.
@@ -96,7 +93,7 @@ internal fun FuelSection(
             Text("Range", style = MaterialTheme.typography.labelLarge, color = colors.textDim)
             val level = fuel?.level
             val range = level?.cautiousRangeKm
-            val low = (level?.fraction ?: 1.0) <= LOW_FUEL_FRACTION
+            val low = level?.low == true
             Text(
                 range?.let { "$it km" } ?: "—",
                 style = MaterialTheme.typography.displaySmall,

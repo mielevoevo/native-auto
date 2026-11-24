@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -230,6 +231,7 @@ class DashboardScreenTest {
     // ---------------------------------------------------------------- Phase 2: card content
 
     @Test fun speedCompactShowsOnlyTheBigSpeed() {
+        openSpeedFace()
         assertMode(Pane.SPEED, CardMode.Compact)
         tag("speed_hero").assertIsDisplayed()
         // Live data: a whole number, or "--" while there is no fresh fix.
@@ -239,6 +241,7 @@ class DashboardScreenTest {
     }
 
     @Test fun speedExpandedAndFullscreenShowTheTelemetryGrid() {
+        openSpeedFace()
         click("maximize_SPEED")
         assertMode(Pane.SPEED, CardMode.Expanded)
         tag("speed_hero").assertIsDisplayed()
@@ -383,6 +386,7 @@ class DashboardScreenTest {
     }
 
     @Test fun speedUnitSwitchesTheSpeedCard() {
+        openSpeedFace()
         rule.onNodeWithText("km/h", useUnmergedTree = true).assertIsDisplayed()
         openSettings("NAVIGATION")
         click("settings_unit_MPH")
@@ -391,7 +395,13 @@ class DashboardScreenTest {
         rule.onAllNodesWithText("km/h", useUnmergedTree = true).assertCountEquals(0)
     }
 
-    /** The speed card's second face (9b): swipe the pager left. */
+    /** 4.6.1: a stationary phone opens on the log face; the speed face is a swipe right. */
+    private fun openSpeedFace() {
+        tag("speed_faces").performTouchInput { swipeRight() }
+        rule.waitUntil(5_000) { runCatching { tag("speed_value").assertIsDisplayed() }.isSuccess }
+    }
+
+    /** The speed card's second face (9b): swipe the pager left (nothing moves when it is already up). */
     private fun openLogFace() {
         tag("speed_faces").performTouchInput { swipeLeft() }
         rule.waitUntil(5_000) { count("log_start").fetchSemanticsNodes().isNotEmpty() }
@@ -607,8 +617,7 @@ class DashboardScreenTest {
 
     @Test fun aSwipeBeforeTheHoldIsTheCardsOwn() {
         // The speed card's pager still turns: moving early cancels the hold.
-        tag("speed_faces").performTouchInput { swipeLeft() }
-        rule.waitUntil(5_000) { count("log_start").fetchSemanticsNodes().isNotEmpty() }
+        openSpeedFace()
         assertTrue(count("picker_sheet").fetchSemanticsNodes().isEmpty())
     }
 
@@ -706,14 +715,13 @@ class DashboardScreenTest {
         }
     }
 
-    @Test fun theSpeedCardOpensOnTheSpeedFace() {
-        tag("speed_value").assertIsDisplayed()
-        // After a recreation too (the pager state isn't kept).
-        tag("speed_faces").performTouchInput { swipeLeft() }
-        rule.waitUntil(5_000) { count("log_start").fetchSemanticsNodes().isNotEmpty() }
-        rule.activityRule.scenario.recreate()
-        rule.waitForIdle()
-        tag("speed_value").assertIsDisplayed()
+    @Test fun theSpeedCardOpensOnTheLogFaceWhileStationary() {
+        tag("log_start").assertIsDisplayed()
+        // A swipe by hand wins, until the app is next opened.
+        openSpeedFace()
+        rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        rule.waitUntil(5_000) { runCatching { tag("log_start").assertIsDisplayed() }.isSuccess }
     }
 
     @Test fun theChangelogSheetShowsOnceAfterAnUpdateAndTheHistoryIsInSettings() {

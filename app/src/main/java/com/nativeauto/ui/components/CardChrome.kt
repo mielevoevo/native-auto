@@ -178,10 +178,12 @@ fun CardChrome(
             .semantics { customActions = listOf(CustomAccessibilityAction("Choose what this pane shows") { picker?.invoke(pane); true }) }
             .testTag("header_${pane.name}")
             // 4.1.1: a portrait card's title sits lower, as it does in landscape: a little extra above it and the header at least as tall as
-            // a header with buttons (Narrow has none). Mini (85 dp cards) keeps a small lift only.
+            // a header with buttons (Narrow has none). 4.6.1: four stacked cards too (215 dp each, there is room); only the slim
+            // rows beside a maximized card keep a lower one.
             .then(
                 if (LocalPortrait.current) {
-                    if (mode == CardMode.Mini) Modifier.padding(top = 2.dp) else Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
+                    val slim = mode == CardMode.Mini && layout.maximized != null
+                    if (slim) Modifier.padding(top = 4.dp).heightIn(min = 32.dp) else Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
                 } else Modifier,
             )
             .padding(start = 16.dp, end = 4.dp),

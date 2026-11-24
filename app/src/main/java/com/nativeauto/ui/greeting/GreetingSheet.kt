@@ -111,13 +111,13 @@ internal fun GreetingContent(state: GreetingUi, onDone: () -> Unit, onOpenGarage
         val range = level.cautiousRangeKm
         val rangeBlock = @Composable {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TankGauge(level.fraction, Modifier.size(width = 40.dp, height = 72.dp))
+                TankGauge(level.fraction, Modifier.size(width = 40.dp, height = 72.dp), low = level.low)
                 Spacer(Modifier.width(20.dp))
                 Column {
                     Text(
                         range?.let { "$it km" } ?: "—",
                         style = TextStyle(fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 56.sp, fontFeatureSettings = "tnum"),
-                        color = if (range != null && (level.fraction ?: 1.0) <= com.nativeauto.ui.garage.LOW_FUEL_FRACTION) colors.red else colors.text,
+                        color = if (level.low) colors.red else colors.text,
                         modifier = Modifier.testTag("greeting_range"),
                     )
                     Text(
