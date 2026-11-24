@@ -59,8 +59,16 @@ data class SpeedFaceState(
 
     fun onSwiped(to: SpeedFace): SpeedFaceState = copy(face = to, byHand = true)
 
-    fun onBlocked(now: Boolean): SpeedFaceState =
-        copy(blocked = now, face = if (now && !blocked && !byHand) SpeedFace.SPEED else face)
+    /** Blocked: the speed face, with the button. Allowed again while standing still with no trip running: back to the log. */
+    fun onBlocked(now: Boolean): SpeedFaceState = copy(
+        blocked = now,
+        face = when {
+            byHand || now == blocked -> face
+            now -> SpeedFace.SPEED
+            moving || trip == TripState.Running -> face
+            else -> SpeedFace.LOG
+        },
+    )
 }
 
 /**

@@ -92,6 +92,10 @@ class GreetingSheetTest {
 
     /** 4.6.2: every open greets, but coming straight back (a permission screen, a file picker) is the same open. */
     @Test fun everyOpenGreetsAgainTheSameDayButNotWhenComingStraightBack() {
+        // Let the launch be handled first (once a day, already greeted): setting the mode sooner greets on the launch itself.
+        rule.waitForIdle()
+        Thread.sleep(1_000)
+        rule.waitForIdle()
         runBlocking { resetSettings.settings.setGreetingMode(GreetingMode.EVERY_OPEN) }
         reopen()
         Thread.sleep(1_000)

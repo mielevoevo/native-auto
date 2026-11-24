@@ -54,7 +54,12 @@ class SpeedFaceTest {
         val blocked = open(TripState.Idle).onBlocked(true)
         assertEquals(SpeedFace.SPEED, blocked.face)
         assertEquals(SpeedFace.SPEED, blocked.opened(TripState.Idle).face)
-        assertEquals(SpeedFace.LOG, blocked.onBlocked(false).opened(TripState.Idle).face)
+        // Allowed again: standing still shows the log face, riding or a running trip stays on the speed.
+        assertEquals(SpeedFace.LOG, blocked.onBlocked(false).face)
+        assertEquals(SpeedFace.SPEED, blocked.onMoving(true).onBlocked(false).face)
+        assertEquals(SpeedFace.SPEED, open(TripState.Running).onBlocked(true).onBlocked(false).face)
+        // Never blocked: nothing to undo.
+        assertEquals(SpeedFace.SPEED, open(TripState.Idle).onMoving(true).onMoving(false).onBlocked(false).face)
     }
 
     private fun fix(s: Int, kmh: Float, accuracy: Float = 5f) = SpeedSample(

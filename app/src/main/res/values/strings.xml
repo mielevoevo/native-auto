@@ -35,7 +35,7 @@
     <string name="media_access_message">See and control what\'s playing</string>
     <string name="media_access_action">Grant notification access</string>
     <string name="media_idle_title">Nothing playing</string>
-    <string name="media_idle_subtitle">Press play to resume</string>
+    <string name="media_idle_subtitle">Press play</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_speed_unit">Speed unit</string>
@@ -87,7 +87,7 @@
     <string name="settings_garage">Garage</string>
     <string name="settings_garage_hint">Bikes and odometer</string>
     <string name="settings_garage_riding">Riding %1$s</string>
-    <string name="settings_garage_open">Garage</string>
+    <string name="settings_garage_open">Open</string>
     <string name="settings_voice">Voice guidance</string>
     <string name="settings_voice_hint">Spoken turn prompts (English)</string>
     <string name="settings_auto_layout">Auto layout</string>

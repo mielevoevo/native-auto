@@ -365,6 +365,7 @@ internal const val WATERMARK_ALPHA = 0.055f
  */
 @Composable
 private fun paneWatermark(pane: Pane, mode: CardMode): Modifier {
+    val portrait = LocalPortrait.current
     val show = LocalCardLook.current.watermark &&
         (mode == CardMode.Expanded || mode == CardMode.Fullscreen) &&
         pane != Pane.MAP && pane != Pane.SPEED && pane != Pane.CALL
@@ -375,7 +376,12 @@ private fun paneWatermark(pane: Pane, mode: CardMode): Modifier {
         .clipToBounds()
         .drawBehind {
             val side = (if (mode == CardMode.Fullscreen) 128.dp else 96.dp).toPx()
-            val buttons = if (pane == Pane.MEDIA || pane == Pane.CLOCK) 108.dp.toPx() else 0f
+            // Clear of what stands at the bottom: media has its progress line and times above the buttons.
+            val buttons = when {
+                pane == Pane.MEDIA && !(portrait && mode == CardMode.Fullscreen) -> 184.dp.toPx()
+                pane == Pane.MEDIA || pane == Pane.CLOCK -> 108.dp.toPx()
+                else -> 0f
+            }
             val bottom = if (buttons > 0f) side + buttons else side * 0.75f
             translate(left = size.width - side * 0.75f, top = size.height - bottom) {
                 with(painter) {

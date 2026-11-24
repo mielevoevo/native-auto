@@ -103,6 +103,7 @@ class DesignShotsTest {
         shot("look_dashboard_icons")
         click("maximize_MEDIA")
         shot("look_media_expanded_dark")
+        click("fullscreen_MEDIA"); shot("look_media_fullscreen"); click("fullscreen_MEDIA")
         runBlocking { resetSettings.settings.setThemeMode(com.nativeauto.settings.ThemeMode.LIGHT) }
         Thread.sleep(1_200)
         shot("look_media_expanded_light")
@@ -141,6 +142,63 @@ class DesignShotsTest {
         Thread.sleep(1_500)
         greet("greeting_port")
         runBlocking { entry.garageDao().clear(); entry.greetingStore().markGreeted(java.time.LocalDate.now()) }
+    }
+
+    /** 4.6.3: the portrait card shapes with real content: 4 rows, slim rows, big + two halves, 3 rows, 2 rows. */
+    @Test fun portraitCards() {
+        val entry = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        )
+        runBlocking {
+            val g = entry.garage()
+            val id = g.addBike(
+                com.nativeauto.garage.BikeDraft("Gen 1", com.nativeauto.garage.BikeModel.NMAX_GEN1, 6.6, 1.3, com.nativeauto.garage.FuelType.PERTAMAX, com.nativeauto.garage.DEFAULT_KM_PER_L),
+                odometerKm = 12_000.0,
+            )
+            g.setFuelLevel(id, 4, 6, 12_000.0)
+            resetSettings.settings.setPaneWatermark(true)
+            resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT)
+        }
+        com.nativeauto.media.NotificationAccess.grant()
+        var player: com.nativeauto.media.TestPlayer? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            player = com.nativeauto.media.TestPlayer(InstrumentationRegistry.getInstrumentation().targetContext)
+        }
+        rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
+        Thread.sleep(1_500)
+        fun layout(preset: String) {
+            click("layouts_open")
+            rule.waitUntil(5_000) { count("layouts_sheet") > 0 }
+            rule.onNodeWithTag("preset_$preset", useUnmergedTree = true).performScrollTo()
+            click("preset_$preset")
+            rule.waitUntil(5_000) { count("layouts_sheet") == 0 }
+            Thread.sleep(800)
+        }
+        fun put(shown: Pane, wanted: Pane) {
+            rule.onNodeWithTag("header_${shown.name}", useUnmergedTree = true).performTouchInput {
+                down(Offset(width * 0.1f, height / 2f))
+                advanceEventTime(2_100)
+                up()
+            }
+            rule.waitUntil(5_000) { count("picker_sheet") > 0 }
+            click("pick_${wanted.name}")
+            rule.waitUntil(5_000) { count("picker_sheet") == 0 }
+            Thread.sleep(800)
+        }
+        try {
+            layout("STACK3"); shot("pc_stack3")
+            put(Pane.MEDIA, Pane.CLOCK); put(Pane.SPEED, Pane.GARAGE); shot("pc_stack3_clock_garage")
+            click("maximize_CLOCK"); shot("pc_slim"); click("maximize_CLOCK")
+            layout("STACK4"); shot("pc_stack4")
+            layout("BIG_TWO"); shot("pc_bigtwo")
+            put(Pane.SPEED, Pane.CLOCK); put(Pane.MEDIA, Pane.GARAGE); shot("pc_bigtwo_clock_garage")
+            layout("STACK2"); put(Pane.SPEED, Pane.MEDIA); shot("pc_stack2_media")
+            click("fullscreen_MEDIA"); shot("pc_media_fullscreen"); click("fullscreen_MEDIA")
+        } finally {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { player?.close() }
+            runBlocking { entry.garageDao().clear() }
+        }
     }
 
     @Test fun portrait() {

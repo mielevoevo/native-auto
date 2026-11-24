@@ -716,7 +716,12 @@ class DashboardScreenTest {
     }
 
     @Test fun theSpeedCardOpensOnTheLogFaceWhileStationary() {
-        tag("log_start").assertIsDisplayed()
+        // The emulator repeats its last fix for ever, with its speed: `adbe emu geo fix <lon> <lat> <alt> <sats> 0` stops it.
+        val gps = rule.activity.getSystemService(android.location.LocationManager::class.java)
+        @android.annotation.SuppressLint("MissingPermission")
+        val speed = gps.getLastKnownLocation("fused")?.speed ?: 0f
+        org.junit.Assume.assumeTrue("the device reports $speed m/s", speed < 1f)
+        rule.waitUntil(5_000) { runCatching { tag("log_start").assertIsDisplayed() }.isSuccess }
         // A swipe by hand wins, until the app is next opened.
         openSpeedFace()
         rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
@@ -976,6 +981,7 @@ class DashboardScreenTest {
     // ---------------------------------------------------------------- Phase 8b: layouts
 
     @Test fun everyPresetTilesTheScreen() {
+        openSpeedFace()
         switchLayout(LayoutPreset.SIDE_BY_SIDE)
         assertCollapsed("side by side", Pane.MAP)
         for (p in listOf(Pane.SPEED, Pane.MEDIA)) {

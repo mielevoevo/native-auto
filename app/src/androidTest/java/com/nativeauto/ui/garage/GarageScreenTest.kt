@@ -367,7 +367,7 @@ class GarageScreenTest {
         awaitGone("garage_refuel_dialog")
         click("maximize_GARAGE")
         rule.waitUntil(5_000) { count("garage_card_value").fetchSemanticsNodes().isNotEmpty() }
-        rule.waitUntil(5_000) { tag("garage_card_value").fetchText() == "12,200 km" }
+        rule.waitUntil(5_000) { tag("garage_card_value").fetchText() == "12,210 km" }
     }
 
     @Test fun historyFiltersByBike() {

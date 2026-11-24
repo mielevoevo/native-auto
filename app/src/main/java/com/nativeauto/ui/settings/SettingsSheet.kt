@@ -42,6 +42,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -149,6 +156,15 @@ fun SettingsSheet(
                     val scroll = rememberScrollState()
                     Row(modifier.fadingEdges(scroll).horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         SettingsCategory.entries.filter { it != SettingsCategory.DEBUG || BuildConfig.DEBUG }.forEach { c ->
+                            val place = remember { BringIntoViewRequester() }
+                            var chip by remember { mutableStateOf(IntSize.Zero) }
+                            val fade = with(LocalDensity.current) { TAB_FADE.toPx() }
+                            // The picked tab stands clear of the faded edges, not half under one.
+                            LaunchedEffect(c == category, chip) {
+                                if (c == category && chip.width > 0) {
+                                    place.bringIntoView(Rect(-fade, 0f, chip.width + fade, chip.height.toFloat()))
+                                }
+                            }
                             FilterChip(
                                 selected = c == category,
                                 onClick = { haptics.tick(); categoryName = c.name },
@@ -157,7 +173,11 @@ fun SettingsSheet(
                                     selectedContainerColor = AppTheme.colors.navy,
                                     selectedLabelColor = AppTheme.colors.onNavy,
                                 ),
-                                modifier = Modifier.heightIn(min = 56.dp).testTag("settings_cat_${c.name}"),
+                                modifier = Modifier
+                                    .bringIntoViewRequester(place)
+                                    .onSizeChanged { chip = it }
+                                    .heightIn(min = 56.dp)
+                                    .testTag("settings_cat_${c.name}"),
                             )
                         }
                     }
@@ -755,7 +775,7 @@ private fun DangerRow(title: String, hint: String, armed: Boolean, tag: String, 
 private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState): Modifier =
     graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
         drawContent()
-        val fade = 40.dp.toPx()
+        val fade = TAB_FADE.toPx()
         if (scroll.canScrollForward) {
             drawRect(
                 brush = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
@@ -771,6 +791,7 @@ private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState
     }
 
 private val ROW_MIN_HEIGHT = 64.dp
+private val TAB_FADE = 40.dp
 private const val SHEET_HEIGHT_LANDSCAPE = 0.94f
 private const val SHEET_HEIGHT_PORTRAIT = 0.8f
 
