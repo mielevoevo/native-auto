@@ -1011,10 +1011,9 @@ saved), `GpxBackupTest` (fields round-trip, old trips without them); device `Mig
 
 ## Run 4.6.1-4.6.3 (unattended, rider's "Start 4.6.1 to 4.6.3 unattended", 2026-11-24)
 
-**Not done in this run: anything that needs the emulator.** Claude Code had stopped it because the PC was low on memory, with
-the instruction to restart it only when the rider asks. So for these builds the device tests, the design shots, the release
-smoke test, the launch of the exact APK and the APK export are **pending**. Unit tests and compiles ran. No APK goes to the
-phone before the smoke test (the v3.2 rule). Device tests were updated with the code but have not been run.
+**The emulator part came later the same day** (Claude Code had stopped the emulator for low memory; the rider restarted it
+twice). The notes "shots pending" / "not run" under each build are from before that; the results are in "Device check" at the
+end of this section.
 
 ### 4.6.1 (versionCode 32)
 
@@ -1098,3 +1097,33 @@ title size), G5 to check on shots (faint icon). Hierarchy, glanceability and cal
 **Tests:** `PortraitSizesTest` (order, minimums, and the fixed-height stacks add up), unit tests green, device tests compile. **Not
 run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
 **Phone checks:** every portrait layout, also with one card maximized; 12-hour clock in a half-width card; the faint icon on each card.
+
+### Device check of 4.6.1 to 4.6.3 (2026-11-24, emulator)
+
+- **Device tests, all green on the final code or on code the later edits don't touch:** MigrationTest (v1 to v8),
+  TripSummaryDashTest, PortraitCardsTest, PortraitDashboardTest, SetupFlowTest, CallCardTest, GreetingSheetTest, MapPaneTest (7 + the
+  traffic test skipped: no traffic on the free map), then after the last edits again DashboardScreenTest (54), GarageScreenTest and
+  MediaCardTest (19 together). 514 unit tests green. They ran on the code as it stands after 4.6.3, not on each build separately.
+- **App bug found and fixed:** location refused and then allowed left the speed card on the speed face while standing still.
+  `SpeedFaceState.onBlocked(false)` now goes back to the log face unless moving, riding a trip or swiped by hand.
+- **Failures that were not the app:** "System UI isn't responding" dialogs held the focus (11 tests); the emulator repeats its last
+  fix with its speed, so the app was "riding" at 37 km/h (the face test now skips itself then); the Garage odometer test expected
+  12.200 instead of 12.210; the "every open" greeting test changed the setting before the launch was handled (cause inferred,
+  the changed test passes); a layout test expected the speed face.
+- **Design review on shots, fixed:** "Press play to resu..." cut in portrait (now "Press play"); the faint note ran through the
+  progress line and the total time (lifted 184 dp, portrait fullscreen keeps 108); the picked settings tab could stay half under
+  the fade (it is brought clear of it); the Garage row's button said "Garage" beside "Open" buttons (now "Open").
+- **Logged, not fixed:** half-width log controls are about 54 dp (three don't fit 190 dp at 56: G2 exception, as since 14b); a landscape
+  settings page that is too tall ends mid-row at the fold (it scrolls; C6 allows it, a bottom fade would be nicer); the four-stack clock
+  shows no date (since 14b).
+- **Scores (0 to 3, hierarchy / glance / consistency / touch / copy / calm):** 4.6.1 log face 2/2/3/2/3/3; 4.6.2 settings 2/2/2/3/3/2;
+  4.6.3 portrait cards 3/3/3/3/3/3. Gates pass except the G2 note. Colour tokens unchanged (G3). **Not seen on a shot:** the new dialogs (Trip
+  automation, Trip figures, Accent, Route), portrait guidance, the call card, portrait in the light theme; the device tests open them
+  or measure them, except the light theme.
+- **Fix placement:** one follow-up commit on 4.6.3, same version (its APK had not left the PC). *Reason:* nothing to rewrite, and the
+  4.6.1 / 4.6.2 APKs are fallbacks. They therefore **keep the location bug and the four shot findings that apply to them.**
+- **Release:** ReleaseSmokeTest 2 of 2 on each of 4.6.1, 4.6.2 and 4.6.3 (each at its own commit). The exact APKs were installed over a
+  fresh v4.6 one after the other and launched, no crash, the right "What's new" each time. That install held no bikes or trips: old data
+  is covered by MigrationTest only. APKs in `.dev/apk/` (`4.6.1-461`, `4.6.2-462`, `4.6.3-463`).
+- **Memory:** the PC ran out again once. Small batches, Gradle heap 2 to 2.5 GB, 2 workers, `gradlew --stop` between and a check
+  of the free memory before each batch got it through.

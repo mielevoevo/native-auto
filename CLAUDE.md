@@ -891,8 +891,10 @@ Major drop: a vertically mounted phone. Spec `.dev/Phase-14b-Portrait.md`; choic
 
 ## Run 4.6.1-4.6.3 (built 2026-11-24, unattended; choices in DECISIONS.md "Run 4.6.1-4.6.3")
 
-**Code and unit tests only so far.** The emulator was off (stopped for low memory; restart only when the rider asks), so device
-tests, design shots, the release smoke test and the APK export are pending. Hand over no APK of these before the smoke test.
+**Done 2026-11-24:** device tests, design shots, release smoke test on each, APKs in `.dev/apk/` (`4.6.1-461`, `4.6.2-462`,
+`4.6.3-463`). Use 4.6.3: the earlier two lack its fixes (DECISIONS "Device check"). On a PC short of memory: small test batches,
+`--max-workers=2`, a 2 GB Gradle heap, `./gradlew --stop` between; before a device run `adbe emu geo fix <lon> <lat> <alt> <sats> 0` (a
+repeated fix with a speed counts as riding) and `settings put global hide_error_dialogs 1`.
 
 ### 4.6.1 (versionCode 32)
 - **Speed or log face (`ui/speed/SpeedFace.kt`, replaces 13a's "always opens on the speed face"):** `SpeedFaceState` (pure) +
@@ -914,3 +916,4 @@ tests, design shots, the release smoke test and the APK export are pending. Hand
 ### 4.6.3 (versionCode 34)
 - `ui/theme/PortraitSizes.kt`: the portrait sizes by role; `portraitSizes(mode)`; `LocalSlimRow`. New portrait sizes go there.
 - Never run a release build while editing sources: lint crashed once when files changed under it.
+- `DesignShotsTest.portraitCards`: the portrait card shapes with a bike and a track (`pc_*` shots).
