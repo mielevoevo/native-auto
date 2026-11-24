@@ -388,7 +388,7 @@ class DashboardScreenTest {
     @Test fun speedUnitSwitchesTheSpeedCard() {
         openSpeedFace()
         rule.onNodeWithText("km/h", useUnmergedTree = true).assertIsDisplayed()
-        openSettings("NAVIGATION")
+        openSettings("DISPLAY")
         click("settings_unit_MPH")
         closeSettings()
         rule.waitUntil(5_000) { rule.onAllNodesWithText("mph", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
@@ -546,12 +546,12 @@ class DashboardScreenTest {
 
     @Test fun autoPauseAndAutoEndAreSettings() {
         openSettings("TRIP_GARAGE")
-        click("settings_trip_options")
+        click("settings_trip_automation")
         click("settings_auto_pause_10")
         click("settings_auto_end_0")
         tag("settings_auto_pause_10").assertIsSelected()
         tag("settings_auto_end_0").assertIsSelected()
-        click("settings_trip_options_done")
+        click("settings_trip_automation_done")
         closeSettings()
     }
 
@@ -744,7 +744,7 @@ class DashboardScreenTest {
         assertTrue(count("changelog_sheet").fetchSemanticsNodes().isEmpty())
 
         // The full history lives in settings.
-        openSettings()
+        openSettings("OTHERS")
         click("settings_whats_new")
         rule.waitUntil(5_000) { count("changelog_history").fetchSemanticsNodes().isNotEmpty() }
         tag("changelog_entry_${com.nativeauto.BuildConfig.VERSION_CODE}").assertIsDisplayed()
@@ -793,7 +793,8 @@ class DashboardScreenTest {
 
     @Test fun callControlsAreOnByDefaultAndTheSwitchIsSaved() {
         assertEquals(true, runBlocking { resetSettings.settings.callControls.first() })
-        openSettings("AUDIO")
+        openSettings("DISPLAY")
+        tag("settings_call_controls").performScrollTo()
         click("settings_call_controls")
         rule.waitUntil(5_000) { !runBlocking { resetSettings.settings.callControls.first() } }
         click("settings_call_controls")
@@ -804,12 +805,14 @@ class DashboardScreenTest {
     @Test fun autoStartStaysOffByDefaultAndTheChoiceIsSaved() {
         assertEquals(com.nativeauto.trip.AutoStartMode.OFF, runBlocking { resetSettings.settings.autoStartMode.first() })
         openSettings("TRIP_GARAGE")
+        click("settings_trip_automation")
         click("settings_auto_start")
         click("settings_auto_start_hold_45")
         rule.waitUntil(5_000) {
             runBlocking { resetSettings.settings.autoStartMode.first() } == com.nativeauto.trip.AutoStartMode.TRIP &&
                 runBlocking { resetSettings.settings.autoStartHoldS.first() } == 45
         }
+        click("settings_trip_automation_done")
         closeSettings()
     }
 
@@ -876,23 +879,24 @@ class DashboardScreenTest {
 
     @Test fun everySettingsCategoryHasItsPage() {
         openSettings()
-        listOf("TRIP_GARAGE", "DISPLAY", "LAYOUT", "NAVIGATION", "AUDIO", "BACKUP", "PRIVACY", "DEBUG").forEach { cat ->
-            tag("settings_cat_$cat").performScrollTo() // eight tabs scroll sideways
+        listOf("TRIP_GARAGE", "DISPLAY", "LAYOUT", "OTHERS", "DEBUG").forEach { cat ->
+            tag("settings_cat_$cat").performScrollTo()
             click("settings_cat_$cat")
             tag("settings_page_$cat").assertIsDisplayed()
         }
         // The controls that used to sit in one sheet are where the categories say. A tab is scrolled into view
         // first: the row scrolls sideways, and a tab out of view can't be tapped (4.3a: the row is narrower).
         fun tab(c: String) { tag("settings_cat_$c").performScrollTo(); click("settings_cat_$c") }
-        tab("LAYOUT"); tag("settings_split_50").assertIsDisplayed(); tag("settings_drag_hold_1").assertIsDisplayed()
-        tab("NAVIGATION"); tag("settings_unit_KMH").assertIsDisplayed(); tag("settings_auto_layout").assertIsDisplayed()
-        tab("AUDIO"); tag("settings_voice").assertIsDisplayed()
-        tab("TRIP_GARAGE")
-        listOf("settings_history", "settings_garage", "settings_reset_trip", "settings_daily_greeting", "settings_trip_options", "settings_auto_start").forEach { tag(it).assertIsDisplayed() }
-        tab("PRIVACY"); tag("settings_privacy_permissions").assertIsDisplayed(); tag("settings_reset_app").assertIsDisplayed()
-        tab("BACKUP"); tag("backup_export").assertIsDisplayed(); tag("backup_import").assertIsDisplayed()
-        tab("DEBUG"); tag("debug_fake_gps").assertIsDisplayed()
-        tab("DISPLAY"); tag("settings_colours").assertIsDisplayed(); tag("settings_whats_new").assertIsDisplayed()
+        fun rows(c: String, vararg tags: String) { tab(c); tags.forEach { tag(it).performScrollTo().assertIsDisplayed() } }
+        rows("TRIP_GARAGE", "settings_garage", "settings_history", "settings_trip_automation", "settings_trip_options", "settings_reset_trip")
+        rows("DISPLAY", "settings_theme_DARK", "settings_card_titles_TEXT", "settings_pane_watermark", "settings_call_controls", "settings_unit_KMH", "settings_colours", "settings_screen_options")
+        rows("LAYOUT", "settings_orientation_AUTO", "settings_split_50", "settings_drag_hold_1", "settings_voice", "settings_auto_layout", "settings_route_colour")
+        rows("OTHERS", "settings_greeting_ONCE_A_DAY", "settings_whats_new", "backup_export", "backup_import", "settings_call_permissions", "settings_privacy_permissions", "settings_privacy_notifications", "settings_reset_app")
+        rows("DEBUG", "debug_fake_gps")
+        // 4.6.2: the greeting has three choices.
+        tab("OTHERS")
+        click("settings_greeting_EVERY_OPEN")
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.greetingMode.first() } == com.nativeauto.settings.GreetingMode.EVERY_OPEN }
     }
 
     @Test fun theAccentCanBePickedByPresetOrHexAndTheRouteColourFollowsOrOverrides() {
@@ -919,8 +923,15 @@ class DashboardScreenTest {
         click("accent_preset_green")
         rule.waitUntil(5_000) { accent() == 0xFF3DDC84.toInt() }
 
-        // Route line: follows the accent until overridden.
+        click("colours_done")
+        awaitGone("colours_dialog")
+
+        // Route line (4.6.2: its own dialog, with the map): follows the accent until overridden.
         assertEquals(null, route())
+        click("settings_cat_LAYOUT")
+        tag("settings_route_colour").performScrollTo()
+        click("settings_route_colour")
+        awaitSheet("route_dialog")
         click("route_follow")
         rule.waitUntil(5_000) { route() != null }
         click("route_preset_magenta")
@@ -928,16 +939,16 @@ class DashboardScreenTest {
         assertEquals("the accent is untouched", 0xFF3DDC84.toInt(), accent())
         click("route_follow")
         rule.waitUntil(5_000) { route() == null }
-        click("colours_done")
-        awaitGone("colours_dialog")
+        click("route_done")
+        awaitGone("route_dialog")
         closeSettings()
     }
 
     // ---------------------------------------------------------------- Phase 14a
 
-    @Test fun theAudioPageHasCallControlsAndTheCallCardIsNotAPickerChoice() {
-        openSettings("AUDIO")
-        tag("settings_call_status").assertIsDisplayed()
+    @Test fun theCallPermissionIsInOthersAndTheCallCardIsNotAPickerChoice() {
+        openSettings("OTHERS")
+        tag("settings_call_status").performScrollTo().assertIsDisplayed()
         closeSettings()
         // The call card is nobody's choice: the pane picker lists the other six only.
         openPicker(Pane.MEDIA)
@@ -1042,7 +1053,8 @@ class DashboardScreenTest {
     }
 
     @Test fun autoLayoutCanBeTurnedOff() {
-        openSettings("NAVIGATION")
+        openSettings("LAYOUT")
+        tag("settings_auto_layout").performScrollTo()
         click("settings_auto_layout")
         closeSettings()
         rule.waitUntil(5_000) { runBlocking { !resetSettings.settings.autoLayout.first() } }

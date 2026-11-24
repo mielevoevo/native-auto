@@ -60,7 +60,7 @@ class DesignShotsTest {
     private fun settingsPages(prefix: String) {
         click("settings_open")
         rule.waitUntil(5_000) { count("settings_sheet") > 0 }
-        listOf("TRIP_GARAGE", "DISPLAY", "LAYOUT", "NAVIGATION", "AUDIO", "BACKUP", "PRIVACY").forEach {
+        listOf("TRIP_GARAGE", "DISPLAY", "LAYOUT", "OTHERS").forEach {
             rule.onNodeWithTag("settings_cat_$it", useUnmergedTree = true).performScrollTo()
             click("settings_cat_$it")
             shot("${prefix}_settings_$it")

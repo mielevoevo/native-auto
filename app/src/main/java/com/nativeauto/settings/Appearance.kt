@@ -31,6 +31,17 @@ enum class RefreshMode(val label: String) {
     SMOOTH("Smooth"),
 }
 
+/** 4.6.2 (rider): when the greeting sheet shows. [EVERY_OPEN]: see `GreetingViewModel.AWAY_MS`. */
+enum class GreetingMode(val label: String) {
+    ONCE_A_DAY("Once a day"),
+    EVERY_OPEN("Every open"),
+    OFF("Off"),
+}
+
+/** The stored choice, else what the 4.3c switch said (off stays off; on or never touched = once a day). */
+fun greetingModeFrom(stored: String?, dailySwitch: Boolean?): GreetingMode =
+    GreetingMode.entries.firstOrNull { it.name == stored } ?: if (dailySwitch == false) GreetingMode.OFF else GreetingMode.ONCE_A_DAY
+
 /** 12a: how long a card is held before it lifts to be dragged (R3). */
 val DRAG_HOLD_CHOICES_MS = listOf(1_000L, 2_000L, 3_000L)
 const val DEFAULT_DRAG_HOLD_MS = 1_000L

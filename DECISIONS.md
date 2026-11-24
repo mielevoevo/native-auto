@@ -1041,3 +1041,36 @@ slide happens once on setting off, at the rider's request). C1, C4 pass. G1, G3,
 **Tests:** `SpeedFaceTest` (8), GarageRepository / backup cases; 507 unit tests green. Device tests changed, **not run**:
 DashboardScreenTest, GarageScreenTest, TripSummaryDashTest, MigrationTest (v1 to v8).
 **Phone checks:** the settings scroll; the face slides when setting off and stays at lights; the 30 km warning against the dash.
+
+### 4.6.2 (versionCode 33)
+
+- **Four tabs (rider: too empty, wrong pages; merge proposed, taken with "start"):** Trip and Garage, Display, Map and layout, Others
+  (+ Debug). `SettingsCategory` kept TRIP_GARAGE / DISPLAY / LAYOUT, gained OTHERS. A tab remembered from an older version that no
+  longer exists falls back to the first (it would have crashed on `first {}`).
+- **Trip automation** (`trip_automation`): auto-start + hold and auto-resume on the left, auto-pause and auto-end on the right. "Trip
+  options" became **Trip figures** (distance total + figure chips); its tags (`settings_trip_options`, `trip_options`) kept.
+- **Display balance (rider):** left are rows about the cards (theme, titles, faint icons, call card), right speed unit, accent, screen
+  options. "Colours" split in two: **Accent colour** here, **Route colour** on Map and layout (it is the map's). *Reason:* one
+  dialog reached from two pages would be two names for one thing. Accent dialog is one column, 640 dp at most.
+- **Map and layout:** left the arrangement (orientation, map width, hold), right map and navigation (voice, auto layout, route colour).
+  The orientation hint is one line, so the column fits a landscape phone.
+- **Others:** left greeting, What's new, Back up, Import; right call permission, app permissions, notification access, Reset app. Four
+  rows of 64 dp plus the stacked greeting is a little taller than a landscape phone's page: it scrolls. *Reason for accepting it:*
+  squeezing Back up and Import into one row would cut "never overwrites", the line that makes Import safe to tap.
+- **Call permission:** one row with its state in the hint. Refused earlier: Android answers without a prompt (under 0.6 s), and the
+  button then opens the app's page in Android's settings. Granted: the button opens the same page.
+- **Greeting:** `GreetingMode` ONCE_A_DAY / EVERY_OPEN / OFF. The 4.3c switch is read once as the starting value (off stays off).
+  "Every open" = a fresh start or back after a minute away (`AWAY_MS`). *Reason:* a permission screen or the Import file picker
+  also counts as leaving the app, and a greeting over Settings on the way back would be noise.
+- Inline choice rows are 64 dp like the other rows (C4).
+
+**Design review (by reading; shots pending):** G2 pass (56 dp), G4 pass (each control in one place; names say what they do), C2 pass
+(no new accent use: the two dots show the colours themselves), C4 pass. G1, G3, G5 and the critique scores wait for the shots.
+
+**Tests:** `GreetingTest` (modes, carry-over), unit tests green, device tests and smoke test compile. Device tests changed, **not
+run**: DashboardScreenTest, GreetingSheetTest, DesignShotsTest, ReleaseSmokeTest.
+**Phone checks:** every tab in both orientations; the call permission after a refusal; "Every open".
+
+**Build note:** the 4.6.1 release build started in the background failed once in `lintVitalAnalyzeRelease` (a lint detector crash) while
+4.6.2 files were being edited under it. On a still tree the same task passed, so the edits are the likely cause. No source was
+changed for it. Release builds of all three commits are repeated at the end of the run with nothing else writing.

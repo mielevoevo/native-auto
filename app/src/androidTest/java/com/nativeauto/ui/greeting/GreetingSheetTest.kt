@@ -13,6 +13,8 @@ import com.nativeauto.MainActivity
 import com.nativeauto.ResetSettingsRule
 import com.nativeauto.di.SettingsEntryPoint
 import com.nativeauto.garage.BikeDraft
+import com.nativeauto.greeting.GreetingViewModel
+import com.nativeauto.settings.GreetingMode
 import com.nativeauto.garage.BikeModel
 import com.nativeauto.garage.DEFAULT_KM_PER_L
 import com.nativeauto.garage.FuelType
@@ -88,9 +90,29 @@ class GreetingSheetTest {
         rule.waitUntil(5_000) { count("greeting_sheet") == 0 }
     }
 
+    /** 4.6.2: every open greets, but coming straight back (a permission screen, a file picker) is the same open. */
+    @Test fun everyOpenGreetsAgainTheSameDayButNotWhenComingStraightBack() {
+        runBlocking { resetSettings.settings.setGreetingMode(GreetingMode.EVERY_OPEN) }
+        reopen()
+        Thread.sleep(1_000)
+        rule.waitForIdle()
+        assertEquals("away for a moment", 0, count("greeting_sheet"))
+        GreetingViewModel.awayMs = 0
+        try {
+            repeat(2) {
+                reopen()
+                rule.waitUntil(5_000) { count("greeting_sheet") == 1 }
+                click("greeting_done")
+                rule.waitUntil(5_000) { count("greeting_sheet") == 0 }
+            }
+        } finally {
+            GreetingViewModel.awayMs = GreetingViewModel.AWAY_MS
+        }
+    }
+
     @Test fun turnedOffItStaysAway() {
-        runBlocking { resetSettings.settings.setDailyGreeting(false) }
-        rule.waitUntil(5_000) { runBlocking { !resetSettings.settings.dailyGreeting.first() } }
+        runBlocking { resetSettings.settings.setGreetingMode(GreetingMode.OFF) }
+        rule.waitUntil(5_000) { runBlocking { resetSettings.settings.greetingMode.first() == GreetingMode.OFF } }
         newDay()
         reopen()
         Thread.sleep(1_000)

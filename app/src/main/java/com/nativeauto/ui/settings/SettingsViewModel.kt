@@ -164,11 +164,11 @@ class SettingsViewModel @Inject constructor(
     val paneWatermark: StateFlow<Boolean> =
         settings.paneWatermark.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    val dailyGreeting: StateFlow<Boolean> =
-        settings.dailyGreeting.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    val greetingMode: StateFlow<com.nativeauto.settings.GreetingMode> =
+        settings.greetingMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.nativeauto.settings.GreetingMode.ONCE_A_DAY)
 
-    fun setDailyGreeting(enabled: Boolean) {
-        viewModelScope.launch { settings.setDailyGreeting(enabled) }
+    fun setGreetingMode(mode: com.nativeauto.settings.GreetingMode) {
+        viewModelScope.launch { settings.setGreetingMode(mode) }
     }
 
     fun setCardTitleStyle(style: com.nativeauto.settings.CardTitleStyle) {
@@ -219,7 +219,7 @@ class SettingsViewModel @Inject constructor(
 
     private val _resetAppArmed = MutableStateFlow(false)
 
-    /** True between the first and second tap of Reset app (Privacy and data). */
+    /** True between the first and second tap of Reset app (Others). */
     val resetAppArmed: StateFlow<Boolean> = _resetAppArmed.asStateFlow()
     private var disarmApp: Job? = null
 

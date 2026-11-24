@@ -1,5 +1,14 @@
 # What's new in Native Auto
 
+## 4.6.2 (33) · 2026-11-24
+- Settings have four tabs: Trip and Garage, Display, Map and layout, Others. Audio, Backup, Navigation and Privacy and data are gone; everything in them moved.
+- Trip and Garage: auto-start, resume, pause and end are together in Trip automation; the distance total and the figures are in Trip figures.
+- Display: speed unit and the Call card switch (was Call controls) moved here. Colours is now Accent colour.
+- Map and layout: voice guidance, auto layout and the new Route colour row, beside orientation, map width and the hold time.
+- Others: greeting, What's new, backup, call permission, app permissions, notification access and Reset app.
+- Call permission says whether it is allowed. If Android no longer asks, the button opens the app's page in Android's settings.
+- Greeting: Once a day, Every open or Off. Every open skips a quick return (under a minute) and waits during a trip or navigation.
+
 ## 4.6.1 (32) · 2026-11-24
 - The speed card opens on the log face while you are standing still, ready for Start, and slides to the speed once you ride (10 km/h for 3 seconds). It doesn't slide back at lights or in traffic. Pausing or ending a trip shows the log face again. If you swipe by hand, that face stays until you open the app again or the trip changes.
 - Low-fuel warning: choose how many km are left when it turns red, per bike (Garage, Edit: 20, 30, 40, 50 or your own). 30 km by default; it used to be the last fifth of the tank, about 50 km on an NMAX.

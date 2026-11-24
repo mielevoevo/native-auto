@@ -90,10 +90,9 @@ import com.nativeauto.ui.theme.appSwitchColors
 import kotlin.math.abs
 
 /**
- * The settings, in categories (13c): Display, Layout, Navigation, Trip and Garage, Audio, Backup and (debug
- * builds) Debug. A category picks what the page below the header shows; each page is two short columns on a
- * landscape phone, so a category fits without scrolling. Every control is a big target (56 dp+): it is meant
- * to be usable at a stop with gloves on.
+ * The settings, in four categories (4.6.2): Trip and Garage, Display, Map and layout, Others, and (debug builds)
+ * Debug. A category picks what the page below the header shows: two columns on a landscape phone, one on a narrow
+ * one. Every control is a big target (56 dp+): it is meant to be usable at a stop with gloves on.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,32 +104,30 @@ fun SettingsSheet(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     var categoryName by rememberSaveable { mutableStateOf(SettingsCategory.TRIP_GARAGE.name) }
-    val category = SettingsCategory.entries.first { it.name == categoryName }
+    // A tab remembered from before an update may be gone (4.6.2 removed four).
+    val category = SettingsCategory.entries.firstOrNull { it.name == categoryName } ?: SettingsCategory.TRIP_GARAGE
     var screenOpen by rememberSaveable { mutableStateOf(false) }
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
+    var automationOpen by rememberSaveable { mutableStateOf(false) }
+    var routeOpen by rememberSaveable { mutableStateOf(false) }
     var coloursOpen by rememberSaveable { mutableStateOf(false) }
     var changelogOpen by rememberSaveable { mutableStateOf(false) }
     val haptics = rememberHaptics()
 
     if (changelogOpen) com.nativeauto.ui.changelog.ChangelogHistoryDialog(onDismiss = { changelogOpen = false })
     if (screenOpen) ScreenOptionsDialog(viewModel, onDismiss = { screenOpen = false })
-    if (optionsOpen) TripOptionsDialog(viewModel, onDismiss = { optionsOpen = false })
-    if (coloursOpen) {
+    if (optionsOpen) TripFiguresDialog(viewModel, onDismiss = { optionsOpen = false })
+    if (automationOpen) TripAutomationDialog(viewModel, onDismiss = { automationOpen = false })
+    if (coloursOpen || routeOpen) {
         val accent by viewModel.accentColor.collectAsStateWithLifecycle()
         val route by viewModel.routeColor.collectAsStateWithLifecycle()
-        ColoursDialog(
-            accent = accent,
-            route = route,
-            onAccent = viewModel::setAccentColor,
-            onRoute = viewModel::setRouteColor,
-            onDismiss = { coloursOpen = false },
-        )
+        if (coloursOpen) AccentDialog(accent, onAccent = viewModel::setAccentColor, onDismiss = { coloursOpen = false })
+        if (routeOpen) RouteColourDialog(accent, route, onRoute = viewModel::setRouteColor, onDismiss = { routeOpen = false })
     }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        // Landscape has little height: open fully rather than half-way, and no drag handle
-        // (swiping the sheet down and Done both still close it).
+        // Landscape has little height: open fully rather than half-way, and no drag handle.
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 1200.dp,
         dragHandle = null,
@@ -189,13 +186,10 @@ fun SettingsSheet(
                 val pageScroll = key(category) { rememberScrollState() }
                 Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(pageScroll).testTag("settings_page_${category.name}")) {
                     when (category) {
-                        SettingsCategory.DISPLAY -> DisplayPage(viewModel, wide, onColours = { coloursOpen = true }, onScreen = { screenOpen = true }, onChangelog = { changelogOpen = true })
-                        SettingsCategory.LAYOUT -> LayoutPage(viewModel, layout, wide)
-                        SettingsCategory.NAVIGATION -> NavigationPage(viewModel, wide)
-                        SettingsCategory.TRIP_GARAGE -> TripGaragePage(viewModel, wide, onOpenHistory, onOpenGarage, onOptions = { optionsOpen = true })
-                        SettingsCategory.AUDIO -> AudioPage(viewModel, wide)
-                        SettingsCategory.BACKUP -> BackupSection(wide)
-                        SettingsCategory.PRIVACY -> PrivacyPage(viewModel, wide)
+                        SettingsCategory.TRIP_GARAGE -> TripGaragePage(viewModel, wide, onOpenHistory, onOpenGarage, onAutomation = { automationOpen = true }, onFigures = { optionsOpen = true })
+                        SettingsCategory.DISPLAY -> DisplayPage(viewModel, wide, onColours = { coloursOpen = true }, onScreen = { screenOpen = true })
+                        SettingsCategory.LAYOUT -> LayoutPage(viewModel, layout, wide, onRoute = { routeOpen = true })
+                        SettingsCategory.OTHERS -> OthersPage(viewModel, wide, onChangelog = { changelogOpen = true })
                         SettingsCategory.DEBUG -> DebugPage(viewModel, wide)
                     }
                 }
@@ -208,11 +202,8 @@ fun SettingsSheet(
 enum class SettingsCategory(val label: String) {
     TRIP_GARAGE("Trip and Garage"),
     DISPLAY("Display"),
-    LAYOUT("Layout"),
-    NAVIGATION("Navigation"),
-    AUDIO("Audio"),
-    BACKUP("Backup"),
-    PRIVACY("Privacy and data"),
+    LAYOUT("Map and layout"),
+    OTHERS("Others"),
     DEBUG("Debug"),
 }
 
@@ -234,18 +225,12 @@ internal fun PageColumns(wide: Boolean, left: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
-private fun DisplayPage(
-    viewModel: SettingsViewModel,
-    wide: Boolean,
-    
-    onColours: () -> Unit,
-    onScreen: () -> Unit,
-    onChangelog: () -> Unit,
-) {
+private fun DisplayPage(viewModel: SettingsViewModel, wide: Boolean, onColours: () -> Unit, onScreen: () -> Unit) {
     val theme by viewModel.themeMode.collectAsStateWithLifecycle()
     val accent by viewModel.accentColor.collectAsStateWithLifecycle()
     val titleStyle by viewModel.cardTitleStyle.collectAsStateWithLifecycle()
     val watermark by viewModel.paneWatermark.collectAsStateWithLifecycle()
+    val unit by viewModel.speedUnit.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
@@ -255,16 +240,8 @@ private fun DisplayPage(
                 selected = theme,
                 text = { it.label },
                 tag = { "settings_theme_${it.name}" },
-                // 4.3c: beside its label on a wide page (room for the greeting row), stacked on a narrow one.
                 stacked = !wide,
             ) { haptics.tick(); viewModel.setThemeMode(it) }
-            ActionRow(
-                title = "Colours",
-                hint = "Accent and route line",
-                action = "Choose",
-                tag = "settings_colours",
-                leading = { Box(Modifier.size(28.dp).clip(CircleShape).background(Color(accent)).testTag("settings_accent_swatch")) },
-            ) { haptics.tap(); onColours() }
             // 4.3b: the header shows the pane's name or its icon.
             ChoiceRow(
                 label = R.string.settings_card_titles,
@@ -272,116 +249,113 @@ private fun DisplayPage(
                 selected = titleStyle,
                 text = { it.label },
                 tag = { "settings_card_titles_${it.name}" },
+                stacked = !wide,
             ) { haptics.tick(); viewModel.setCardTitleStyle(it) }
-        },
-        right = {
-            ActionRow(
-                title = stringResource(R.string.settings_screen_options),
-                hint = stringResource(R.string.settings_screen_options_hint),
-                action = stringResource(R.string.settings_telemetry_choose),
-                tag = "settings_screen_options",
-            ) { haptics.tap(); onScreen() }
             SwitchRow(
                 label = R.string.settings_pane_watermark,
                 hint = R.string.settings_pane_watermark_hint,
                 checked = watermark,
                 tag = "settings_pane_watermark",
             ) { haptics.toggle(it); viewModel.setPaneWatermark(it) }
-            ActionRow(
-                title = stringResource(R.string.settings_whats_new),
-                hint = stringResource(R.string.settings_whats_new_hint),
-                action = stringResource(R.string.settings_open),
-                tag = "settings_whats_new",
-            ) { haptics.tap(); onChangelog() }
-        },
-    )
-}
-
-@Composable
-private fun LayoutPage(viewModel: SettingsViewModel, layout: DashboardLayoutState, wide: Boolean) {
-    val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
-    val orientation by viewModel.orientationMode.collectAsStateWithLifecycle()
-    val haptics = rememberHaptics()
-    PageColumns(wide,
-        left = {
-            ChoiceRow(
-                label = R.string.settings_orientation,
-                options = com.nativeauto.settings.OrientationMode.entries,
-                selected = orientation,
-                text = { it.label },
-                tag = { "settings_orientation_${it.name}" },
-                stacked = true,
-            ) { haptics.tick(); viewModel.setOrientationMode(it) }
-            Text(
-                stringResource(R.string.settings_orientation_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = AppTheme.colors.textDim,
-                modifier = Modifier.testTag("settings_orientation_hint"),
-            )
-            ChoiceRow(
-                label = R.string.settings_map_width,
-                options = SPLIT_PRESETS,
-                selected = SPLIT_PRESETS.minBy { abs(it - layout.split) },
-                text = { "${(it * 100).toInt()}%" },
-                tag = { "settings_split_${(it * 100).toInt()}" },
-                stacked = true,
-            ) { haptics.tick(); layout.setSplit(it) }
+            CallCardRow()
         },
         right = {
-            ChoiceRow(
-                label = R.string.settings_drag_hold,
-                options = DRAG_HOLD_CHOICES_MS,
-                selected = dragHold,
-                text = { "${it / 1000} s" },
-                tag = { "settings_drag_hold_${it / 1000}" },
-                stacked = true,
-            ) { haptics.tick(); viewModel.setDragHoldMs(it) }
-        },
-    )
-}
-
-@Composable
-private fun NavigationPage(viewModel: SettingsViewModel, wide: Boolean) {
-    val unit by viewModel.speedUnit.collectAsStateWithLifecycle()
-    val autoLayout by viewModel.autoLayout.collectAsStateWithLifecycle()
-    val haptics = rememberHaptics()
-    PageColumns(wide,
-        left = {
             ChoiceRow(
                 label = R.string.settings_speed_unit,
                 options = SpeedUnit.entries,
                 selected = unit,
                 text = { it.speedLabel },
                 tag = { "settings_unit_${it.name}" },
-                stacked = true,
+                stacked = !wide,
             ) { haptics.tick(); viewModel.setSpeedUnit(it) }
-        },
-        right = {
-            SwitchRow(
-                label = R.string.settings_auto_layout,
-                hint = R.string.settings_auto_layout_hint,
-                checked = autoLayout,
-                tag = "settings_auto_layout",
-            ) { haptics.toggle(it); viewModel.setAutoLayout(it) }
+            ActionRow(
+                title = stringResource(R.string.settings_accent),
+                hint = stringResource(R.string.settings_accent_hint),
+                action = stringResource(R.string.settings_telemetry_choose),
+                tag = "settings_colours",
+                leading = { ColourDot(Color(accent), "settings_accent_swatch") },
+            ) { haptics.tap(); onColours() }
+            ActionRow(
+                title = stringResource(R.string.settings_screen_options),
+                hint = stringResource(R.string.settings_screen_options_hint),
+                action = stringResource(R.string.settings_telemetry_choose),
+                tag = "settings_screen_options",
+            ) { haptics.tap(); onScreen() }
         },
     )
 }
 
+/** A colour row's current colour. */
 @Composable
-private fun AudioPage(viewModel: SettingsViewModel, wide: Boolean) {
+private fun ColourDot(color: Color, tag: String) {
+    Box(Modifier.size(28.dp).clip(CircleShape).background(color).testTag(tag))
+}
+
+/** 4.6.2: the screen's arrangement on the left, the map and navigation on the right. */
+@Composable
+private fun LayoutPage(viewModel: SettingsViewModel, layout: DashboardLayoutState, wide: Boolean, onRoute: () -> Unit) {
+    val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
+    val orientation by viewModel.orientationMode.collectAsStateWithLifecycle()
+    val autoLayout by viewModel.autoLayout.collectAsStateWithLifecycle()
     val voice by viewModel.voiceGuidance.collectAsStateWithLifecycle()
+    val accent by viewModel.accentColor.collectAsStateWithLifecycle()
+    val route by viewModel.routeColor.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ChoiceRow(
+                    label = R.string.settings_orientation,
+                    options = com.nativeauto.settings.OrientationMode.entries,
+                    selected = orientation,
+                    text = { it.label },
+                    tag = { "settings_orientation_${it.name}" },
+                    stacked = true,
+                ) { haptics.tick(); viewModel.setOrientationMode(it) }
+                Text(
+                    stringResource(R.string.settings_orientation_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.textDim,
+                    modifier = Modifier.testTag("settings_orientation_hint"),
+                )
+            }
+            ChoiceRow(
+                label = R.string.settings_map_width,
+                options = SPLIT_PRESETS,
+                selected = SPLIT_PRESETS.minBy { abs(it - layout.split) },
+                text = { "${(it * 100).toInt()}%" },
+                tag = { "settings_split_${(it * 100).toInt()}" },
+                stacked = !wide,
+            ) { haptics.tick(); layout.setSplit(it) }
+            ChoiceRow(
+                label = R.string.settings_drag_hold,
+                options = DRAG_HOLD_CHOICES_MS,
+                selected = dragHold,
+                text = { "${it / 1000} s" },
+                tag = { "settings_drag_hold_${it / 1000}" },
+                stacked = !wide,
+            ) { haptics.tick(); viewModel.setDragHoldMs(it) }
+        },
+        right = {
             SwitchRow(
                 label = R.string.settings_voice,
                 hint = R.string.settings_voice_hint,
                 checked = voice,
                 tag = "settings_voice",
             ) { haptics.toggle(it); viewModel.setVoiceGuidance(it) }
-        },
-        right = {
-            CallControlsRow()
+            SwitchRow(
+                label = R.string.settings_auto_layout,
+                hint = R.string.settings_auto_layout_hint,
+                checked = autoLayout,
+                tag = "settings_auto_layout",
+            ) { haptics.toggle(it); viewModel.setAutoLayout(it) }
+            ActionRow(
+                title = stringResource(R.string.settings_route_colour),
+                hint = stringResource(if (route == null) R.string.settings_route_colour_follows else R.string.settings_route_colour_own),
+                action = stringResource(R.string.settings_telemetry_choose),
+                tag = "settings_route_colour",
+                leading = { ColourDot(Color(route ?: accent), "settings_route_swatch") },
+            ) { haptics.tap(); onRoute() }
         },
     )
 }
@@ -390,17 +364,14 @@ private fun AudioPage(viewModel: SettingsViewModel, wide: Boolean) {
 private fun TripGaragePage(
     viewModel: SettingsViewModel,
     wide: Boolean,
-    
     onOpenHistory: () -> Unit,
     onOpenGarage: () -> Unit,
-    onOptions: () -> Unit,
+    onAutomation: () -> Unit,
+    onFigures: () -> Unit,
     garage: GarageViewModel = hiltViewModel(),
 ) {
     val activeBike by garage.active.collectAsStateWithLifecycle()
     val resetArmed by viewModel.resetArmed.collectAsStateWithLifecycle()
-    val autoStartMode by viewModel.autoStartMode.collectAsStateWithLifecycle()
-    val autoStartHold by viewModel.autoStartHoldS.collectAsStateWithLifecycle()
-    val greeting by viewModel.dailyGreeting.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
@@ -413,22 +384,6 @@ private fun TripGaragePage(
                 tag = "settings_garage",
                 icon = AppIcons.Bike,
             ) { haptics.tap(); onOpenGarage() }
-            // 4.3a: the same row as every other setting (title + description left, the button right).
-            DangerRow(
-                title = stringResource(R.string.settings_reset_trip),
-                hint = stringResource(R.string.settings_reset_hint),
-                armed = resetArmed,
-                tag = "settings_reset_trip",
-            ) { if (viewModel.onResetTripTapped()) haptics.confirm() else haptics.tap() }
-            // 4.3c: the day's first open shows the bike's range (on this page: Display has no room left in landscape).
-            SwitchRow(
-                label = R.string.settings_daily_greeting,
-                hint = R.string.settings_daily_greeting_hint,
-                checked = greeting,
-                tag = "settings_daily_greeting",
-            ) { haptics.toggle(it); viewModel.setDailyGreeting(it) }
-        },
-        right = {
             ActionRow(
                 title = stringResource(R.string.settings_history),
                 hint = stringResource(R.string.settings_history_hint),
@@ -436,55 +391,65 @@ private fun TripGaragePage(
                 tag = "settings_history",
                 icon = AppIcons.History,
             ) { haptics.tap(); onOpenHistory() }
-            // 9a/9c: auto-pause, auto-end, the period total and the trip figures live in one dialog.
+        },
+        right = {
+            // 4.6.2: everything a trip does by itself (start, pause, resume, end) in one dialog.
             ActionRow(
-                title = stringResource(R.string.settings_trip_options),
+                title = stringResource(R.string.settings_automation),
+                hint = stringResource(R.string.settings_automation_hint),
+                action = stringResource(R.string.settings_telemetry_choose),
+                tag = "settings_trip_automation",
+            ) { haptics.tap(); onAutomation() }
+            ActionRow(
+                title = stringResource(R.string.settings_telemetry),
                 hint = stringResource(R.string.settings_trip_options_hint),
                 action = stringResource(R.string.settings_telemetry_choose),
                 tag = "settings_trip_options",
-            ) { haptics.tap(); onOptions() }
-            // 13b: the app starts the logging by itself while it is open (never in the background).
-            // 4.1.1: one on/off switch (the old "odometer only" mode is gone).
-            SwitchRow(
-                label = R.string.settings_auto_start,
-                hint = R.string.settings_auto_start_hint,
-                checked = autoStartMode != AutoStartMode.OFF,
-                tag = "settings_auto_start",
-            ) { haptics.toggle(it); viewModel.setAutoStartMode(if (it) AutoStartMode.TRIP else AutoStartMode.OFF) }
-            if (autoStartMode != AutoStartMode.OFF) {
-                ChoiceRow(
-                    label = R.string.settings_auto_start_hold,
-                    options = AUTO_START_HOLD_CHOICES_S,
-                    selected = autoStartHold,
-                    text = { "$it s" },
-                    tag = { "settings_auto_start_hold_$it" },
-                    stacked = true,
-                ) { haptics.tick(); viewModel.setAutoStartHoldS(it) }
-            }
+            ) { haptics.tap(); onFigures() }
+            // 4.3a: the same row as every other setting (title + description left, the button right).
+            DangerRow(
+                title = stringResource(R.string.settings_reset_trip),
+                hint = stringResource(R.string.settings_reset_hint),
+                armed = resetArmed,
+                tag = "settings_reset_trip",
+            ) { if (viewModel.onResetTripTapped()) haptics.confirm() else haptics.tap() }
         },
     )
 }
 
-/** 4.1.1: where the system keeps the rider's permissions, plus a full reset of the app. */
+/** 4.6.2: the app itself: greeting, changelog, backup; then what the phone lets it do, and a full reset. */
 @Composable
-private fun PrivacyPage(viewModel: SettingsViewModel, wide: Boolean) {
+private fun OthersPage(viewModel: SettingsViewModel, wide: Boolean, onChangelog: () -> Unit) {
     val haptics = rememberHaptics()
     val context = LocalContext.current
     val armed by viewModel.resetAppArmed.collectAsStateWithLifecycle()
+    val greeting by viewModel.greetingMode.collectAsStateWithLifecycle()
     PageColumns(wide,
         left = {
+            ChoiceRow(
+                label = R.string.settings_greeting,
+                options = com.nativeauto.settings.GreetingMode.entries,
+                selected = greeting,
+                text = { it.label },
+                tag = { "settings_greeting_${it.name}" },
+                stacked = true,
+            ) { haptics.tick(); viewModel.setGreetingMode(it) }
+            ActionRow(
+                title = stringResource(R.string.settings_whats_new),
+                hint = stringResource(R.string.settings_whats_new_hint),
+                action = stringResource(R.string.settings_open),
+                tag = "settings_whats_new",
+            ) { haptics.tap(); onChangelog() }
+            BackupRows()
+        },
+        right = {
+            CallPermissionRow()
             ActionRow(
                 title = stringResource(R.string.settings_privacy_permissions),
                 hint = stringResource(R.string.settings_privacy_permissions_hint),
                 action = stringResource(R.string.settings_open),
                 tag = "settings_privacy_permissions",
-            ) {
-                haptics.tap()
-                context.startActivity(
-                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
+            ) { haptics.tap(); context.openAppDetails() }
             ActionRow(
                 title = stringResource(R.string.settings_privacy_notifications),
                 hint = stringResource(R.string.settings_privacy_notifications_hint),
@@ -494,8 +459,6 @@ private fun PrivacyPage(viewModel: SettingsViewModel, wide: Boolean) {
                 haptics.tap()
                 context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-        },
-        right = {
             DangerRow(
                 title = stringResource(R.string.settings_reset_app),
                 hint = stringResource(R.string.settings_reset_app_hint),
@@ -512,6 +475,12 @@ private fun PrivacyPage(viewModel: SettingsViewModel, wide: Boolean) {
         },
     )
 }
+
+/** This app's page in Android's settings (permissions live there). */
+internal fun android.content.Context.openAppDetails() = startActivity(
+    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+)
 
 @Composable
 private fun DebugPage(viewModel: SettingsViewModel, wide: Boolean) {
@@ -550,13 +519,7 @@ private fun ScreenOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> U
     val showBattery by viewModel.showBattery.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     AppDialogSurface("screen_options", onDismiss, maxWidth = 1000.dp) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.settings_screen_options), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    FilledTonalButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.heightIn(min = 56.dp).testTag("settings_screen_options_done"),
-                    ) { Text(stringResource(R.string.settings_done)) }
-                }
+                DialogTitle(R.string.settings_screen_options, "settings_screen_options_done", onDismiss)
                 DialogTwoColumns {
                     Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         ChoiceRow(
@@ -585,86 +548,126 @@ private fun ScreenOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> U
     }
 }
 
-/** 9a/9c/12b: auto-pause, auto-end, the period total and the figures on the log face (auto-start has its own place now). */
+/** 4.6.2: everything a trip does by itself: start and resume on the left, pause and end on the right. */
 @Composable
-private fun TripOptionsDialog(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
+private fun TripAutomationDialog(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
+    val autoStartMode by viewModel.autoStartMode.collectAsStateWithLifecycle()
+    val autoStartHold by viewModel.autoStartHoldS.collectAsStateWithLifecycle()
     val autoPause by viewModel.autoPauseMinutes.collectAsStateWithLifecycle()
     val autoEnd by viewModel.autoEndMinutes.collectAsStateWithLifecycle()
     val autoResume by viewModel.autoResumeHoldOrOff.collectAsStateWithLifecycle()
+    val haptics = rememberHaptics()
+    val off = stringResource(R.string.settings_off)
+    val minutes = { m: Int -> if (m == 0) off else "$m min" }
+    AppDialogSurface("trip_automation", onDismiss, maxWidth = 1000.dp) {
+        DialogTitle(R.string.settings_automation, "settings_trip_automation_done", onDismiss)
+        DialogTwoColumns {
+            Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // 13b: the app starts the logging by itself while it is open (never in the background).
+                SwitchRow(
+                    label = R.string.settings_auto_start,
+                    hint = R.string.settings_auto_start_hint,
+                    checked = autoStartMode != AutoStartMode.OFF,
+                    tag = "settings_auto_start",
+                ) { haptics.toggle(it); viewModel.setAutoStartMode(if (it) AutoStartMode.TRIP else AutoStartMode.OFF) }
+                if (autoStartMode != AutoStartMode.OFF) {
+                    ChoiceRow(
+                        label = R.string.settings_auto_start_hold,
+                        options = AUTO_START_HOLD_CHOICES_S,
+                        selected = autoStartHold,
+                        text = { "$it s" },
+                        tag = { "settings_auto_start_hold_$it" },
+                        stacked = true,
+                    ) { haptics.tick(); viewModel.setAutoStartHoldS(it) }
+                }
+                // 4.2.1: resumes a paused trip on steady movement; 0 = off.
+                ChoiceRow(
+                    label = R.string.settings_auto_resume,
+                    options = listOf(0) + com.nativeauto.trip.AUTO_RESUME_HOLD_CHOICES_S,
+                    selected = autoResume,
+                    text = { if (it == 0) off else "$it s" },
+                    tag = { "settings_auto_resume_$it" },
+                    stacked = true,
+                ) { haptics.tick(); viewModel.setAutoResume(it) }
+            }
+            Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // 9a: "forgot to close the app". 0 = off.
+                ChoiceRow(
+                    label = R.string.settings_auto_pause,
+                    options = AUTO_PAUSE_CHOICES,
+                    selected = autoPause,
+                    text = { minutes(it) },
+                    tag = { "settings_auto_pause_$it" },
+                    stacked = true,
+                ) { haptics.tick(); viewModel.setAutoPauseMinutes(it) }
+                ChoiceRow(
+                    label = R.string.settings_auto_end,
+                    options = AUTO_END_CHOICES,
+                    selected = autoEnd,
+                    text = { minutes(it) },
+                    tag = { "settings_auto_end_$it" },
+                    stacked = true,
+                ) { haptics.tick(); viewModel.setAutoEndMinutes(it) }
+                Text(
+                    stringResource(R.string.settings_auto_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** 9c/12b: the log face's distance total and the figures a trip shows. */
+@Composable
+private fun TripFiguresDialog(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
     val totalPeriod by viewModel.totalPeriod.collectAsStateWithLifecycle()
     val hiddenStats by viewModel.hiddenStats.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     AppDialogSurface("trip_options", onDismiss, maxWidth = 1000.dp) {
-                // Done beside the title: the dialog fits a landscape phone without scrolling.
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.settings_trip_options), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    FilledTonalButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.heightIn(min = 56.dp).testTag("settings_trip_options_done"),
-                    ) { Text(stringResource(R.string.settings_done)) }
-                }
-                DialogTwoColumns {
-                    Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        // 9a: "forgot to close the app". 0 = off.
-                        val off = stringResource(R.string.settings_off)
-                        val minutes = { m: Int -> if (m == 0) off else "$m min" }
-                        ChoiceRow(
-                            label = R.string.settings_auto_pause,
-                            options = AUTO_PAUSE_CHOICES,
-                            selected = autoPause,
-                            text = { minutes(it) },
-                            tag = { "settings_auto_pause_$it" },
-                            stacked = true,
-                        ) { haptics.tick(); viewModel.setAutoPauseMinutes(it) }
-                        ChoiceRow(
-                            label = R.string.settings_auto_end,
-                            options = AUTO_END_CHOICES,
-                            selected = autoEnd,
-                            text = { minutes(it) },
-                            tag = { "settings_auto_end_$it" },
-                            stacked = true,
-                        ) { haptics.tick(); viewModel.setAutoEndMinutes(it) }
-                        // 12b (R2): the log face's distance total.
-                        ChoiceRow(
-                            label = R.string.settings_total_period,
-                            options = com.nativeauto.settings.TotalPeriod.entries,
-                            selected = totalPeriod,
-                            text = { it.label },
-                            tag = { "settings_period_${it.name}" },
-                            stacked = true,
-                        ) { haptics.tick(); viewModel.setTotalPeriod(it) }
-                    }
-                    Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // 4.2.1: resumes a paused trip on steady movement; 0 = off. In this column: the left one
-                        // would push Period total below a landscape phone's fold.
-                        val offLabel = stringResource(R.string.settings_off)
-                        ChoiceRow(
-                            label = R.string.settings_auto_resume,
-                            options = listOf(0) + com.nativeauto.trip.AUTO_RESUME_HOLD_CHOICES_S,
-                            selected = autoResume,
-                            text = { if (it == 0) offLabel else "$it s" },
-                            tag = { "settings_auto_resume_$it" },
-                            stacked = true,
-                        ) { haptics.tick(); viewModel.setAutoResume(it) }
-                        Text(stringResource(R.string.settings_telemetry), style = MaterialTheme.typography.titleMedium)
-                        Text(stringResource(R.string.settings_telemetry_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TelemetryStat.entries.forEach { stat ->
-                                val shown = stat !in hiddenStats
-                                FilterChip(
-                                    selected = shown,
-                                    onClick = { haptics.toggle(!shown); viewModel.setStatShown(stat, !shown) },
-                                    label = { Text(stat.label) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = AppTheme.colors.navy,
-                                        selectedLabelColor = AppTheme.colors.onNavy,
-                                    ),
-                                    modifier = Modifier.heightIn(min = 56.dp).testTag("settings_stat_${stat.key}"),
-                                )
-                            }
-                        }
+        DialogTitle(R.string.settings_telemetry, "settings_trip_options_done", onDismiss)
+        DialogTwoColumns {
+            Column(column, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // 12b (R2): the log face's distance total.
+                ChoiceRow(
+                    label = R.string.settings_total_period,
+                    options = com.nativeauto.settings.TotalPeriod.entries,
+                    selected = totalPeriod,
+                    text = { it.label },
+                    tag = { "settings_period_${it.name}" },
+                    stacked = true,
+                ) { haptics.tick(); viewModel.setTotalPeriod(it) }
+                Text(stringResource(R.string.settings_telemetry_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TelemetryStat.entries.forEach { stat ->
+                        val shown = stat !in hiddenStats
+                        FilterChip(
+                            selected = shown,
+                            onClick = { haptics.toggle(!shown); viewModel.setStatShown(stat, !shown) },
+                            label = { Text(stat.label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AppTheme.colors.navy,
+                                selectedLabelColor = AppTheme.colors.onNavy,
+                            ),
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("settings_stat_${stat.key}"),
+                        )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** A dialog's title with Done beside it, so the dialog fits a landscape phone. */
+@Composable
+internal fun DialogTitle(@StringRes title: Int, doneTag: String, onDismiss: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        FilledTonalButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp).testTag(doneTag)) {
+            Text(stringResource(R.string.settings_done))
+        }
     }
 }
 
@@ -802,7 +805,7 @@ private fun <T> ChoiceRow(
             segments(Modifier.fillMaxWidth())
         }
     } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = ROW_MIN_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             segments(Modifier)
         }

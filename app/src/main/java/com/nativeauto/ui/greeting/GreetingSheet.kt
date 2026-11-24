@@ -47,16 +47,25 @@ import com.nativeauto.ui.theme.Geist
 import java.util.Locale
 
 /**
- * 4.3c: the daily greeting, a bottom sheet on the first open of the day. With a bike: the tank and the cautious range
+ * 4.3c: the greeting, a bottom sheet on an app open. With a bike: the tank and the cautious range
  * (the biggest thing on it), then the odometer, this week's riding and a service that is due. Without one: the greeting
  * and a way into the Garage. A tap anywhere, a swipe down or Done closes it. [GreetingViewModel] decides when it shows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GreetingSheet(onOpenGarage: () -> Unit, viewModel: GreetingViewModel = hiltViewModel()) {
-    // Each time the app comes to the foreground: the first one of the day greets.
+    // Each time the app comes to the foreground; the setting says which of them greet.
     val owner = LocalLifecycleOwner.current
-    LaunchedEffect(owner) { owner.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.onOpened() } }
+    LaunchedEffect(owner) {
+        owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.onOpened()
+            try {
+                kotlinx.coroutines.awaitCancellation()
+            } finally {
+                viewModel.onLeft()
+            }
+        }
+    }
 
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val state = ui ?: return

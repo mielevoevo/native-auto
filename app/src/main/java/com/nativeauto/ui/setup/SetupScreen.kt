@@ -226,7 +226,7 @@ private fun pageContent(
     ) { RidingRows(vm) }
     else -> PageContent(
         "Ready", "You are set",
-        "What is on and off. Everything is also in Settings, and Settings, Privacy and data lists the permissions.",
+        "What is on and off. Everything is also in Settings, and Settings, Others lists the permissions.",
     ) { ReadyRows(vm, location, notifications) }
 }
 

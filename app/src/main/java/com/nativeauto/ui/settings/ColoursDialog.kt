@@ -48,6 +48,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.nativeauto.R
 import com.nativeauto.ui.components.AppDialogSurface
 import com.nativeauto.ui.components.DialogTwoColumns
 import com.nativeauto.ui.components.rememberHaptics
@@ -61,59 +62,51 @@ import com.nativeauto.ui.theme.appSwitchColors
 import com.nativeauto.ui.theme.toHex
 
 /**
- * 13c: the accent colour (presets or any hex) and the map's route line colour, in one place. The
- * accent is the one highlight on a card, so a bad choice is easy to see at once; the hex field says
- * when a colour is hard to read on black or white (the themes then lighten or darken it).
+ * 13c: the accent colour (presets or any hex). The accent is the one highlight on a card, so a bad choice is easy to
+ * see at once; the hex field says when a colour is hard to read on black or white (the themes then lighten or darken
+ * it). 4.6.2: the route line has its own dialog, on the Map and layout page.
  */
 @Composable
-internal fun ColoursDialog(
-    accent: Int,
-    route: Int?,
-    onAccent: (Int) -> Unit,
-    onRoute: (Int?) -> Unit,
-    onDismiss: () -> Unit,
-) {
+internal fun AccentDialog(accent: Int, onAccent: (Int) -> Unit, onDismiss: () -> Unit) {
     val haptics = rememberHaptics()
-    AppDialogSurface("colours_dialog", onDismiss, maxWidth = 1000.dp) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Colours", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    FilledTonalButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp).testTag("colours_done")) { Text("Done") }
+    AppDialogSurface("colours_dialog", onDismiss, maxWidth = 640.dp, spacing = 12.dp) {
+        DialogTitle(R.string.settings_accent, "colours_done", onDismiss)
+        Text("The one highlight on a card: progress, switches, the lit outline.", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim)
+        ColourPicker(
+            current = Color(accent),
+            tagPrefix = "accent",
+            onPick = { haptics.tick(); onAccent(it.toArgb()) },
+        )
+    }
+}
+
+/** 4.6.2: the map's route line: the accent, or a colour of its own. */
+@Composable
+internal fun RouteColourDialog(accent: Int, route: Int?, onRoute: (Int?) -> Unit, onDismiss: () -> Unit) {
+    val haptics = rememberHaptics()
+    AppDialogSurface("route_dialog", onDismiss, maxWidth = 640.dp, spacing = 12.dp) {
+        DialogTitle(R.string.settings_route_colour, "route_done", onDismiss)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .toggleable(value = route == null, role = Role.Switch) { follow ->
+                    haptics.toggle(follow)
+                    onRoute(if (follow) null else accent)
                 }
-                DialogTwoColumns {
-                    Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Accent", style = MaterialTheme.typography.titleMedium)
-                        Text("The one highlight on a card: progress, switches, the lit outline.", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim)
-                        ColourPicker(
-                            current = Color(accent),
-                            tagPrefix = "accent",
-                            onPick = { haptics.tick(); onAccent(it.toArgb()) },
-                        )
-                    }
-                    Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Route line on the map", style = MaterialTheme.typography.titleMedium)
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 56.dp)
-                                .toggleable(value = route == null, role = Role.Switch) { follow ->
-                                    haptics.toggle(follow)
-                                    onRoute(if (follow) null else accent)
-                                }
-                                .testTag("route_follow"),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Follow the accent", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            Switch(checked = route == null, onCheckedChange = null, colors = appSwitchColors())
-                        }
-                        if (route != null) {
-                            ColourPicker(
-                                current = Color(route),
-                                tagPrefix = "route",
-                                onPick = { haptics.tick(); onRoute(it.toArgb()) },
-                            )
-                        }
-                    }
-                }
+                .testTag("route_follow"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Follow the accent", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Switch(checked = route == null, onCheckedChange = null, colors = appSwitchColors())
+        }
+        if (route != null) {
+            ColourPicker(
+                current = Color(route),
+                tagPrefix = "route",
+                onPick = { haptics.tick(); onRoute(it.toArgb()) },
+            )
+        }
     }
 }
 

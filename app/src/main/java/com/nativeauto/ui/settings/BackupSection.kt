@@ -66,38 +66,27 @@ class BackupViewModel @Inject constructor(private val files: TripFiles) : ViewMo
     }
 }
 
-/** 4.3a: Back up and Import as two settings rows (button on the right), the message under them. */
+/** 4.3a: Back up and Import as two settings rows (button on the right), the message under them. 4.6.2: on the Others page. */
 @Composable
-internal fun BackupSection(wide: Boolean, viewModel: BackupViewModel = hiltViewModel()) {
+internal fun BackupRows(viewModel: BackupViewModel = hiltViewModel()) {
     val message by viewModel.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptics = rememberHaptics()
     LaunchedEffect(viewModel) { viewModel.share.collect { context.startActivity(it) } }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::import) }
-    val status = @Composable {
-        message?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.text, modifier = Modifier.testTag("backup_message"))
-        }
+    ActionRow(
+        title = stringResource(R.string.settings_backup_title),
+        hint = stringResource(R.string.settings_backup_hint),
+        action = stringResource(R.string.settings_backup_action),
+        tag = "backup_export",
+    ) { haptics.tap(); viewModel.backup() }
+    ActionRow(
+        title = stringResource(R.string.settings_import_title),
+        hint = stringResource(R.string.settings_import_hint),
+        action = stringResource(R.string.settings_import_action),
+        tag = "backup_import",
+    ) { haptics.tap(); pick.launch(arrayOf("application/zip", "application/octet-stream")) }
+    message?.let {
+        Text(it, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.text, modifier = Modifier.testTag("backup_message"))
     }
-    PageColumns(
-        wide,
-        left = {
-            ActionRow(
-                title = stringResource(R.string.settings_backup_title),
-                hint = stringResource(R.string.settings_backup_hint),
-                action = stringResource(R.string.settings_backup_action),
-                tag = "backup_export",
-            ) { haptics.tap(); viewModel.backup() }
-            if (wide) status()
-        },
-        right = {
-            ActionRow(
-                title = stringResource(R.string.settings_import_title),
-                hint = stringResource(R.string.settings_import_hint),
-                action = stringResource(R.string.settings_import_action),
-                tag = "backup_import",
-            ) { haptics.tap(); pick.launch(arrayOf("application/zip", "application/octet-stream")) }
-            if (!wide) status()
-        },
-    )
 }

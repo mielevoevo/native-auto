@@ -120,11 +120,21 @@ class ReleaseSmokeTest {
         tap("settings_trip_options_done")
         gone("trip_options")
         // 13b: auto-start on and off again (the monitor starts watching while the app is open).
+        tap("settings_trip_automation")
         tap("settings_auto_start")
         tap("settings_auto_start")
-        // 4.1.1: the Privacy and data page (never tapping Reset app).
-        tap("settings_cat_PRIVACY")
-        find("settings_reset_app")
+        tap("settings_trip_automation_done")
+        gone("trip_automation")
+        // 4.6.2: the greeting's choices, and the route colour on Map and layout.
+        tap("settings_cat_OTHERS")
+        tap("settings_greeting_EVERY_OPEN")
+        tap("settings_greeting_ONCE_A_DAY")
+        find("settings_call_permissions")
+        tap("settings_cat_LAYOUT")
+        tap("settings_route_colour")
+        find("route_dialog")
+        tap("route_done")
+        gone("route_dialog")
         tap("settings_cat_DISPLAY")
         tap("settings_theme_DARK")
         // 13c: the colours dialog (accent presets), back to the default cyan.
@@ -135,6 +145,7 @@ class ReleaseSmokeTest {
         tap("colours_done")
         gone("colours_dialog")
         // 13a: the changelog history.
+        tap("settings_cat_OTHERS")
         tap("settings_whats_new")
         find("changelog_history")
         tap("changelog_history_done")
@@ -290,7 +301,7 @@ class ReleaseSmokeTest {
         find("picker_grid")
         tap("pick_GARAGE")
         gone("picker_sheet")
-        // A dialog as a bottom sheet (Trip options) and the Colours dialog.
+        // A dialog as a bottom sheet (Trip figures) and the Colours dialog.
         tap("settings_open")
         tap("settings_cat_TRIP_GARAGE")
         tap("settings_trip_options")

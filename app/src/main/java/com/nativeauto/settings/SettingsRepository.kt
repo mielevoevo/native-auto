@@ -122,9 +122,9 @@ interface SettingsRepository {
     val cardTitleStyle: Flow<CardTitleStyle> get() = flowOf(CardTitleStyle.TEXT)
     suspend fun setCardTitleStyle(style: CardTitleStyle) {}
 
-    /** 4.3c: the daily greeting (first open of the day). On by default. */
-    val dailyGreeting: Flow<Boolean> get() = flowOf(true)
-    suspend fun setDailyGreeting(enabled: Boolean) {}
+    /** 4.3c / 4.6.2: when the greeting shows. Once a day by default. */
+    val greetingMode: Flow<GreetingMode> get() = flowOf(GreetingMode.ONCE_A_DAY)
+    suspend fun setGreetingMode(mode: GreetingMode) {}
 
     /** 4.3b: a large, very faint pane icon behind Expanded / Fullscreen cards. Off by default. */
     val paneWatermark: Flow<Boolean> get() = flowOf(false)
@@ -302,10 +302,11 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[CARD_TITLE_STYLE] = style.name }
     }
 
-    override val dailyGreeting: Flow<Boolean> = prefs.map { it[DAILY_GREETING] ?: true }.distinctUntilChanged()
+    override val greetingMode: Flow<GreetingMode> =
+        prefs.map { greetingModeFrom(it[GREETING_MODE], it[DAILY_GREETING]) }.distinctUntilChanged()
 
-    override suspend fun setDailyGreeting(enabled: Boolean) {
-        store.edit { it[DAILY_GREETING] = enabled }
+    override suspend fun setGreetingMode(mode: GreetingMode) {
+        store.edit { it[GREETING_MODE] = mode.name }
     }
 
     override val paneWatermark: Flow<Boolean> = prefs.map { it[PANE_WATERMARK] ?: false }.distinctUntilChanged()
@@ -455,7 +456,9 @@ class DataStoreSettingsRepository @Inject constructor(
         val CALL_CONTROLS = booleanPreferencesKey("call_controls")
         val CARD_TITLE_STYLE = stringPreferencesKey("card_title_style")
         val PANE_WATERMARK = booleanPreferencesKey("pane_watermark")
+        /** The 4.3c switch; only read, for installs that set it before 4.6.2. */
         val DAILY_GREETING = booleanPreferencesKey("daily_greeting")
+        val GREETING_MODE = stringPreferencesKey("greeting_mode")
         val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
         val AUTO_START_HOLD_S = intPreferencesKey("auto_start_hold_s")
         val AUTO_RESUME = booleanPreferencesKey("auto_resume")

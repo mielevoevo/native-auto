@@ -2,6 +2,7 @@ package com.nativeauto.greeting
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nativeauto.core.MonotonicClock
 import com.nativeauto.core.WallClock
 import com.nativeauto.garage.DueLevel
 import com.nativeauto.garage.GarageCardState
@@ -42,7 +43,8 @@ data class GreetingUi(
 
 /**
  * 4.3c: decides on each app open ([onOpened], from the activity's ON_START) whether the day's greeting shows, and
- * marks the day as soon as it does (a process death afterwards doesn't greet twice). It goes away by itself 8 s after
+ * marks the day as soon as it does (a process death afterwards doesn't greet twice). An open right after leaving (a
+ * permission screen, the file picker, a glance at another app) is not a new one ([AWAY_MS]). It goes away by itself 8 s after
  * a trip starts running. The changelog waits while it is up ([showing]).
  */
 @HiltViewModel
@@ -52,12 +54,16 @@ class GreetingViewModel @Inject constructor(
     private val tracker: TripTracker,
     private val navigator: Navigator,
     private val wall: WallClock,
+    private val clock: MonotonicClock,
     garage: GarageRepository,
     trips: TripDao,
 ) : ViewModel() {
 
     private val _showing = MutableStateFlow(false)
     val showing: StateFlow<Boolean> = _showing.asStateFlow()
+
+    /** When the app last left the foreground; null until it has (a fresh start). */
+    private var leftAtNanos: Long? = null
 
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
@@ -84,15 +90,21 @@ class GreetingViewModel @Inject constructor(
     /** The app came to the foreground (not a rotation: the activity handles those itself). */
     fun onOpened() {
         if (_showing.value) return
+        val freshOpen = leftAtNanos.let { it == null || clock.nowNanos() - it >= awayMs * 1_000_000 }
         viewModelScope.launch {
             val today = Instant.ofEpochMilli(wall.nowMs()).atZone(zone).toLocalDate()
             val busy = tracker.state.value == TripState.Running || tracker.state.value == TripState.Paused ||
                 navigator.state.value !is NavState.Idle
-            if (shouldGreet(today, store.lastDay(), settings.dailyGreeting.first(), busy)) {
+            if (shouldGreet(today, store.lastDay(), settings.greetingMode.first(), busy, freshOpen)) {
                 store.markGreeted(today)
                 _showing.value = true
             }
         }
+    }
+
+    /** The app left the foreground. */
+    fun onLeft() {
+        leftAtNanos = clock.nowNanos()
     }
 
     fun dismiss() {
@@ -101,5 +113,11 @@ class GreetingViewModel @Inject constructor(
 
     companion object {
         const val AUTO_CLOSE_MS = 8_000L
+
+        /** Away less than this is the same open. */
+        const val AWAY_MS = 60_000L
+
+        /** [AWAY_MS]; device tests shorten it. */
+        @Volatile var awayMs: Long = AWAY_MS
     }
 }
