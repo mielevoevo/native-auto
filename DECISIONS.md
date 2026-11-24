@@ -1100,10 +1100,10 @@ run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
 
 ### Device check of 4.6.1 to 4.6.3 (2026-11-24, emulator)
 
-- **Device tests, all green on the final code or on code the later edits don't touch:** MigrationTest (v1 to v8),
-  TripSummaryDashTest, PortraitCardsTest, PortraitDashboardTest, SetupFlowTest, CallCardTest, GreetingSheetTest, MapPaneTest (7 + the
-  traffic test skipped: no traffic on the free map), then after the last edits again DashboardScreenTest (54), GarageScreenTest and
-  MediaCardTest (19 together). 514 unit tests green. They ran on the code as it stands after 4.6.3, not on each build separately.
+- **Device tests, all green.** On the final code: DashboardScreenTest (54), GarageScreenTest and MediaCardTest (19 together), 514 unit
+  tests. Before the last design edits (settings tabs, idle media text, faint icon) and not repeated after them: PortraitCardsTest,
+  PortraitDashboardTest, SetupFlowTest, CallCardTest, GreetingSheetTest, MapPaneTest (the traffic test skipped: no traffic on the free map).
+  Before the location fix too: MigrationTest (v1 to v8) and TripSummaryDashTest. Not run on each build separately.
 - **App bug found and fixed:** location refused and then allowed left the speed card on the speed face while standing still.
   `SpeedFaceState.onBlocked(false)` now goes back to the log face unless moving, riding a trip or swiped by hand.
 - **Failures that were not the app:** "System UI isn't responding" dialogs held the focus (11 tests); the emulator repeats its last
