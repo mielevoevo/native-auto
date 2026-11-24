@@ -103,6 +103,9 @@ object Backup {
                     r.loadAccel?.let { put("loadAccel", it) }
                     r.loadClimbM?.let { put("loadClimbM", it) }
                     r.loadStops?.let { put("loadStops", it) }
+                    r.loadCrawlS?.let { put("loadCrawlS", it) }
+                    r.loadCrawlM?.let { put("loadCrawlM", it) }
+                    r.loadCrawlClimbM?.let { put("loadCrawlClimbM", it) }
                     // Compact: one array per point, [timeMs, lat, lon, speed, bearing|null, accuracy].
                     putJsonArray("points") {
                         t.points.forEach { p ->
@@ -160,6 +163,9 @@ object Backup {
                 loadAccel = o["loadAccel"]?.jsonPrimitive?.doubleOrNull,
                 loadClimbM = o["loadClimbM"]?.jsonPrimitive?.doubleOrNull,
                 loadStops = o["loadStops"]?.jsonPrimitive?.intOrNull,
+                loadCrawlS = o["loadCrawlS"]?.jsonPrimitive?.doubleOrNull,
+                loadCrawlM = o["loadCrawlM"]?.jsonPrimitive?.doubleOrNull,
+                loadCrawlClimbM = o["loadCrawlClimbM"]?.jsonPrimitive?.doubleOrNull,
             )
             val points = (o["points"] as? JsonArray).orEmpty().map { pe ->
                 val a = pe.jsonArray

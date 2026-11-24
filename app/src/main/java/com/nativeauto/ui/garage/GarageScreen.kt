@@ -1,5 +1,6 @@
 package com.nativeauto.ui.garage
 
+import kotlinx.coroutines.flow.flowOf
 import com.nativeauto.garage.priceOf
 import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.FuelType
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +53,7 @@ import com.nativeauto.garage.OdometerReading
 import com.nativeauto.garage.OdometerState
 import com.nativeauto.garage.ReadingKind
 import com.nativeauto.garage.ServiceItem
+import com.nativeauto.garage.formatKmPerL
 import com.nativeauto.garage.formatOdometer
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
@@ -131,7 +134,11 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                         // 14b: portrait puts the bikes in a row of cards that scrolls sideways, the detail underneath.
                         if (LocalPortrait.current) {
                             Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                // 4.7: as tall as the tallest card. Without it the cards' fillMaxHeight took the whole screen (since 14b).
+                                Row(
+                                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
                                     tiles(Modifier.width(200.dp).fillMaxHeight())
                                 }
                                 detail(Modifier.weight(1f).fillMaxWidth())
@@ -152,9 +159,11 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
 
     editing?.let { id ->
         val bike = list?.firstOrNull { it.id == id }
+        val edited by remember(bike?.id) { if (bike == null) flowOf(null) else viewModel.fuel(bike.id) }.collectAsStateWithLifecycle(null)
         BikeEditor(
             bike = bike,
             newModel = newModel,
+            learnedKmPerL = edited?.consumption?.takeIf { it.learned }?.let { "Learned: ${formatKmPerL(it.kmPerL)} ${kmplSource(it)}. The starting km/L counts less with each fill-up." },
             deleteArmed = bike != null && armed == bike.id,
             onSave = { draft, odometer ->
                 haptics.confirm()
@@ -372,6 +381,20 @@ private fun BikeDetail(
     val refuelArmed by viewModel.refuelArmed.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     val dim = AppTheme.colors.textDim
+    // 4.7: in portrait under the odometer: beside it they left the number too little room and it broke in two.
+    val portrait = LocalPortrait.current
+    val odometerButtons = @Composable {
+        // 11b: hidden until the odometer is set (there's nothing to add to before that).
+        if (odo?.lastReading != null) {
+            FilledTonalButton(onClick = onUntracked, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_untracked")) {
+                Text("Add untracked km")
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        FilledTonalButton(onClick = onCorrect, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_correct")) {
+            Text(if (odo?.lastReading == null) "Set odometer" else "Correct")
+        }
+    }
     Column(modifier.verticalScroll(rememberScrollState())) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -395,18 +418,10 @@ private fun BikeDetail(
                     modifier = Modifier.testTag("garage_odometer"),
                 )
             }
-            // 11b: hidden until the odometer is set (there's nothing to add to before that).
-            if (odo?.lastReading != null) {
-                FilledTonalButton(onClick = onUntracked, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_untracked")) {
-                    Text("Add untracked km")
-                }
-                Spacer(Modifier.width(8.dp))
-            }
-            FilledTonalButton(onClick = onCorrect, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_correct")) {
-                Text(if (odo?.lastReading == null) "Set odometer" else "Correct")
-            }
+            if (!portrait) odometerButtons()
         }
         odo?.let { FactorLine(it) }
+        if (portrait) Row(Modifier.padding(top = 8.dp)) { odometerButtons() }
         Spacer(Modifier.height(16.dp))
         if (bike.active) {
             Text("Riding this bike: new trips are counted on it.", style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -443,7 +458,9 @@ private fun BikeDetail(
 private fun FactorLine(odo: OdometerState) {
     if (odo.lastReading == null) return
     val pct = (odo.factor - 1.0) * 100
-    val text = if (kotlin.math.abs(pct) < 0.05) {
+    val text = if (odo.manualFactor) {
+        "Odometer vs GPS set by you: ${String.format(Locale.US, "%+.1f", pct).replace('-', '−')}% (Edit, Fine-tuning)."
+    } else if (kotlin.math.abs(pct) < 0.05) {
         "Correct the odometer now and then (at a fill-up): the app learns how far GPS drifts from it."
     } else {
         "GPS reads ${String.format(Locale.US, "%.1f", kotlin.math.abs(pct))}% ${if (pct > 0) "short" else "long"}; trips are scaled to match."
@@ -462,7 +479,7 @@ private fun ReadingRow(r: OdometerReading) {
                 ReadingKind.SET -> "First reading"
                 ReadingKind.CORRECTION -> "Corrected"
                 ReadingKind.AWAY -> "Away +${formatOdometer(r.awayKm)}"
-                ReadingKind.UNTRACKED -> "Untracked +${formatOdometer(r.awayKm)}"
+                ReadingKind.UNTRACKED -> if (r.awayKm == 0.0) "Estimate kept" else "Untracked +${formatOdometer(r.awayKm)}"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = if (r.readingKind == ReadingKind.AWAY) AppTheme.colors.amber else AppTheme.colors.textDim,

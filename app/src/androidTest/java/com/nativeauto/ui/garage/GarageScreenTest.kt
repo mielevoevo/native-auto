@@ -35,6 +35,7 @@ import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -232,6 +233,67 @@ class GarageScreenTest {
         scrollClick("garage_refuel")
         await("garage_refuel_dialog")
         assertEquals("16200", tag("garage_refuel_price").fieldText())
+    }
+
+    /** 4.7: a preset prefills, the gauge is the bike's own, and the odometer correction can be set and given back. */
+    @Test fun aPresetPrefillsAndFineTuningSetsTheBikesOwnFigures() {
+        openGarage()
+        click("garage_add")
+        await("garage_editor")
+        tag("garage_name").performTextReplacement("Other one")
+        click("garage_model")
+        await("garage_model_VARIO_125")
+        click("garage_model_VARIO_125")
+        assertEquals("5.5", tag("garage_tank").fieldText())
+        assertEquals("8", tag("garage_bars_value").fetchText())
+        // "Other bike" keeps what is there.
+        tag("garage_tank").performTextReplacement("5")
+        click("garage_model")
+        await("garage_model_OTHER")
+        click("garage_model_OTHER")
+        assertEquals("5", tag("garage_tank").fieldText())
+        scrollClick("garage_bars_plus")
+        scrollClick("garage_bars_plus")
+        assertEquals("10", tag("garage_bars_value").fetchText())
+        tag("garage_odo_input").performScrollTo().performTextReplacement("5000")
+        click("garage_save")
+        awaitGone("garage_editor")
+        await("garage_bike_Other one")
+        scrollClick("garage_set_level")
+        await("garage_level_dialog")
+        count("garage_level_bar_10").assertCountEquals(1)
+        count("garage_level_bar_11").assertCountEquals(0)
+        click("garage_level_bar_4")
+        click("garage_level_save")
+        awaitGone("garage_level_dialog")
+
+        // Fine-tuning: the correction, set and kept.
+        scrollClick("garage_edit")
+        await("garage_editor")
+        count("garage_reserve").assertCountEquals(0)
+        scrollClick("garage_tuning")
+        await("garage_reserve")
+        assertEquals("0%", tag("garage_odo_factor_value").fetchText())
+        scrollClick("garage_odo_factor_plus")
+        scrollClick("garage_odo_factor_plus")
+        scrollClick("garage_odo_factor_plus")
+        assertEquals("+1.5%", tag("garage_odo_factor_value").fetchText())
+        click("garage_save")
+        awaitGone("garage_editor")
+        rule.waitUntil(5_000) { tag("garage_factor").fetchText().contains("set by you") }
+        assertEquals("5,000 km", tag("garage_odometer").fetchText())
+        runBlocking { assertEquals(1.015, entry.garageDao().activeBike()!!.factor, 1e-9) }
+
+        // And back to the learned one.
+        scrollClick("garage_edit")
+        await("garage_editor")
+        scrollClick("garage_tuning")
+        await("garage_odo_factor_learned")
+        scrollClick("garage_odo_factor_learned")
+        click("garage_save")
+        awaitGone("garage_editor")
+        rule.waitUntil(5_000) { !tag("garage_factor").fetchText().contains("set by you") }
+        runBlocking { assertNull(entry.garageDao().activeBike()!!.odoFactorManual) }
     }
 
     @Test fun theGaugeSetsALevelBeforeTheFirstFullFill() {

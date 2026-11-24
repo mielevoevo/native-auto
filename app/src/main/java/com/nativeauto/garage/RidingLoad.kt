@@ -33,9 +33,18 @@ data class LoadSums(
     val climbM: Double = 0.0,
     /** Times the bike came to a stop from riding. */
     val stops: Int = 0,
+    /**
+     * 4.7, recorded only (the range doesn't read them yet): time and distance crawling (slower than [CRAWL_MPS], not
+     * stopped), and the metres climbed meanwhile. Standing time is the trip's stopped time.
+     */
+    val crawlS: Double = 0.0,
+    val crawlM: Double = 0.0,
+    val crawlClimbM: Double = 0.0,
 ) {
-    operator fun plus(o: LoadSums) =
-        LoadSums(distanceM + o.distanceM, aero + o.aero, accel + o.accel, climbM + o.climbM, stops + o.stops)
+    operator fun plus(o: LoadSums) = LoadSums(
+        distanceM + o.distanceM, aero + o.aero, accel + o.accel, climbM + o.climbM, stops + o.stops,
+        crawlS + o.crawlS, crawlM + o.crawlM, crawlClimbM + o.crawlClimbM,
+    )
 
     /** J per kg per km; null on too short a stretch to say anything. */
     val energyPerKm: Double?
@@ -68,6 +77,9 @@ internal const val LOAD_ALT_DEAD_BAND_M = 2.0
 private const val STOP_MPS = 1.0
 private const val GO_MPS = 3.0
 
+/** 4.7: slower than this (15 km/h) and not stopped is crawling: queues, jams. */
+const val CRAWL_MPS = 15.0 / 3.6
+
 /**
  * Running sums over the accepted fixes of one trip. No allocation per fix (the altitude window is a fixed array).
  * Not thread-safe: fed from one collector.
@@ -78,6 +90,9 @@ class LoadAccumulator {
     private var accel = 0.0
     private var climbM = 0.0
     private var stops = 0
+    private var crawlS = 0.0
+    private var crawlM = 0.0
+    private var crawlClimbM = 0.0
 
     private var lastNanos = Long.MIN_VALUE
     private var lastLat = 0.0
@@ -91,7 +106,7 @@ class LoadAccumulator {
     private var altSum = 0.0
     private var anchor = Double.NaN
 
-    val sums: LoadSums get() = LoadSums(distanceM, aero, accel, climbM, stops)
+    val sums: LoadSums get() = LoadSums(distanceM, aero, accel, climbM, stops, crawlS, crawlM, crawlClimbM)
 
     fun add(s: SpeedSample) {
         val v = s.speedMps.toDouble()
@@ -107,6 +122,10 @@ class LoadAccumulator {
             val dv = sv - smoothV
             if (dv > 0) accel += dv * sv
             smoothV = sv
+            if (crawling) {
+                crawlS += (s.timestampNanos - lastNanos) / 1e9
+                crawlM += d
+            }
             if (moving && sv < STOP_MPS) { stops++; moving = false }
         }
         if (smoothV > GO_MPS) moving = true
@@ -115,6 +134,8 @@ class LoadAccumulator {
         lastLat = s.latitude
         lastLon = s.longitude
     }
+
+    private val crawling: Boolean get() = smoothV >= STOP_MPS && smoothV < CRAWL_MPS
 
     private fun addAltitude(a: Double) {
         if (altCount == LOAD_ALT_WINDOW) altSum -= alt[altIndex] else altCount++
@@ -125,7 +146,11 @@ class LoadAccumulator {
         val mean = altSum / LOAD_ALT_WINDOW
         when {
             anchor.isNaN() -> anchor = mean
-            mean - anchor > LOAD_ALT_DEAD_BAND_M -> { climbM += mean - anchor; anchor = mean }
+            mean - anchor > LOAD_ALT_DEAD_BAND_M -> {
+                climbM += mean - anchor
+                if (crawling) crawlClimbM += mean - anchor
+                anchor = mean
+            }
             anchor - mean > LOAD_ALT_DEAD_BAND_M -> anchor = mean
         }
     }

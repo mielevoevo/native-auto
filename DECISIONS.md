@@ -1156,5 +1156,39 @@ run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
   PortraitCardsTest (9), MediaCardTest, CallCardTest, MapPaneTest (traffic skipped: none on the free map), SetupFlowTest. Two tests failed first,
   both because Orientation moved: the faint-icon row is now under the fold in landscape (the test scrolls to it) and the smoke test looked for
   Orientation on Map and layout. **Not run:** MigrationTest, TripFilesTest, TripSummaryDashTest (no database, trip file or summary change).
-- **Release:** ReleaseSmokeTest 2 of 2. The exact APK was installed over 4.6.3 (with a bike and a fuel level) and launched: no crash, the right
+- **Release:** ReleaseSmokeTest 2 of 2. The exact APK was installed over 4.6.3 (with a bike) and launched: no crash, the right
   "What's new". `.dev/apk/NativeAuto-4.6.4-464-release.apk`.
+
+### 4.7: universal bikes, gauge per bike, fine-tuning, traffic recording (versionCode 36)
+
+- **Presets:** tank from published figures, looked up 2026-11-24: Vario 110 3.7 L (Cermati, Honda Cengkareng, Kumparan; one source differed),
+  Vario 125 / 150 / 160 5.5 L, BeAT 4.2 L (Honda's brochure for 2020 on; older ones 4.0 or 3.7, hence "BeAT (2020 on)"), PCX 160 8.1 L
+  (several, quoting Honda), PCX 150 8.0 L (Autofun only). Reserve = ~20 % of the tank, as for the NMAX presets: an app default, not Honda's figure.
+  **Gauge bars of the Hondas could not be confirmed:** they start at 8 and the editor says to count them. *Reason to keep the presets:* they only
+  prefill. "Other bike" no longer refills anything (it overwrote what was typed).
+- **Gauge per bike:** 4 to 12, beside the model (not in Fine-tuning): it must be right for Set fuel level. Existing bikes keep 6 (NMAX Gen 1) and 8,
+  in the migration and from older backups. Set fuel level uses big cells (13 segments don't fit a phone's width), in rows of at most 5 in portrait.
+  The Garage card's own 5-segment gauge is unchanged.
+- **Fine-tuning:** starting km/L and reserve moved into it, plus "Odometer vs GPS" (steps of 0.5 %, within the learned band of 10 %). An own
+  correction is stored beside the learned one, which keeps learning; "Use learned" drops it. **A change counts from then on:** the estimate at
+  that moment is kept as a reading ("Estimate kept"), otherwise all km since the last reading would jump. A correction right after it teaches nothing
+  (it would measure from an estimate). It opens by itself while one of its fields is invalid, so Save is never off for a hidden reason.
+- **"A button to go back to what the app has learned"** is for the odometer correction only: km/L always runs on the learned figure, the
+  starting one just counts less with each fill-up (the editor says so and shows the learned value).
+- **Traffic recording:** crawling = under 15 km/h and not stopped (1 m/s), on the smoothed speed: seconds, metres, metres climbed meanwhile.
+  Standing time and stop counts were already stored. Shown on the trip page (the rider needs to see it to judge it). **The range reads none of it**
+  (`RANGE_FOLLOWS_RIDING` stays false); fuel starting costs are still open, to be discussed with recorded rides.
+- **Room v9** (`MIGRATION_8_9`), new columns only; backup format 2 with optional fields.
+- **Found and fixed on the way:** (1) **the Garage in portrait showed only the bike cards, as tall as the screen, and no bike page, since v4.0**
+  (`fillMaxHeight` in a row of unbounded height; no portrait test opened the Garage). It also affects 4.6.4. (2) the odometer then broke across two
+  lines in portrait. (3) in landscape Save scrolled away with a long Garage form: the title row now stays.
+- **Design review** (shots, both orientations, dark): model menu first tried as a dropdown (full height, square, scrolling) became tiles;
+  Fine-tuning first looked like the main button; the odometer hint and the traffic line wrapped badly. Gates pass. Scores: editor 2/3/3/3/3/2, gauge
+  picker 3/3/3/3/3/3, trip page 3/3/3/3/3/3, portrait Garage 2/3/3/3/3/2. **Not seen on a shot:** light theme, a learned km/L in Fine-tuning.
+- **Tests (2026-11-25, emulator):** 520 unit tests. Device: MigrationTest (v1 to v9, and a v8 garage), TripFilesTest, GarageScreenTest,
+  PortraitDashboardTest, SetupFlowTest, GreetingSheetTest, DashboardScreenTest (54). **Not run:** MediaCardTest, CallCardTest, MapPaneTest,
+  PortraitCardsTest (nothing in 4.7 touches them; green on 4.6.4). Recording itself is unit-tested; no real ride yet.
+- **Release:** the emulator was stopped once for low memory and restarted (the rider allowed that). The first smoke run after it failed at the first
+  screen, right after the boot, with an empty crash log; cause not confirmed. The same build by hand started, and the rerun was 2 of 2. The exact APK
+  was installed over 4.6.4: odometer, fuel level and range kept, no crash. `.dev/apk/NativeAuto-4.7-470-release.apk`. No way back to 4.6.x
+  without losing the data (database v9): back up first.

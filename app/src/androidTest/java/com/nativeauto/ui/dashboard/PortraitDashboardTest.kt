@@ -199,6 +199,40 @@ class PortraitDashboardTest {
         rule.waitForIdle()
     }
 
+    /** 4.7: the bike cards are as tall as their text and the bike's page is under them (they filled the screen from 14b on). */
+    @Test fun theGarageShowsTheBikePageUnderTheBikes() {
+        val entry = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        )
+        runBlocking {
+            entry.garage().addBike(
+                com.nativeauto.garage.BikeDraft("Gen 1", com.nativeauto.garage.BikeModel.NMAX_GEN1, 6.6, 1.3, com.nativeauto.garage.FuelType.PERTAMAX, com.nativeauto.garage.DEFAULT_KM_PER_L),
+                12_000.0,
+            )
+        }
+        try {
+            goPortrait()
+            click("settings_open"); awaitSheet("settings_sheet")
+            click("settings_cat_TRIP_GARAGE")
+            tag("settings_garage").performScrollTo()
+            click("settings_garage")
+            awaitSheet("garage_edit")
+            tag("garage_edit").assertIsDisplayed()
+            tag("garage_odometer").assertIsDisplayed()
+            assertTrue("the odometer is one line", tag("garage_odometer").h().value < 60f)
+            val bike = tag("garage_bike_Gen 1").h().value
+            assertTrue("bike card $bike dp", bike in 64f..160f)
+            near("the add card is as tall", bike, tag("garage_add").h().value)
+            // The editor, as a bottom sheet with its Save in view.
+            click("garage_edit")
+            awaitSheet("garage_editor")
+            tag("garage_save").assertIsDisplayed()
+        } finally {
+            runBlocking { entry.garageDao().clear() }
+        }
+    }
+
     @Test fun dialogsOpenAsBottomSheetsInPortrait() {
         goPortrait()
         click("settings_open"); awaitSheet("settings_sheet")

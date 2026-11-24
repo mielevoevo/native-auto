@@ -45,9 +45,13 @@ data class BikeDraft(
     val startKmPerL: Double,
     /** 4.6.1: warn at this many km of range left. */
     val lowFuelKm: Int = DEFAULT_LOW_FUEL_KM,
+    /** 4.7: bars on the fuel gauge. */
+    val gaugeBars: Int = model.gaugeBars,
+    /** 4.7: the rider's own odometer correction (bike km per GPS km); null = the learned one. */
+    val odoFactorManual: Double? = null,
 )
 
-/** 4.6.1: the riding load is recorded but doesn't move the range until 4.7 counts stops, idling and jams. */
+/** 4.6.1: the riding load is recorded but doesn't move the range. 4.7 records crawling too; whether and how the range uses it is the rider's decision. */
 const val RANGE_FOLLOWS_RIDING = false
 
 /** A question the dashboard shows as a dialog (never while a pane is being used for riding info). */
@@ -63,7 +67,10 @@ sealed interface GaragePrompt {
 data class OdometerState(
     val estimateKm: Double?,
     val lastReading: OdometerReading?,
+    /** Bike km per GPS km, as used. */
     val factor: Double,
+    /** 4.7: [factor] is the rider's own, not the learned one. */
+    val manualFactor: Boolean = false,
 )
 
 /** What one fill-up the rider logs at the pump (11b). */
@@ -170,18 +177,20 @@ class GarageRepository @Inject constructor(
     fun readings(bikeId: String): Flow<List<OdometerReading>> = dao.observeReadings(bikeId)
 
     fun odometer(bikeId: String): Flow<OdometerState> {
-        val factor = dao.observeBikes().map { list -> list.firstOrNull { it.id == bikeId }?.odoFactor ?: 1.0 }.distinctUntilChanged()
+        val factor = dao.observeBikes()
+            .map { list -> list.firstOrNull { it.id == bikeId }.let { (it?.factor ?: 1.0) to (it?.odoFactorManual != null) } }
+            .distinctUntilChanged()
         return dao.observeLastReading(bikeId).flatMapLatest { reading ->
             if (reading == null) {
-                factor.map { OdometerState(null, null, it) }
+                factor.map { (f, manual) -> OdometerState(null, null, f, manual) }
             } else {
                 combine(
                     dao.observeMetersSince(bikeId, reading.timeMs, reading.tripOffsetM),
                     dao.observeActive().map { it?.id == bikeId }.distinctUntilChanged()
                         .flatMapLatest { isActive -> if (isActive) liveTrip else flowOf(null) },
                     factor,
-                ) { saved, live, f ->
-                    OdometerState(estimateOdometerKm(reading, f, gpsMetersSince(reading, saved, live)), reading, f)
+                ) { saved, live, (f, manual) ->
+                    OdometerState(estimateOdometerKm(reading, f, gpsMetersSince(reading, saved, live)), reading, f, manual)
                 }
             }
         }
@@ -217,7 +226,7 @@ class GarageRepository @Inject constructor(
             val tank = bike?.tankLitres ?: BikeModel.OTHER.tankLitres
             val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away, x.dash)
             // 4.3d: the range follows how the bike is ridden lately, once the fill-ups have shown how that matters.
-            // 4.6.1: off until 4.7 (it ignores stops and idling, so a traffic jam reads as easy riding).
+            // 4.6.1: off (it ignores stops and idling, so a traffic jam reads as easy riding).
             val load = if (!rangeFollowsRiding) RangeLoad() else rangeLoad(fitLoad(spanLoads(consumption.measures, x.loads.reversed())), recentLoad(x.loads, x.live))
             FuelState(
                 // 12b: the level burns at the cautious figure, so litres left and range lean low together.
@@ -305,7 +314,7 @@ class GarageRepository @Inject constructor(
         if (km <= 0) return@withLock false
         val bike = dao.bike(bikeId) ?: return@withLock false
         val prev = dao.lastReading(bikeId) ?: return@withLock false
-        val estimate = estimateOdometerKm(prev, bike.odoFactor, gpsSince(bike, prev)) ?: return@withLock false
+        val estimate = estimateOdometerKm(prev, bike.factor, gpsSince(bike, prev)) ?: return@withLock false
         insertReading(bike, estimate + km, ReadingKind.UNTRACKED, km)
         true
     }
@@ -404,7 +413,7 @@ class GarageRepository @Inject constructor(
     suspend fun estimateNow(bikeId: String): Double? {
         val reading = dao.lastReading(bikeId) ?: return null
         val bike = dao.bike(bikeId) ?: return null
-        return estimateOdometerKm(reading, bike.odoFactor, gpsSince(bike, reading))
+        return estimateOdometerKm(reading, bike.factor, gpsSince(bike, reading))
     }
 
     private suspend fun gpsSince(bike: BikeRecord, reading: OdometerReading): Double =
@@ -428,6 +437,8 @@ class GarageRepository @Inject constructor(
                 fuelType = draft.fuel.name,
                 startKmPerL = draft.startKmPerL,
                 lowFuelKm = draft.lowFuelKm,
+                gaugeBars = draft.gaugeBars,
+                odoFactorManual = draft.odoFactorManual,
                 active = first,
                 lastUsedAtMs = now,
                 createdAtMs = now,
@@ -440,6 +451,12 @@ class GarageRepository @Inject constructor(
 
     suspend fun updateBike(id: String, draft: BikeDraft) = lock.withLock {
         val bike = dao.bike(id) ?: return@withLock
+        // 4.7: a new odometer correction counts from now on: the km so far keep the one they were counted with.
+        if (draft.odoFactorManual != bike.odoFactorManual) {
+            dao.lastReading(id)?.let { prev ->
+                estimateOdometerKm(prev, bike.factor, gpsSince(bike, prev))?.let { insertReading(bike, it, ReadingKind.UNTRACKED, 0.0) }
+            }
+        }
         dao.updateBike(
             bike.copy(
                 name = draft.name.trim(),
@@ -449,6 +466,8 @@ class GarageRepository @Inject constructor(
                 fuelType = draft.fuel.name,
                 startKmPerL = draft.startKmPerL,
                 lowFuelKm = draft.lowFuelKm,
+                gaugeBars = draft.gaugeBars,
+                odoFactorManual = draft.odoFactorManual,
             ),
         )
     }
@@ -488,10 +507,12 @@ class GarageRepository @Inject constructor(
         val bike = dao.bike(bikeId) ?: return@withLock ReadingDecision.Unchanged
         val prev = dao.lastReading(bikeId)
         val gpsM = prev?.let { gpsSince(bike, it) } ?: 0.0
-        val estimate = estimateOdometerKm(prev, bike.odoFactor, gpsM)
+        val estimate = estimateOdometerKm(prev, bike.factor, gpsM)
         val decision = decideReading(km, estimate, away)
         if (decision is ReadingDecision.Store) {
-            if (decision.kind == ReadingKind.CORRECTION && prev != null) {
+            // An estimate kept at a change of the correction (4.7) isn't a reading to measure from.
+            val measured = prev != null && !(prev.readingKind == ReadingKind.UNTRACKED && prev.awayKm == 0.0)
+            if (decision.kind == ReadingKind.CORRECTION && prev != null && measured) {
                 val factor = learnFactor(bike.odoFactor, prev.km, km, gpsM / 1000.0)
                 if (factor != bike.odoFactor) dao.setFactor(bikeId, factor)
             }

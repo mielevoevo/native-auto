@@ -50,6 +50,7 @@ object GarageBackup {
                     put("id", b.id); put("name", b.name); put("type", b.type); put("model", b.model)
                     put("tankLitres", b.tankLitres); put("reserveLitres", b.reserveLitres); put("fuelType", b.fuelType)
                     put("startKmPerL", b.startKmPerL); put("odoFactor", b.odoFactor); put("active", b.active); put("lowFuelKm", b.lowFuelKm)
+                    put("gaugeBars", b.gaugeBars); b.odoFactorManual?.let { put("odoFactorManual", it) }
                     put("lastUsedAtMs", b.lastUsedAtMs); put("createdAtMs", b.createdAtMs)
                 }
             }
@@ -103,6 +104,10 @@ object GarageBackup {
                     startKmPerL = b.dbl("startKmPerL") ?: DEFAULT_KM_PER_L, odoFactor = b.dbl("odoFactor") ?: 1.0,
                     active = b.bool("active") ?: false, lastUsedAtMs = b.lng("lastUsedAtMs") ?: 0, createdAtMs = b.lng("createdAtMs") ?: 0,
                     lowFuelKm = b.lng("lowFuelKm")?.toInt()?.takeIf { it in LOW_FUEL_RANGE_KM } ?: DEFAULT_LOW_FUEL_KM,
+                    // Before 4.7: the model's bars.
+                    gaugeBars = b.int("gaugeBars")?.takeIf { it in GAUGE_BARS_RANGE }
+                        ?: BikeModel.entries.firstOrNull { it.name == b.str("model") }?.gaugeBars ?: DEFAULT_GAUGE_BARS,
+                    odoFactorManual = b.dbl("odoFactorManual")?.takeIf { it in FACTOR_RANGE },
                 )
             },
             readings = list("readings").map { r ->

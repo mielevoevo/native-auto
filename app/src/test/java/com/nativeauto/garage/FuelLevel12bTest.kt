@@ -23,8 +23,8 @@ class FuelLevel12bTest {
     private fun dash(kmpl: Double, timeMs: Long) = DashKmPerL(id = nextId++, bikeId = "b", timeMs = timeMs, kmPerL = kmpl, tripKm = 20.0)
 
     @Test fun `gauge bars by model`() {
-        assertEquals(6, gaugeBars(BikeModel.NMAX_GEN1))
-        assertEquals(8, gaugeBars(BikeModel.NMAX_GEN2))
+        assertEquals(6, BikeModel.NMAX_GEN1.gaugeBars)
+        assertEquals(8, BikeModel.NMAX_GEN2.gaugeBars)
     }
 
     @Test fun `the last lit bar counts as half used`() {

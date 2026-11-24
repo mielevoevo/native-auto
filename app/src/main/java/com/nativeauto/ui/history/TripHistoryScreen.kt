@@ -435,6 +435,14 @@ private fun TripCard(trip: TripRecord, unit: SpeedUnit, maps: TripMaps, bikeName
     }
 }
 
+/** 4.7, two lines: "Stopped 4 min · 14 stops", "Crawling 1.2 km in 6 min"; null for trips recorded before. */
+internal fun trafficLine(trip: TripRecord, unit: SpeedUnit): String? {
+    val crawlS = trip.loadCrawlS ?: return null
+    val stops = trip.loadStops ?: 0
+    return "Stopped ${formatDuration(trip.stoppedMs)} · $stops ${if (stops == 1) "stop" else "stops"}\n" +
+        "Crawling ${formatDistance(trip.loadCrawlM ?: 0.0, unit)} in ${formatDuration((crawlS * 1000).toLong())}"
+}
+
 @Composable
 private fun TripDetail(
     trip: TripRecord,
@@ -477,6 +485,12 @@ private fun TripDetail(
                         Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                     }
                 }
+            }
+        }
+        trafficLine(trip, unit)?.let { line ->
+            Column(Modifier.padding(bottom = 12.dp).semantics(mergeDescendants = true) {}.testTag("history_traffic")) {
+                Text("Traffic", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(line, style = MaterialTheme.typography.bodyLarge)
             }
         }
     }

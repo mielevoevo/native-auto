@@ -780,7 +780,7 @@ private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState
     }
 
 /** 4.6.4: a page taller than the sheet fades at the fold instead of ending mid-row. */
-private fun Modifier.fadingBottom(scroll: androidx.compose.foundation.ScrollState): Modifier =
+internal fun Modifier.fadingBottom(scroll: androidx.compose.foundation.ScrollState): Modifier =
     graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
         drawContent()
         if (scroll.canScrollForward) {

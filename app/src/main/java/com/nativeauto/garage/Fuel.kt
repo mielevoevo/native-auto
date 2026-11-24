@@ -77,9 +77,6 @@ data class DashKmPerL(
     val tripKm: Double,
 )
 
-/** Bars on the bike's fuel gauge (rider, 2026-11-09): NMAX gen 1 6, gen 2 8. Per bike: after Phase 12. */
-fun gaugeBars(model: BikeModel): Int = if (model == BikeModel.NMAX_GEN1) 6 else 8
-
 /**
  * Litres for [bars] lit out of [ofBars]. A bar stays lit until it's empty, so n bars means
  * somewhere between n−1 and n: the cautious middle of the last bar, n − ½. No bars = 0.

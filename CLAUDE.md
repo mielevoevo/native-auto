@@ -929,3 +929,15 @@ repeated fix with a speed counts as riding) and `settings put global hide_error_
 - **Greeting in portrait:** `PortraitGreeting`, sizes in `PortraitSheet` (`PortraitSizes.kt`); landscape is the 4.3c card.
 - **App text is American English** (color, liter, tire); code names, tags and stored keys keep their spelling.
 - A single line of text keeps the font's own height whatever `lineHeight` says: `CenteredTurn` puts the distance in a fixed-height box.
+
+### 4.7: universal bikes, gauge, fine-tuning, traffic recording (versionCode 36)
+- **`BikeModel`** has ten presets with `gaugeBars`; they only prefill (`OTHER` refills nothing). `BikeRecord.gaugeBars` (4..12) replaces
+  `gaugeBars(model)`; `BikeRecord.odoFactorManual` (null = learned), **use `bike.factor`**, not `odoFactor`, for estimates. A changed correction
+  stores the estimate as an `UNTRACKED` reading with 0 km, which teaches nothing (`updateBike`, `enterReading`).
+- **Editor (`GarageDialogs.kt`):** `FormRow`, `ModelPicker` (tiles, `garage_model`, `garage_models`, `garage_model_<NAME>`), `Stepper`
+  (`garage_bars_minus|value|plus`, `garage_odo_factor_*`), `garage_tuning` → `garage_kmpl`, `garage_reserve`, `garage_learned`, `garage_odo_factor_learned`.
+  `GarageDialog` in landscape: fixed title row, the form scrolls. `BarPicker` (`garage_level_bar_<n>`).
+- **Traffic:** `LoadSums.crawlS / crawlM / crawlClimbM` → `trips.loadCrawl*` (Room **v9**, `MIGRATION_8_9`; optional in the backup), shown by
+  `trafficLine` (`history_traffic`). The range reads none of it.
+- Portrait Garage: the bike row needs its `IntrinsicSize.Min` height (`PortraitDashboardTest.theGarageShowsTheBikePageUnderTheBikes`).
+- Shots: `DesignShotsTest.garage47`. Shell heredocs halve backslashes here: write newline escapes as `chr(92)+'n'` in edit scripts.

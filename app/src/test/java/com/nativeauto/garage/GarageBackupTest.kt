@@ -14,7 +14,7 @@ class GarageBackupTest {
 
     private fun bike(id: String, name: String, active: Boolean) = BikeRecord(
         id = id, name = name, model = BikeModel.NMAX_GEN1.name, tankLitres = 6.6, reserveLitres = 1.3,
-        fuelType = FuelType.PERTAMAX.name, startKmPerL = 36.0, odoFactor = 1.02, active = active, lastUsedAtMs = 5, createdAtMs = 1, lowFuelKm = 45,
+        fuelType = FuelType.PERTAMAX.name, startKmPerL = 36.0, odoFactor = 1.02, active = active, lastUsedAtMs = 5, createdAtMs = 1, lowFuelKm = 45, gaugeBars = 10, odoFactorManual = 0.985,
     )
 
     private val data = GarageData(

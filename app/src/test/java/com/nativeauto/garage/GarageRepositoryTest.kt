@@ -108,6 +108,48 @@ class GarageRepositoryTest {
         assertEquals(1_104.0 + 51.0, rig.garage.estimateNow(gen1)!!, 1e-6)
     }
 
+    /** 4.7: the rider's own odometer correction counts from when it was set; learning carries on behind it. */
+    @Test fun `an own correction counts from now on and the learned one comes back`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 100.0, startedAgoMs = 3_000_000)
+        rig.garage.enterReading(gen1, 1_104.0) // learned: 1.02
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 50.0, startedAgoMs = 3_000_000)
+        val before = rig.garage.estimateNow(gen1)!!
+        rig.garage.updateBike(gen1, rig.nmax.copy(odoFactorManual = 0.95))
+        assertEquals("nothing jumps", before, rig.garage.estimateNow(gen1)!!, 1e-6)
+        assertTrue(rig.garage.odometer(gen1).first().manualFactor)
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 100.0, startedAgoMs = 3_000_000)
+        assertEquals(before + 95.0, rig.garage.estimateNow(gen1)!!, 1e-6)
+        // A correction right after the change measures from a kept estimate: it teaches nothing.
+        rig.garage.enterReading(gen1, before + 98.0)
+        assertEquals(1.02, rig.dao.bike(gen1)!!.odoFactor, 1e-9)
+        // The next one, from a real reading, does; the own one stays in use.
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 100.0, startedAgoMs = 3_000_000)
+        rig.garage.enterReading(gen1, before + 98.0 + 104.0)
+        assertEquals(1.03, rig.dao.bike(gen1)!!.odoFactor, 1e-9)
+        assertEquals(0.95, rig.dao.bike(gen1)!!.factor, 0.0)
+        // Back to what the app learned.
+        val now = rig.garage.estimateNow(gen1)!!
+        rig.garage.updateBike(gen1, rig.nmax)
+        assertEquals(now, rig.garage.estimateNow(gen1)!!, 1e-6)
+        assertEquals(1.03, rig.garage.odometer(gen1).first().factor, 1e-9)
+        assertFalse(rig.garage.odometer(gen1).first().manualFactor)
+    }
+
+    /** 4.7: saving the editor without touching the correction stores no reading. */
+    @Test fun `an edit that leaves the correction alone keeps the readings`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        rig.garage.updateBike(gen1, rig.nmax.copy(gaugeBars = 10, startKmPerL = 40.0))
+        assertEquals(1, rig.dao.readings.value.size)
+        assertEquals(10, rig.dao.bike(gen1)!!.gaugeBars)
+    }
+
     @Test fun `a reading taken mid-trip counts only the rest of that trip`() = runTest {
         val rig = Rig(this)
         val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)

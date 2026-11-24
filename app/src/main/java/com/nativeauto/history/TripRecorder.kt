@@ -306,4 +306,7 @@ internal fun TripRecord.withLoad(l: com.nativeauto.garage.LoadSums) = copy(
     loadAccel = l.accel,
     loadClimbM = l.climbM,
     loadStops = l.stops,
+    loadCrawlS = l.crawlS,
+    loadCrawlM = l.crawlM,
+    loadCrawlClimbM = l.crawlClimbM,
 )

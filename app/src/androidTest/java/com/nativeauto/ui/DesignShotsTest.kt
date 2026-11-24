@@ -244,6 +244,85 @@ class DesignShotsTest {
         dialogs("dlg_light")
     }
 
+    /** 4.7: the bike editor (presets, gauge, fine-tuning), the gauge picker, the bike page and a trip's traffic line. */
+    @Test fun garage47() {
+        val entry = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        )
+        val now = System.currentTimeMillis()
+        val trip = runBlocking {
+            val g = entry.garage()
+            g.addBike(
+                com.nativeauto.garage.BikeDraft("Gen 1", com.nativeauto.garage.BikeModel.NMAX_GEN1, 6.6, 1.3, com.nativeauto.garage.FuelType.PERTAMAX, com.nativeauto.garage.DEFAULT_KM_PER_L, gaugeBars = 12, odoFactorManual = 0.985),
+                12_345.0,
+            )
+            entry.tripDao().insertWithTrack(
+                com.nativeauto.history.TripRecord(
+                    startedAtMs = now - 2_400_000, endedAtMs = now - 600_000, durationMs = 1_800_000, movingMs = 1_550_000, distanceM = 9_234.0,
+                    maxSpeedMps = 15f, startLat = -7.8, startLon = 110.37, endLat = -7.79, endLon = 110.37, track = "", stoppedMs = 250_000,
+                    startAddress = "Jalan A", endAddress = "Jalan B", loadStops = 14, loadCrawlS = 380.0, loadCrawlM = 1_240.0, loadCrawlClimbM = 3.0,
+                ),
+                emptyList(),
+            )
+        }
+        fun scroll(t: String) = rule.onNodeWithTag(t, useUnmergedTree = true).performScrollTo()
+        fun pages(p: String) {
+            click("settings_open")
+            rule.waitUntil(5_000) { count("settings_sheet") > 0 }
+            click("settings_cat_TRIP_GARAGE")
+            scroll("settings_garage"); click("settings_garage")
+            rule.waitUntil(5_000) { count("garage_edit") > 0 }
+            shot("${p}_bike")
+            scroll("garage_edit"); click("garage_edit")
+            rule.waitUntil(5_000) { count("garage_editor") > 0 }
+            shot("${p}_editor")
+            scroll("garage_tuning"); click("garage_tuning")
+            rule.waitForIdle()
+            scroll("garage_odo_factor_learned")
+            shot("${p}_editor_tuning")
+            scroll("garage_model"); click("garage_model")
+            rule.waitUntil(5_000) { count("garage_model_VARIO_125") > 0 }
+            shot("${p}_editor_models")
+            click("garage_model_VARIO_125")
+            rule.waitForIdle()
+            click("garage_save")
+            rule.waitUntil(5_000) { count("garage_editor") == 0 }
+            runBlocking { entry.garageDao().activeBike()!!.let { entry.garageDao().updateBike(it.copy(model = "NMAX_GEN1", tankLitres = 6.6, reserveLitres = 1.3, gaugeBars = 12)) } }
+            scroll("garage_set_level"); click("garage_set_level")
+            rule.waitUntil(5_000) { count("garage_level_dialog") > 0 }
+            click("garage_level_bar_7")
+            shot("${p}_level")
+            click("garage_level_save")
+            rule.waitUntil(5_000) { count("garage_level_dialog") == 0 }
+            click("garage_back")
+            rule.waitUntil(5_000) { count("garage_screen") == 0 }
+            click("settings_open")
+            rule.waitUntil(5_000) { count("settings_sheet") > 0 }
+            click("settings_cat_TRIP_GARAGE")
+            scroll("settings_history"); click("settings_history")
+            rule.waitUntil(5_000) { count("history_trip") > 0 }
+            click("history_trip")
+            rule.waitUntil(5_000) { count("history_traffic") > 0 }
+            shot("${p}_trip")
+            scroll("history_traffic")
+            shot("${p}_trip_traffic")
+            rule.activity.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+            rule.waitUntil(5_000) { count("history_traffic") == 0 }
+            rule.activity.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+            rule.waitUntil(5_000) { count("history_trip") == 0 }
+        }
+        try {
+            pages("g47_land")
+            runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
+            rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
+            Thread.sleep(1_500)
+            pages("g47_port")
+        } finally {
+            runBlocking { entry.tripDao().delete(trip); entry.garageDao().clear() }
+        }
+    }
+
     @Test fun portrait() {
         runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
         rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }

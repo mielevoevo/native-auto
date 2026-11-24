@@ -1,5 +1,14 @@
 # What's new in Native Auto
 
+## 4.7 (36) · 2026-11-24
+- Back up before you install this one: the database changes, so you can't go back to an older version without losing the app's data. Your bikes, trips and fill-ups carry over.
+- Garage: more bikes to pick from: Vario 110, 125, 150 and 160, BeAT, PCX 150 and 160, beside both NMAX. A preset only fills in the tank, reserve and gauge; Other bike keeps what you type.
+- Fuel gauge bars are set per bike, 4 to 12 (Garage, Edit). Both NMAX keep 6 and 8; on the others count the bars on your dash. Set fuel level shows that many.
+- Fine-tuning (Garage, Edit): the starting km/L and reserve, and the odometer vs GPS, if you know your own figure. Use learned goes back to what the app learned from your corrections. A change counts from then on, so the odometer doesn't jump.
+- Garage in portrait: the bike page is back. Since 4.0 the bike cards filled the whole screen and hid it. The odometer keeps to one line.
+- Forms in the Garage keep their title row with Save in view while you scroll (landscape).
+- Each trip now records crawling: how long and how far you rode under 15 km/h, and the climb meanwhile. The trip's page in the history shows it with the stops. The range doesn't use it yet.
+
 ## 4.6.4 (35) · 2026-11-24
 - Portrait cards have more space above their titles, the same on every card: small cards had the least. Nothing inside the cards got smaller.
 - Four stacked cards: the navigation card no longer cuts off its arrival line under a long road name.

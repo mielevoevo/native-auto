@@ -48,6 +48,24 @@ class RidingLoadTest {
         assertTrue(stopGo.energyPerKm!! > steady.energyPerKm!!)
     }
 
+    /** 4.7: crawling is under 15 km/h and not stopped; standing and riding don't count. */
+    @Test fun crawlingIsTimedAndMeasured() {
+        assertEquals(0.0, drive(List(101) { 10.0 }).sums.crawlS, 0.0)
+        assertEquals(0.0, drive(List(101) { 0.0 }).sums.crawlS, 0.0)
+        val s = drive(List(101) { 3.0 }).sums
+        assertEquals(100.0, s.crawlS, 0.01)
+        assertEquals(300.0, s.crawlM, 1.0)
+        // A gap (a pause) isn't crawling.
+        assertEquals(19.0, drive(List(21) { 3.0 }, gapAt = 10).sums.crawlS, 0.01)
+        // Uphill at 3 m/s counts as climbed while crawling; at 10 m/s it doesn't.
+        val up = List(120) { 100.0 + it * 0.3 }
+        assertTrue(drive(List(120) { 3.0 }, up).sums.let { it.crawlClimbM > 20 && it.crawlClimbM == it.climbM })
+        assertEquals(0.0, drive(List(120) { 10.0 }, up).sums.crawlClimbM, 0.0)
+        // Two stretches add up; the energy figure is what it was.
+        assertEquals(200.0, (s + s).crawlS, 0.02)
+        assertEquals(s.copy(crawlS = 0.0, crawlM = 0.0).energyPerKm, s.energyPerKm)
+    }
+
     @Test fun speedJitterIsSmoothedNotCountedAsAcceleration() {
         val jitter = drive(List(201) { if (it % 2 == 0) 10.3 else 9.7 }).sums
         // Raw positive Δv·v would be ~0.6 · 10 · 100 = 600; smoothed, the swings are halved.

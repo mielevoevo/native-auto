@@ -56,7 +56,7 @@ class MigrationTest {
             db.version = 1
         }
 
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7, com.nativeauto.history.MIGRATION_7_8).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7, com.nativeauto.history.MIGRATION_7_8, MIGRATION_8_9).build()
         try {
             val dao = room.trips()
             val old = dao.observeAll().first().single()
@@ -105,6 +105,11 @@ class MigrationTest {
             assertEquals(30, garage.bike("b1")!!.lowFuelKm)
             garage.updateBike(garage.bike("b1")!!.copy(lowFuelKm = 50))
             assertEquals(50, garage.bike("b1")!!.lowFuelKm)
+            // v9 (4.7): the gauge's bars and the own odometer correction.
+            assertEquals(8, garage.bike("b1")!!.gaugeBars)
+            assertNull(garage.bike("b1")!!.odoFactorManual)
+            garage.updateBike(garage.bike("b1")!!.copy(gaugeBars = 10, odoFactorManual = 1.02))
+            assertEquals(1.02, garage.bike("b1")!!.factor, 0.0)
             garage.deleteBike("b1")
             assertTrue(garage.observeRefuels("b1").first().isEmpty())
             // v5: a service item, marked done; deleting its bike takes it and its history.
@@ -146,6 +151,43 @@ class MigrationTest {
             assertEquals(1, loads.size)
             assertEquals(0.0, loads.single().climbM, 0.0) // null climb reads as 0
             assertEquals(5_000.0, loads.single().distanceM, 0.0)
+            assertNull(dao.observe(old.id).first()!!.loadCrawlS)
+        } finally {
+            room.close()
+        }
+    }
+
+    /** 4.7: a v8 garage as 4.6.x leaves it: bikes keep their gauge, readings, fill-ups and learned figures. */
+    @Test fun v8BikesKeepTheirGaugeAndData() = runBlocking {
+        val v8 = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        v8.openHelper.writableDatabase.let { db ->
+            // Back to v8's shape: the columns v9 adds are taken away again.
+            db.execSQL("ALTER TABLE bikes DROP COLUMN gaugeBars")
+            db.execSQL("ALTER TABLE bikes DROP COLUMN odoFactorManual")
+            listOf("loadCrawlS", "loadCrawlM", "loadCrawlClimbM").forEach { db.execSQL("ALTER TABLE trips DROP COLUMN $it") }
+            listOf("g1" to "NMAX_GEN1", "g2" to "NMAX_GEN2", "o" to "OTHER").forEach { (id, model) ->
+                db.execSQL(
+                    "INSERT INTO bikes (id, name, type, model, tankLitres, reserveLitres, fuelType, startKmPerL, odoFactor, active, lastUsedAtMs, createdAtMs, lowFuelKm) " +
+                        "VALUES ('$id', '$id', 'SCOOTER_CVT', '$model', 6.6, 1.3, 'PERTAMAX', 36.0, 1.015, 0, 5, 1, 40)",
+                )
+            }
+            db.execSQL("INSERT INTO odometer_readings (bikeId, timeMs, km, kind, awayKm, tripOffsetM) VALUES ('g1', 1, 12000.0, 'SET', 0, 0)")
+            db.execSQL(
+                "INSERT INTO refuels (bikeId, timeMs, odometerKm, litres, pricePerL, totalRp, full, fuelType) VALUES ('g1', 2, 12000.0, 5.0, 10000.0, 50000.0, 1, 'PERTAMAX')",
+            )
+            db.execSQL("PRAGMA user_version = 8")
+        }
+        v8.close()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_8_9).build()
+        try {
+            val garage = room.garage()
+            assertEquals(listOf(6, 8, 8), listOf("g1", "g2", "o").map { garage.bike(it)!!.gaugeBars })
+            val g1 = garage.bike("g1")!!
+            assertEquals(1.015, g1.factor, 0.0)
+            assertNull(g1.odoFactorManual)
+            assertEquals(40, g1.lowFuelKm)
+            assertEquals(12_000.0, garage.lastReading("g1")!!.km, 0.0)
+            assertEquals(5.0, garage.observeRefuels("g1").first().single().litres, 0.0)
         } finally {
             room.close()
         }

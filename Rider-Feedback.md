@@ -979,7 +979,7 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
   default 30 km (20 / 30 / 40 / 50 / custom); gauge, fine-tuning and threshold in v4.7, fill-up review, range caution,
   service sets and custom fuels in v4.8.
 
-## Roadmap v4.6.1 to v5.0 (rider, 2026-11-24; agreed; 4.6.1 to 4.6.3 done 2026-11-24, ridden, 4.6.4 from that ride done; 4.7 started (unattended, "start both"); the rest waits for the rider's "start")
+## Roadmap v4.6.1 to v5.0 (rider, 2026-11-24; agreed; 4.6.1 to 4.6.3 done 2026-11-24, ridden, 4.6.4 from that ride done; 4.7 done 2026-11-25; the rest waits for the rider's "start")
 
 | Version | Contents |
 |---|---|
@@ -987,7 +987,7 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
 | 4.6.2 (done) | Settings tabs, greeting choices, call permission |
 | 4.6.3 (done) | Portrait sizes as one shared scale (4.9 reuses it), smaller faint icon on the card edge |
 | 4.6.4 (done) | Ride feedback on 4.6.3, below |
-| 4.7 | Traffic-aware fuel, universal bikes, gauge per bike, Fine-tuning |
+| 4.7 (done) | Traffic recording (range not changed yet), universal bikes, gauge per bike, Fine-tuning |
 | 4.8 | Fill-up review, range caution, service sets, custom fuels |
 | 4.9 | Tablet preview (bike mode), below |
 | 5.0 | Car mode (parked until the rider calls for it) |
@@ -997,7 +997,7 @@ Speed or log face (4.6.1, rider): opened while stationary shows the log face (St
 Proposed details: moving = 10 km/h for 3 s; no fix yet counts as stationary; a running trip stays on speed at stops, a
 paused one shows the log face; a swipe by hand wins until the app is next opened or the trip changes.
 
-Still open: fuel starting costs (discuss before 4.7).
+Still open: fuel starting costs, and whether the range uses the traffic 4.7 records (discuss with recorded rides).
 
 ### 4.6.4 · Ride feedback on 4.6.3 (rider, 2026-11-24; DONE the same day, see DECISIONS "4.6.4"; versionCode 35)
 Ridden with 4.6.3: "much cleaner", auto-resume and the speed card's switch back are good. **Keep those as they are.**

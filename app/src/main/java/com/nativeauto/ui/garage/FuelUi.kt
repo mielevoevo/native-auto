@@ -1,5 +1,10 @@
 package com.nativeauto.ui.garage
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import com.nativeauto.ui.history.formatDay
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +48,6 @@ import com.nativeauto.garage.RefuelRecord
 import com.nativeauto.garage.UnknownFuel
 import com.nativeauto.garage.Consumption
 import com.nativeauto.garage.KMPL_PLAUSIBLE
-import com.nativeauto.garage.gaugeBars
 import com.nativeauto.garage.gaugeLitres
 import com.nativeauto.garage.costPerKm
 import com.nativeauto.garage.formatKmPerL
@@ -181,12 +185,12 @@ internal fun cautiousNote(f: FuelState): String =
     if (f.consumption.cautiousKmPerL < f.consumption.kmPerL - 0.05) " · range at ${formatKmPerL(f.consumption.cautiousKmPerL)}" else ""
 
 /**
- * 12b "Set fuel level": the bars lit on the bike's gauge (6 on the NMAX gen 1, 8 on gen 2) and
+ * 12b "Set fuel level": the bars lit on the bike's gauge (4.7: as many as the bike has) and
  * the odometer. The level counts the last bar as half used, so the range leans low.
  */
 @Composable
 internal fun FuelLevelDialog(bike: BikeRecord, estimateKm: Double?, onSave: (bars: Int, ofBars: Int, odometerKm: Double) -> Unit, onDismiss: () -> Unit) {
-    val of = gaugeBars(bike.bikeModel)
+    val of = bike.gaugeBars
     var bars by rememberSaveable { mutableStateOf<Int?>(null) }
     var odoText by rememberSaveable { mutableStateOf(estimateKm?.let(::wholeNumber) ?: "") }
     // The estimate can arrive after the dialog opens (the Garage screen reads it as a flow): fill it in then.
@@ -216,7 +220,7 @@ internal fun FuelLevelDialog(bike: BikeRecord, estimateKm: Double?, onSave: (bar
             style = MaterialTheme.typography.bodyLarge,
             color = AppTheme.colors.textDim,
         )
-        Segments<Int?>((0..of).toList(), bars, { "$it" }, { "garage_level_bar_$it" }) { bars = it }
+        BarPicker(of, bars) { bars = it }
         bars?.let { b ->
             Text(
                 "About ${formatLitres(gaugeLitres(b, of, bike.tankLitres))} of ${trimNumber(bike.tankLitres)} L",
@@ -228,6 +232,43 @@ internal fun FuelLevelDialog(bike: BikeRecord, estimateKm: Double?, onSave: (bar
         NumberField(odoText, { odoText = it }, "Odometer (km)", odoText.isNotBlank() && odo == null, "garage_level_odo", Modifier.fillMaxWidth(), whole = true)
     }
 }
+
+/** 4.7: 0 to [of] bars as big cells; a portrait screen takes more than one row of them. */
+@Composable
+private fun BarPicker(of: Int, bars: Int?, onPick: (Int) -> Unit) {
+    val colors = AppTheme.colors
+    val haptics = rememberHaptics()
+    val options = (0..of).toList()
+    val perRow = if (com.nativeauto.ui.components.LocalPortrait.current) BARS_PER_ROW_PORTRAIT else options.size
+    val rows = (options.size + perRow - 1) / perRow
+    val width = (options.size + rows - 1) / rows
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.chunked(width).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { n ->
+                    val on = n == bars
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 56.dp)
+                            .selectable(selected = on, role = Role.RadioButton) { haptics.tick(); onPick(n) }
+                            .testTag("garage_level_bar_$n"),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (on) colors.navy else colors.surface,
+                        contentColor = if (on) colors.onNavy else colors.text,
+                        border = BorderStroke(1.dp, colors.outline),
+                    ) {
+                        Box(Modifier.heightIn(min = 56.dp), contentAlignment = Alignment.Center) { Text("$n", style = MaterialTheme.typography.titleMedium) }
+                    }
+                }
+                // The last row's cells stay as wide as the others.
+                repeat(width - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+private const val BARS_PER_ROW_PORTRAIT = 5
 
 /** 12b: the bike's own average for the ride just ended (its dash), optional. */
 @Composable

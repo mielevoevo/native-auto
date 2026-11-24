@@ -34,15 +34,26 @@ enum class FuelType(val label: String, val brand: String?, val grade: String, va
 }
 
 /**
- * Lean v1 presets (Rider-Feedback §6): the NMAX generations, which differ by tank. Reserve
- * defaults to ~20% of the tank (the Garage card's red last segment, 11c). Everything stays
- * editable; [OTHER] starts from the gen-2 numbers.
+ * Presets: they only prefill the editor, everything stays editable. Tanks from the makers' figures (4.7: sources in
+ * DECISIONS.md), the reserve ~20% of the tank. [gaugeBars]: counted on the two NMAX generations; for the others it is
+ * only a start (the rider sets it). [OTHER] is any bike: the editor keeps what is typed.
  */
-enum class BikeModel(val label: String, val shortLabel: String, val tankLitres: Double, val reserveLitres: Double) {
-    NMAX_GEN1("NMAX Gen 1", "NMAX Gen 1", 6.6, 1.3),
-    NMAX_GEN2("NMAX Gen 2", "NMAX Gen 2", 7.1, 1.4),
-    OTHER("Other scooter", "Other", 7.1, 1.4),
+enum class BikeModel(val label: String, val tankLitres: Double, val reserveLitres: Double, val gaugeBars: Int = DEFAULT_GAUGE_BARS) {
+    NMAX_GEN1("NMAX Gen 1", 6.6, 1.3, 6),
+    NMAX_GEN2("NMAX Gen 2", 7.1, 1.4, 8),
+    BEAT("BeAT (2020 on)", 4.2, 0.8),
+    VARIO_110("Vario 110", 3.7, 0.7),
+    VARIO_125("Vario 125", 5.5, 1.1),
+    VARIO_150("Vario 150", 5.5, 1.1),
+    VARIO_160("Vario 160", 5.5, 1.1),
+    PCX_150("PCX 150", 8.0, 1.6),
+    PCX_160("PCX 160", 8.1, 1.6),
+    OTHER("Other bike", 7.1, 1.4),
 }
+
+/** 4.7: the fuel gauge's bars, per bike. */
+const val DEFAULT_GAUGE_BARS = 8
+val GAUGE_BARS_RANGE = 4..12
 
 /** Starting consumption for a new bike; 11b learns the real figure from full-to-full fill-ups. */
 const val DEFAULT_KM_PER_L = 36.0
@@ -73,7 +84,14 @@ data class BikeRecord(
     /** 4.6.1: warn at this many km of range left. */
     @ColumnInfo(defaultValue = "30")
     val lowFuelKm: Int = DEFAULT_LOW_FUEL_KM,
+    /** 4.7: bars on the bike's fuel gauge ([GAUGE_BARS_RANGE]). */
+    @ColumnInfo(defaultValue = "8")
+    val gaugeBars: Int = DEFAULT_GAUGE_BARS,
+    /** 4.7: the rider's own bike km per GPS km; null = the learned [odoFactor] (which keeps learning either way). */
+    val odoFactorManual: Double? = null,
 ) {
+    /** Bike km per GPS km, as used. */
+    val factor: Double get() = odoFactorManual ?: odoFactor
     val bikeModel: BikeModel get() = BikeModel.entries.firstOrNull { it.name == model } ?: BikeModel.OTHER
     val fuel: FuelType get() = FuelType.entries.firstOrNull { it.name == fuelType } ?: FuelType.PERTAMAX
 }
@@ -93,7 +111,8 @@ enum class ReadingKind {
     /**
      * 11b: the rider's own ride without the app (phone at home, app not running), added by hand
      * as [OdometerReading.awayKm] on top of the estimate. Counts for servicing and fuel like a
-     * tracked ride (km/L still applies), teaches nothing, adds no trips.
+     * tracked ride (km/L still applies), teaches nothing, adds no trips. With 0 km (4.7): the estimate at the moment the
+     * rider changed the odometer correction, so the new one counts from there on and nothing jumps.
      */
     UNTRACKED,
 }

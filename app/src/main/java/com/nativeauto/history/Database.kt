@@ -61,6 +61,10 @@ data class TripRecord(
     val loadAccel: Double? = null,
     val loadClimbM: Double? = null,
     val loadStops: Int? = null,
+    /** 4.7: crawling (under 15 km/h, not stopped): seconds, metres and metres climbed. Null before v4.7. */
+    val loadCrawlS: Double? = null,
+    val loadCrawlM: Double? = null,
+    val loadCrawlClimbM: Double? = null,
 ) {
     val averageSpeedMps: Float get() = if (durationMs < 1_000) 0f else (distanceM / (durationMs / 1000.0)).toFloat()
     val movingAverageMps: Float get() = if (movingMs < 1_000) 0f else (distanceM / (movingMs / 1000.0)).toFloat()
@@ -158,7 +162,7 @@ interface RecentPlaceDao {
         RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
         ServiceItem::class, ServiceRecord::class, FuelMark::class, DashKmPerL::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -292,5 +296,15 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
 val MIGRATION_7_8 = object : Migration(7, 8) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE bikes ADD COLUMN lowFuelKm INTEGER NOT NULL DEFAULT 30")
+    }
+}
+
+/** 4.7: each bike's gauge bars (what its model had so far) and own odometer correction, and the trips' crawling. */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE bikes ADD COLUMN gaugeBars INTEGER NOT NULL DEFAULT 8")
+        db.execSQL("UPDATE bikes SET gaugeBars = 6 WHERE model = 'NMAX_GEN1'")
+        db.execSQL("ALTER TABLE bikes ADD COLUMN odoFactorManual REAL")
+        listOf("loadCrawlS", "loadCrawlM", "loadCrawlClimbM").forEach { db.execSQL("ALTER TABLE trips ADD COLUMN $it REAL") }
     }
 }

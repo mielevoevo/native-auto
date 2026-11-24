@@ -1,5 +1,16 @@
 package com.nativeauto.ui.garage
 
+import com.nativeauto.ui.settings.fadingBottom
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import com.nativeauto.garage.GAUGE_BARS_RANGE
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -74,18 +85,24 @@ internal fun GarageDialog(
         PinnedActionDialog(tag, title, onDismiss, action, content)
         return
     }
-    AppDialogSurface(tag, onDismiss, maxWidth = 900.dp) {
+    // 4.7: the title row stays put and the form scrolls under it, so Save can't scroll away on a long form.
+    AppDialogSurface(tag, onDismiss, maxWidth = 900.dp, scroll = false) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             action()
         }
-        content()
+        val scroll = rememberScrollState()
+        Column(
+            Modifier.weight(1f, fill = false).fadingBottom(scroll).verticalScroll(scroll),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) { content() }
     }
 }
 
 /**
  * Adds ([bike] null, starting from [newModel]) or edits a bike. Picking a model refills the
- * tank and reserve; everything stays editable. The odometer is asked only when adding.
+ * tank, reserve and gauge bars (Other keeps them); everything stays editable. The odometer is asked only when adding.
+ * 4.7: the figures few riders change are under Fine-tuning; [learnedKmPerL] says what the app has learned meanwhile.
  */
 @Composable
 internal fun BikeEditor(
@@ -95,6 +112,7 @@ internal fun BikeEditor(
     onSave: (BikeDraft, Double?) -> Unit,
     onDelete: (() -> Unit)?,
     onDismiss: () -> Unit,
+    learnedKmPerL: String? = null,
 ) {
     val haptics = rememberHaptics()
     var name by rememberSaveable { mutableStateOf(bike?.name ?: "") }
@@ -104,6 +122,11 @@ internal fun BikeEditor(
     var reserve by rememberSaveable { mutableStateOf(trimNumber(bike?.reserveLitres ?: model.reserveLitres)) }
     var kmPerL by rememberSaveable { mutableStateOf(trimNumber(bike?.startKmPerL ?: DEFAULT_KM_PER_L)) }
     var odometer by rememberSaveable { mutableStateOf("") }
+    // 4.7: the gauge, and the odometer correction in tenths of a percent (null = the learned one).
+    var bars by rememberSaveable { mutableIntStateOf(bike?.gaugeBars ?: model.gaugeBars) }
+    var tuning by rememberSaveable { mutableStateOf(false) }
+    val learnedTenths = ((bike?.odoFactor ?: 1.0) - 1.0).times(1000).roundToInt()
+    var factorTenths by rememberSaveable { mutableStateOf(bike?.odoFactorManual?.let { ((it - 1.0) * 1000).roundToInt() }) }
     // 4.6.1: the low-fuel warning; null = a custom number in the field.
     val savedLow = bike?.lowFuelKm ?: DEFAULT_LOW_FUEL_KM
     var lowChoice by rememberSaveable { mutableStateOf(savedLow.takeIf { it in LOW_FUEL_CHOICES_KM }) }
@@ -125,7 +148,7 @@ internal fun BikeEditor(
             Spacer(Modifier.width(8.dp))
             FilledTonalButton(
                 onClick = {
-                    onSave(BikeDraft(name.trim(), model, tankL!!, reserveL!!, fuel, kmL!!, lowKm!!), odoKm)
+                    onSave(BikeDraft(name.trim(), model, tankL!!, reserveL!!, fuel, kmL!!, lowKm!!, bars, factorTenths?.let { 1.0 + it / 1000.0 }), odoKm)
                 },
                 enabled = valid,
                 modifier = Modifier.heightIn(min = 56.dp).testTag("garage_save"),
@@ -142,22 +165,31 @@ internal fun BikeEditor(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth().testTag("garage_name"),
                 )
-                Text("Model", style = MaterialTheme.typography.titleMedium)
-                Segments(BikeModel.entries, model, { it.shortLabel }, { "garage_model_${it.name}" }) {
+                ModelPicker(model) {
                     haptics.tick()
                     model = it
-                    tank = trimNumber(it.tankLitres)
-                    reserve = trimNumber(it.reserveLitres)
+                    // "Other" is any bike: what is typed stays.
+                    if (it != BikeModel.OTHER) {
+                        tank = trimNumber(it.tankLitres)
+                        reserve = trimNumber(it.reserveLitres)
+                        bars = it.gaugeBars
+                    }
                 }
                 Text("Fuel", style = MaterialTheme.typography.titleMedium)
                 Segments(FuelType.entries, fuel, { it.label }, { "garage_fuel_${it.name}" }, label = { FuelLabel(it) }) { haptics.tick(); fuel = it }
+                Stepper(
+                    title = "Fuel gauge bars",
+                    hint = "Count them on the dash",
+                    value = "$bars",
+                    tag = "garage_bars",
+                    canLower = bars > GAUGE_BARS_RANGE.first,
+                    canRaise = bars < GAUGE_BARS_RANGE.last,
+                    onLower = { haptics.tick(); bars-- },
+                    onRaise = { haptics.tick(); bars++ },
+                )
             }
             Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    NumberField(tank, { tank = it }, "Tank (L)", tankL == null, "garage_tank", Modifier.weight(1f))
-                    NumberField(reserve, { reserve = it }, "Reserve (L)", reserveL == null, "garage_reserve", Modifier.weight(1f))
-                }
-                NumberField(kmPerL, { kmPerL = it }, "Starting km/L", kmL == null, "garage_kmpl", Modifier.fillMaxWidth())
+                NumberField(tank, { tank = it }, "Tank (L)", tankL == null, "garage_tank", Modifier.fillMaxWidth())
                 Text("Warn when low, km left", style = MaterialTheme.typography.titleMedium)
                 Segments<Int?>(LOW_FUEL_CHOICES_KM + null, lowChoice, { it?.toString() ?: "Other" }, { "garage_low_${it ?: "OTHER"}" }) {
                     haptics.tick()
@@ -175,6 +207,45 @@ internal fun BikeEditor(
                         "garage_odo_input", Modifier.fillMaxWidth(), whole = true,
                     )
                 }
+                // Open by itself while something in it is wrong: Save must not be off for a reason that can't be seen.
+                val tuningOpen = tuning || reserveL == null || kmL == null
+                FormRow("Fine-tuning", if (tuningOpen) "▴" else "▾", "garage_tuning") { haptics.tap(); tuning = !tuning }
+                if (tuningOpen) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        NumberField(kmPerL, { kmPerL = it }, "Starting km/L", kmL == null, "garage_kmpl", Modifier.weight(1f))
+                        NumberField(reserve, { reserve = it }, "Reserve (L)", reserveL == null, "garage_reserve", Modifier.weight(1f))
+                    }
+                    Text(
+                        learnedKmPerL ?: "The range starts from this km/L and learns from your fill-ups.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppTheme.colors.textDim,
+                        modifier = Modifier.testTag("garage_learned"),
+                    )
+                    val shown = factorTenths ?: learnedTenths
+                    val step = { by: Int ->
+                        haptics.tick()
+                        factorTenths = (shown + by).coerceIn(FACTOR_TENTHS)
+                    }
+                    Stepper(
+                        title = "Odometer vs GPS",
+                        hint = when {
+                            factorTenths == null -> "Learned"
+                            else -> "Set by you"
+                        },
+                        value = percentOf(shown),
+                        tag = "garage_odo_factor",
+                        canLower = shown > FACTOR_TENTHS.first,
+                        canRaise = shown < FACTOR_TENTHS.last,
+                        onLower = { step(-FACTOR_STEP) },
+                        onRaise = { step(FACTOR_STEP) },
+                    )
+                    if (factorTenths != null) {
+                        FilledTonalButton(
+                            onClick = { haptics.tap(); factorTenths = null },
+                            modifier = Modifier.heightIn(min = 56.dp).testTag("garage_odo_factor_learned"),
+                        ) { Text("Use learned (${percentOf(learnedTenths)})") }
+                    }
+                }
                 if (onDelete != null) {
                     FilledTonalButton(
                         onClick = onDelete,
@@ -191,6 +262,103 @@ internal fun BikeEditor(
                 }
             }
         }
+    }
+}
+
+/** The odometer correction: ±10 % ([com.nativeauto.garage.FACTOR_RANGE]) in steps of 0.5 %, kept in tenths of a percent. */
+private val FACTOR_TENTHS = -100..100
+private const val FACTOR_STEP = 5
+
+private fun percentOf(tenths: Int): String = String.format(java.util.Locale.US, "%+.1f%%", tenths / 10.0).replace('-', '−').let { if (tenths == 0) "0%" else it }
+
+/** A row of the form that opens something: a title, what it stands at now, an arrow. */
+@Composable
+private fun FormRow(title: String, value: String, tag: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = AppTheme.colors.surface,
+        contentColor = AppTheme.colors.text,
+        border = BorderStroke(1.dp, AppTheme.colors.outline),
+        modifier = Modifier.fillMaxWidth().testTag(tag),
+    ) {
+        Row(Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Text(value, style = MaterialTheme.typography.bodyLarge, color = AppTheme.colors.textDim)
+        }
+    }
+}
+
+/** 4.7: ten presets don't fit a segmented row: the model is a row that opens them as big tiles, all in view. */
+@Composable
+private fun ModelPicker(model: BikeModel, onPick: (BikeModel) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    FormRow("Model", "${model.label}  ▾", "garage_model") { open = true }
+    if (!open) return
+    AppDialogSurface("garage_models", onDismiss = { open = false }, maxWidth = 900.dp, spacing = 12.dp) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Model", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = { open = false }, modifier = Modifier.heightIn(min = 56.dp)) { Text("Cancel") }
+        }
+        val columns = if (LocalPortrait.current) 2 else 3
+        BikeModel.entries.chunked(columns).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { m ->
+                    val on = m == model
+                    Surface(
+                        onClick = { open = false; if (!on) onPick(m) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (on) AppTheme.colors.navy else AppTheme.colors.surface,
+                        contentColor = if (on) AppTheme.colors.onNavy else AppTheme.colors.text,
+                        border = BorderStroke(1.dp, AppTheme.colors.outline),
+                        modifier = Modifier.weight(1f).testTag("garage_model_${m.name}"),
+                    ) {
+                        Box(Modifier.heightIn(min = 56.dp), contentAlignment = Alignment.Center) {
+                            Text(m.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                        }
+                    }
+                }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** A title and hint on the left, − value + on the right, both buttons glove-sized. */
+@Composable
+private fun Stepper(
+    title: String,
+    hint: String,
+    value: String,
+    tag: String,
+    canLower: Boolean,
+    canRaise: Boolean,
+    onLower: () -> Unit,
+    onRaise: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 64.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(hint, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim)
+        }
+        FilledTonalIconButton(
+            onClick = onLower,
+            enabled = canLower,
+            modifier = Modifier.size(56.dp).testTag("${tag}_minus").semantics { contentDescription = "Lower: $title" },
+        ) { Text("−", style = MaterialTheme.typography.headlineSmall) }
+        Text(
+            value,
+            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.width(84.dp).testTag("${tag}_value"),
+        )
+        FilledTonalIconButton(
+            onClick = onRaise,
+            enabled = canRaise,
+            modifier = Modifier.size(56.dp).testTag("${tag}_plus").semantics { contentDescription = "Raise: $title" },
+        ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
     }
 }
 

@@ -59,7 +59,7 @@ class GpxBackupTest {
     }
 
     @Test fun `the riding load travels in the backup, and a trip without it reads back without it`() {
-        val loaded = trip.copy(loadIndex = 412.5, loadDistanceM = 600.0, loadAero = 60_000.0, loadAccel = 12.5, loadClimbM = 3.0, loadStops = 2)
+        val loaded = trip.copy(loadIndex = 412.5, loadDistanceM = 600.0, loadAero = 60_000.0, loadAccel = 12.5, loadClimbM = 3.0, loadStops = 2, loadCrawlS = 90.5, loadCrawlM = 210.0, loadCrawlClimbM = 4.0)
         val back = Backup.decode(Backup.encode(listOf(Backup.TripWithTrack(loaded, points), Backup.TripWithTrack(trip, points))))
         assertEquals(loaded.copy(id = 0), back[0].trip)
         assertNull(back[1].trip.loadIndex)
