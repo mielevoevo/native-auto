@@ -47,5 +47,8 @@ val NativeAutoTypography = Typography(
 /** Pane titles (8c): small, sentence case, dim. They label quietly instead of shouting. */
 val PaneTitle: TextStyle = Default.titleSmall.copy(fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = 15.sp, letterSpacing = 0.2.sp)
 
+/** 4.6.3: portrait cards are read from further away on a vertical mount. */
+val PaneTitlePortrait: TextStyle = PaneTitle.copy(fontSize = 17.sp)
+
 /** Tabular digits so changing numbers don't jiggle horizontally. */
 val TabularNumbers: TextStyle = TextStyle(fontFamily = Geist, fontFeatureSettings = "tnum")

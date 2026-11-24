@@ -1074,3 +1074,27 @@ run**: DashboardScreenTest, GreetingSheetTest, DesignShotsTest, ReleaseSmokeTest
 **Build note:** the 4.6.1 release build started in the background failed once in `lintVitalAnalyzeRelease` (a lint detector crash) while
 4.6.2 files were being edited under it. On a still tree the same task passed, so the edits are the likely cause. No source was
 changed for it. Release builds of all three commits are repeated at the end of the run with nothing else writing.
+
+### 4.6.3 (versionCode 34)
+
+- **One portrait scale (`ui/theme/PortraitSizes.kt`):** sizes by role (hero, value, value with unit, long value, shared value, title,
+  secondary, figure, date, glyph, art, play) for four shapes: Slim, Mini, Narrow, Row. `portraitSizes(mode)` picks one; 4.9 adds
+  tablet shapes there. Landscape untouched. Tall portrait cards (Expanded, Fullscreen) keep their sizes: they were not small.
+- **Slim rows are their own shape** (`LocalSlimRow`: Mini while another portrait card is maximized, from the layout state, rule #6).
+  *Reason:* they have about 120 dp of content against 161 in the four-stack; one size for both is either too small or clipped. They also
+  get back the 4.1.1 header: the one from 4.6.1 cost them about 14 dp.
+- **Not enlarged: the speed digits.** Three digits plus the unit already fill their column in Mini, Narrow and Row.
+- **Garage:** the value is 56 / 72 sp (was 36 / 56); a value over 7 characters (an odometer) takes the smaller "long" size. Half width
+  stacks the gauge over the value, because side by side "185 km" at 44 sp doesn't fit 190 dp.
+- **Navigation:** line heights are explicit (they inherited 24 sp whatever the text size), which is where the room came from. Slim
+  rows give the road one line.
+- **Log face:** a half-width card splits trip distance and time (a long trip was cut); slim rows use the smaller controls.
+- **Faint icon (rider: on the edge, not obstructing):** 96 dp (128 in fullscreen) instead of 80 % of the card, cut by the right edge;
+  media and clock lift it above their button row. In the scrolling Garage card it can pass behind a row while scrolling.
+
+**Design review (by reading; shots pending):** G2 pass (Play 60 to 72 dp, controls 54 to 64 as before), C1 and C3 pass (one scale, one
+title size), G5 to check on shots (faint icon). Hierarchy, glanceability and calm scores wait for the shots.
+
+**Tests:** `PortraitSizesTest` (order, minimums, and the fixed-height stacks add up), unit tests green, device tests compile. **Not
+run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
+**Phone checks:** every portrait layout, also with one card maximized; 12-hour clock in a half-width card; the faint icon on each card.

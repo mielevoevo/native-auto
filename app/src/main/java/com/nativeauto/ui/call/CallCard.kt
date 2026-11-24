@@ -134,7 +134,7 @@ private fun CallBody(call: CallState, now: Long, mode: CardMode, vm: CallViewMod
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f, fill = portrait && !big), verticalArrangement = Arrangement.Center) {
         Text(
             call.info.caller,
-            style = TextStyleFor(if (big) 44.sp else if (small) 22.sp else 30.sp),
+            style = TextStyleFor(if (big) 44.sp else if (small) 24.sp else 30.sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
@@ -142,7 +142,7 @@ private fun CallBody(call: CallState, now: Long, mode: CardMode, vm: CallViewMod
         )
         Text(
             call.info.app,
-            style = MaterialTheme.typography.bodyMedium,
+            style = if (portrait) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium,
             color = colors.textDim,
             maxLines = 1,
             modifier = Modifier.testTag("call_app"),

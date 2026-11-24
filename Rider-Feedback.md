@@ -979,13 +979,13 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
   default 30 km (20 / 30 / 40 / 50 / custom); gauge, fine-tuning and threshold in v4.7, fill-up review, range caution,
   service sets and custom fuels in v4.8.
 
-## Roadmap v4.6.1 to v5.0 (rider, 2026-11-24; agreed, NOT started: builds wait for the rider's "start")
+## Roadmap v4.6.1 to v5.0 (rider, 2026-11-24; agreed; 4.6.1 to 4.6.3 coded 2026-11-24, device tests and APKs pending; the rest waits for the rider's "start")
 
 | Version | Contents |
 |---|---|
-| 4.6.1 | Fixes, Today tile, low-fuel threshold (30 km default), range adjustment off until 4.7 |
-| 4.6.2 | Settings tabs, greeting choices, call permission |
-| 4.6.3 | Portrait sizes as one shared scale (4.9 reuses it), smaller faint icon on the card edge |
+| 4.6.1 (coded) | Fixes, Today tile, low-fuel threshold (30 km default), range adjustment off until 4.7 |
+| 4.6.2 (coded) | Settings tabs, greeting choices, call permission |
+| 4.6.3 (coded) | Portrait sizes as one shared scale (4.9 reuses it), smaller faint icon on the card edge |
 | 4.7 | Traffic-aware fuel, universal bikes, gauge per bike, Fine-tuning |
 | 4.8 | Fill-up review, range caution, service sets, custom fuels |
 | 4.9 | Tablet preview (bike mode), below |

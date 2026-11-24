@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nativeauto.ui.components.LocalPortrait
+import com.nativeauto.ui.components.portraitSizes
+import com.nativeauto.ui.theme.LONG_VALUE_CHARS
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -320,8 +323,10 @@ private fun shortDue(d: ServiceDue): String = dueText(d)
 private fun SmallGarage(state: GarageCardState, value: GarageValue, mode: CardMode, tankIcon: TankIcon) {
     val big = bigValue(state, value)
     val wide = mode == CardMode.Wide
-    // 14b: the four-stack and half-width cards: the gauge and one value, a little smaller.
-    val small = mode == CardMode.Mini || mode == CardMode.Narrow
+    if (LocalPortrait.current) {
+        PortraitGarage(state, value, big, mode, tankIcon)
+        return
+    }
     Row(
         Modifier.wrapContentSize(unbounded = true).testTag("garage_card_small"),
         verticalAlignment = Alignment.CenterVertically,
@@ -330,19 +335,55 @@ private fun SmallGarage(state: GarageCardState, value: GarageValue, mode: CardMo
         if (value == GarageValue.RANGE) {
             TankGauge(
                 state.fuel.level.fraction,
-                Modifier.size(width = if (wide) 44.dp else if (small) 32.dp else 40.dp, height = if (wide) 80.dp else if (small) 60.dp else 72.dp),
+                Modifier.size(width = if (wide) 44.dp else 40.dp, height = if (wide) 80.dp else 72.dp),
                 tankIcon,
                 state.fuel.level.low,
             )
-            Spacer(Modifier.width(if (small) 10.dp else 16.dp))
+            Spacer(Modifier.width(16.dp))
         }
-        ValueText(big, if (wide) 56.sp else if (small) 36.sp else 48.sp)
+        ValueText(big, if (wide) 56.sp else 48.sp)
+    }
+}
+
+/** 4.6.3: the portrait forms, sized by [portraitSizes]. A half-width card puts the gauge above the value: both fit it bigger. */
+@Composable
+private fun PortraitGarage(state: GarageCardState, value: GarageValue, big: BigValue, mode: CardMode, tankIcon: TankIcon) {
+    val sizes = portraitSizes(mode)
+    val size = if (big.text.length > LONG_VALUE_CHARS) sizes.valueLong else sizes.valueWithUnit
+    val labelStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = sizes.secondary, lineHeight = sizes.secondary * 1.25f)
+    val gauge = @Composable { width: Dp, height: Dp ->
+        if (value == GarageValue.RANGE) TankGauge(state.fuel.level.fraction, Modifier.size(width, height), tankIcon, state.fuel.level.low)
+    }
+    if (mode == CardMode.Narrow) {
+        Column(
+            Modifier.wrapContentSize(unbounded = true).testTag("garage_card_small"),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            gauge(48.dp, 88.dp)
+            if (value == GarageValue.RANGE) Spacer(Modifier.height(16.dp))
+            ValueText(big, size, labelStyle, Alignment.CenterHorizontally)
+        }
+    } else {
+        Row(
+            Modifier.wrapContentSize(unbounded = true).testTag("garage_card_small"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            if (mode == CardMode.Mini) gauge(40.dp, 72.dp) else gauge(44.dp, 80.dp)
+            if (value == GarageValue.RANGE) Spacer(Modifier.width(16.dp))
+            ValueText(big, size, labelStyle)
+        }
     }
 }
 
 @Composable
-private fun ValueText(big: BigValue, size: TextUnit) {
-    Column {
+private fun ValueText(
+    big: BigValue,
+    size: TextUnit,
+    labelStyle: TextStyle = MaterialTheme.typography.bodyMedium,
+    align: Alignment.Horizontal = Alignment.Start,
+) {
+    Column(horizontalAlignment = align) {
         Text(
             big.text,
             style = TextStyle(fontFamily = Geist, fontSize = size, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
@@ -351,7 +392,7 @@ private fun ValueText(big: BigValue, size: TextUnit) {
             softWrap = false,
             modifier = Modifier.testTag("garage_card_value"),
         )
-        Text(big.label, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim, maxLines = 1, softWrap = false)
+        Text(big.label, style = labelStyle, color = AppTheme.colors.textDim, maxLines = 1, softWrap = false)
     }
 }
 

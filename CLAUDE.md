@@ -888,3 +888,29 @@ Major drop: a vertically mounted phone. Spec `.dev/Phase-14b-Portrait.md`; choic
   detail, expanded Garage card) beyond ±5 %.
 - **Line endings:** Python on Windows writes CRLF in text mode. Edit files with the Edit tool, or `open(p, newline='')`
   keeping the file's own endings; check `git diff --numstat` before a commit.
+
+## Run 4.6.1-4.6.3 (built 2026-11-24, unattended; choices in DECISIONS.md "Run 4.6.1-4.6.3")
+
+**Code and unit tests only so far.** The emulator was off (stopped for low memory; restart only when the rider asks), so device
+tests, design shots, the release smoke test and the APK export are pending. Hand over no APK of these before the smoke test.
+
+### 4.6.1 (versionCode 32)
+- **Speed or log face (`ui/speed/SpeedFace.kt`, replaces 13a's "always opens on the speed face"):** `SpeedFaceState` (pure) +
+  `RidingDetector` (10 km/h for 3 s; the first good fix after opening needs no hold). Stationary / paused / ended = log, riding or
+  opened with a running trip = speed; never back to log in traffic; a swipe by hand wins until the next open or trip change. No
+  location = speed face (it holds the fix). Tests: `openSpeedFace()` first when a test needs the digits.
+- **Low fuel:** `bikes.lowFuelKm` (Room **v8**, `MIGRATION_7_8`, default 30), `FuelLevel.low` is the only rule (header, card, gauge,
+  bike detail, greeting). Editor `garage_low_<20|30|40|50|OTHER>`, `garage_low_input` (20 to 150).
+- **`RANGE_FOLLOWS_RIDING = false`** until 4.7 (`GarageRepository.rangeFollowsRiding` for tests); trips still record the load.
+- Period total is a tile (`log_period`) on Expanded / portrait Fullscreen log faces. Settings sheet: `sheetGesturesEnabled = false`.
+
+### 4.6.2 (versionCode 33)
+- `SettingsCategory`: TRIP_GARAGE, DISPLAY, LAYOUT ("Map and layout"), OTHERS, DEBUG. Trip automation (`settings_trip_automation` →
+  `trip_automation`): auto-start, resume, pause, end. Trip figures keeps the tags `settings_trip_options` / `trip_options`. Accent
+  (`settings_colours` → `colours_dialog`) and route colour (`settings_route_colour` → `route_dialog`) are separate dialogs.
+- `GreetingMode` (`settings_greeting_<NAME>`); "every open" needs `GreetingViewModel.awayMs` (60 s) away. Call card switch on Display
+  (`settings_call_controls`), call permission on Others (`settings_call_permissions`, `settings_call_status`).
+
+### 4.6.3 (versionCode 34)
+- `ui/theme/PortraitSizes.kt`: the portrait sizes by role; `portraitSizes(mode)`; `LocalSlimRow`. New portrait sizes go there.
+- Never run a release build while editing sources: lint crashed once when files changed under it.

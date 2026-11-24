@@ -15,6 +15,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.drop
+import com.nativeauto.ui.components.portraitSizes
+import com.nativeauto.ui.theme.PortraitSizes
 import com.nativeauto.ui.garage.GarageCardViewModel
 import com.nativeauto.ui.components.rememberHaptics
 import androidx.compose.foundation.background
@@ -193,10 +195,10 @@ fun SpeedCardContent(
                         CardMode.Compact -> SpeedCompact(ui)
                         // 14b: three stacked rows and four stacked cards: the value centred on the left, the figures
                         // aligned to one left edge on the right (two figures in a Mini card, four in a row).
-                        CardMode.Wide -> if (portrait) SpeedBeside(ui, figures = 4, heroSize = 72.sp) else SpeedWide(ui)
-                        CardMode.Mini -> SpeedBeside(ui, figures = 2, heroSize = 64.sp)
+                        CardMode.Wide -> if (portrait) SpeedBeside(ui, figures = 4, portraitSizes(m)) else SpeedWide(ui)
+                        CardMode.Mini -> SpeedBeside(ui, figures = 2, portraitSizes(m))
                         // A half-width card: the value centred on top, the figures below, left-aligned.
-                        CardMode.Narrow -> SpeedBelow(ui, figures = 4, heroSize = 56.sp)
+                        CardMode.Narrow -> SpeedBelow(ui, figures = 4, portraitSizes(m))
                         // Two stacked panes or one big one: the value on top, the figures below in two columns.
                         CardMode.Expanded -> if (portrait) SpeedBelowGrid(ui, heroSize = 120.sp, tileHeight = 60.dp) else SpeedExpanded(ui)
                         CardMode.Fullscreen -> if (portrait) SpeedBelowGrid(ui, heroSize = 150.sp, tileHeight = 76.dp) else SpeedFullscreen(ui)
@@ -250,27 +252,27 @@ private fun SpeedWide(ui: SpeedometerUiState) {
  * edge ([StatLine]). The one-axis rule: each column has its own axis, the figures share a left edge.
  */
 @Composable
-private fun SpeedBeside(ui: SpeedometerUiState, figures: Int, heroSize: TextUnit) {
+private fun SpeedBeside(ui: SpeedometerUiState, figures: Int, sizes: PortraitSizes) {
     Row(
         modifier = Modifier.requiredHeightIn(min = 96.dp).fillMaxSize().padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.weight(1.1f), contentAlignment = Alignment.Center) { HeroArea(ui, size = heroSize, explain = false) }
+        Box(Modifier.weight(1.1f), contentAlignment = Alignment.Center) { HeroArea(ui, size = sizes.hero, explain = false) }
         Spacer(Modifier.width(12.dp))
-        StatLines(ui.inlineStats().take(figures), Modifier.weight(1f).testTag("speed_inline_stats"))
+        StatLines(ui.inlineStats().take(figures), sizes, Modifier.weight(1f).testTag("speed_inline_stats"))
     }
 }
 
 /** 14b: the value centred on top, the figures under it aligned to one left edge. */
 @Composable
-private fun SpeedBelow(ui: SpeedometerUiState, figures: Int, heroSize: TextUnit) {
+private fun SpeedBelow(ui: SpeedometerUiState, figures: Int, sizes: PortraitSizes) {
     Column(
         modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { HeroArea(ui, size = heroSize, explain = false) }
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { HeroArea(ui, size = sizes.hero, explain = false) }
         Spacer(Modifier.height(12.dp))
-        StatLines(ui.inlineStats().take(figures), Modifier.align(Alignment.CenterHorizontally).testTag("speed_inline_stats"))
+        StatLines(ui.inlineStats().take(figures), sizes, Modifier.align(Alignment.CenterHorizontally).testTag("speed_inline_stats"))
     }
 }
 
@@ -290,13 +292,15 @@ private fun SpeedBelowGrid(ui: SpeedometerUiState, heroSize: TextUnit, tileHeigh
  * other too. Tags `inline_<stat tag>`, as the inline strip's, so tests find either.
  */
 @Composable
-internal fun StatLines(stats: List<Stat>, modifier: Modifier = Modifier) {
+internal fun StatLines(stats: List<Stat>, sizes: PortraitSizes, modifier: Modifier = Modifier) {
+    val label = MaterialTheme.typography.labelMedium.copy(fontSize = sizes.figureLabel, lineHeight = sizes.figureLabel * 1.3f)
+    val figure = MaterialTheme.typography.titleMedium.copy(fontSize = sizes.figure, lineHeight = sizes.figure * 1.25f, fontFeatureSettings = "tnum")
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = Alignment.Start) {
         stats.forEach { stat ->
             Row(Modifier.testTag("inline_${stat.tag}"), verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = stat.label.lowercase().replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelMedium,
+                    style = label,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     softWrap = false,
@@ -304,7 +308,7 @@ internal fun StatLines(stats: List<Stat>, modifier: Modifier = Modifier) {
                 )
                 Text(
                     text = stat.value,
-                    style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                    style = figure,
                     maxLines = 1,
                     softWrap = false,
                     modifier = Modifier.alignByBaseline(),
@@ -313,7 +317,7 @@ internal fun StatLines(stats: List<Stat>, modifier: Modifier = Modifier) {
                     Spacer(Modifier.width(3.dp))
                     Text(
                         text = stat.unit,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         softWrap = false,

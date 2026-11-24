@@ -60,6 +60,8 @@ import com.nativeauto.settings.TelemetryStat
 import androidx.compose.ui.unit.Dp
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.LocalPortrait
+import com.nativeauto.ui.components.portraitSizes
+import com.nativeauto.ui.theme.PortraitSizes
 import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.history.TrackSketch
 import com.nativeauto.ui.history.formatDay
@@ -117,7 +119,7 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
         // 14b: portrait rows, four-stack and half-width cards all use the small centred face (a Wide row is only
         // 400 dp across there, too narrow for controls beside four figures).
         mode == CardMode.Compact || mode == CardMode.Mini || mode == CardMode.Narrow || (mode == CardMode.Wide && portrait) ->
-            LogCompact(ui, log, actions, small = mode == CardMode.Narrow)
+            LogCompact(mode, ui, log, actions, if (portrait) portraitSizes(mode) else null)
         mode == CardMode.Fullscreen && portrait -> Column(
             Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.Center,
@@ -168,26 +170,37 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
     }
 }
 
-/** The small log face: the controls, one line of figures, and the service badge or the period total. */
+/**
+ * The small log face: the controls, the trip's line, and the service badge or the period total. [sizes] in portrait. A
+ * half-width card gives the trip's time its own line (a long trip's distance and time don't fit one); a slim row takes
+ * the smaller controls and gaps.
+ */
 @Composable
-private fun LogCompact(ui: SpeedometerUiState, log: TripLogUi, actions: TripLogActions, small: Boolean) {
+private fun LogCompact(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, actions: TripLogActions, sizes: PortraitSizes?) {
+    val narrow = mode == CardMode.Narrow
+    val slim = com.nativeauto.ui.components.LocalSlimRow.current
+    val line = MaterialTheme.typography.bodyLarge.let { base ->
+        (if (sizes == null) base else base.copy(fontSize = sizes.secondary, lineHeight = sizes.secondary * 1.25f)).copy(fontFeatureSettings = "tnum")
+    }
+    val distance = "Trip ${"%.1f".format(ui.distance)} ${ui.unit.distanceLabel}"
     Column(
         Modifier.requiredHeightIn(min = 112.dp).fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LogControls(ui.tripState, log.endArmed, actions, small = small)
-        Spacer(Modifier.height(10.dp))
+        LogControls(ui.tripState, log.endArmed, actions, small = narrow || slim)
+        Spacer(Modifier.height(if (slim) 6.dp else 10.dp))
         Text(
-            "Trip ${"%.1f".format(ui.distance)} ${ui.unit.distanceLabel} · ${formatElapsed(ui.elapsed)}",
-            style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
+            if (narrow) distance else "$distance · ${formatElapsed(ui.elapsed)}",
+            style = line,
             color = AppTheme.colors.text,
             maxLines = 1,
             softWrap = false,
             modifier = Modifier.testTag("log_line"),
         )
+        if (narrow) Text(formatElapsed(ui.elapsed).toString(), style = line, color = AppTheme.colors.text, maxLines = 1, softWrap = false, modifier = Modifier.padding(top = 4.dp).testTag("log_line_time"))
         // A due service outranks the total on the small face: it's rare and it matters.
-        log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) } ?: PeriodTotal(log, ui, small = true)
+        log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) } ?: PeriodTotal(log, ui, small = true, line, gap = if (slim) 2.dp else 4.dp)
     }
 }
 
@@ -260,14 +273,14 @@ private fun periodStat(log: TripLogUi, ui: SpeedometerUiState): Stat {
 
 /** 12b (R2): "Today 42.3 km", in the speed unit's distance, saved trips plus the live one. */
 @Composable
-private fun PeriodTotal(log: TripLogUi, ui: SpeedometerUiState, small: Boolean) {
+private fun PeriodTotal(log: TripLogUi, ui: SpeedometerUiState, small: Boolean, style: androidx.compose.ui.text.TextStyle? = null, gap: Dp = 4.dp) {
     Text(
         "${log.period.lead} ${formatDistance(log.periodM, ui.unit)}",
-        style = (if (small) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleLarge).copy(fontFeatureSettings = "tnum"),
+        style = style ?: (if (small) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleLarge).copy(fontFeatureSettings = "tnum"),
         color = if (small) AppTheme.colors.textDim else AppTheme.colors.text,
         maxLines = 1,
         softWrap = false,
-        modifier = Modifier.padding(top = if (small) 4.dp else 0.dp).testTag("log_period"),
+        modifier = Modifier.padding(top = if (small) gap else 0.dp).testTag("log_period"),
     )
 }
 

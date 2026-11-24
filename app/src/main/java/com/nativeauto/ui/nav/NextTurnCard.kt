@@ -151,9 +151,8 @@ internal fun TurnFace(state: NavState.Navigating, unit: SpeedUnit, mode: CardMod
 
     when {
         // 14b: portrait cards (a row of three, a half-width one, a four-stack one) put everything on one centre axis.
-        mode == CardMode.Mini -> CenteredTurn(state, distance, road, eta, color, glyph = 48.dp, distanceSize = 30.sp, roadSize = 14.sp, etaSize = 14.sp)
-        mode == CardMode.Narrow -> CenteredTurn(state, distance, road, eta, color, glyph = 84.dp, distanceSize = 44.sp, roadSize = 18.sp, etaSize = 15.sp)
-        mode == CardMode.Wide && portrait -> CenteredTurn(state, distance, road, eta, color, glyph = 72.dp, distanceSize = 40.sp, roadSize = 18.sp, etaSize = 17.sp)
+        mode == CardMode.Mini || mode == CardMode.Narrow || (mode == CardMode.Wide && portrait) ->
+            CenteredTurn(state, distance, road, eta, color, com.nativeauto.ui.components.portraitSizes(mode))
         mode == CardMode.Compact || mode == CardMode.Wide -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
             // 13a: the arrow is centred on the distance + road block, and the arrival line starts
             // at that block's left edge (not the card's), so all the text shares one edge.
@@ -285,25 +284,23 @@ private fun CenteredTurn(
     road: String,
     eta: String,
     color: androidx.compose.ui.graphics.Color,
-    glyph: Dp,
-    distanceSize: TextUnit,
-    roadSize: TextUnit,
-    etaSize: TextUnit,
+    sizes: com.nativeauto.ui.theme.PortraitSizes,
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(glyph).testTag("next_turn_glyph")) }
+        state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(sizes.glyph).testTag("next_turn_glyph")) }
         Spacer(Modifier.height(4.dp))
-        RoadText(road, roadSize, maxLines = 2, align = TextAlign.Center)
+        RoadText(road, sizes.title, maxLines = sizes.roadLines, align = TextAlign.Center, lineHeight = sizes.title * 1.25f)
         Spacer(Modifier.height(2.dp))
-        DistanceText(distance, distanceSize)
+        DistanceText(distance, sizes.valueShared)
         Spacer(Modifier.height(2.dp))
         Text(
             eta,
-            fontSize = etaSize,
+            fontSize = sizes.secondary,
+            lineHeight = sizes.secondary * 1.25f,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
@@ -325,9 +322,10 @@ private fun DistanceText(text: String, size: TextUnit) = Text(
 )
 
 @Composable
-private fun RoadText(text: String, size: TextUnit, maxLines: Int, align: TextAlign = TextAlign.Start) = Text(
+private fun RoadText(text: String, size: TextUnit, maxLines: Int, align: TextAlign = TextAlign.Start, lineHeight: TextUnit = TextUnit.Unspecified) = Text(
     text,
     fontSize = size,
+    lineHeight = lineHeight,
     maxLines = maxLines,
     overflow = TextOverflow.Ellipsis,
     textAlign = align,

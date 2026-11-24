@@ -61,6 +61,8 @@ import com.nativeauto.media.NowPlaying
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.DashboardCard
 import com.nativeauto.ui.components.LocalPortrait
+import com.nativeauto.ui.components.portraitSizes
+import com.nativeauto.ui.theme.PortraitSizes
 import com.nativeauto.ui.components.rememberHaptics
 import com.nativeauto.ui.components.cardModeTransition
 import com.nativeauto.ui.dashboard.CardMode
@@ -215,9 +217,9 @@ fun MediaCardContent(
             val portrait = LocalPortrait.current
             when {
                 // 14b: no row of buttons on the small portrait cards: a swipe changes track, play / pause stays.
-                m == CardMode.Mini -> MediaSlim(nowPlaying, controls, art = 64.dp, progress = false)
-                m == CardMode.Narrow -> MediaNarrow(nowPlaying, controls)
-                m == CardMode.Wide && portrait -> MediaSlim(nowPlaying, controls, art = 104.dp, progress = true)
+                m == CardMode.Mini -> MediaSlim(nowPlaying, controls, portraitSizes(m), progress = false)
+                m == CardMode.Narrow -> MediaNarrow(nowPlaying, controls, portraitSizes(m))
+                m == CardMode.Wide && portrait -> MediaSlim(nowPlaying, controls, portraitSizes(m), progress = true)
                 // The Rows strip is the compact strip with more width: it lays out the same.
                 // 4.2.1: landscape cards change track by the same swipe as portrait; their skip buttons stay too.
                 m == CardMode.Compact || m == CardMode.Wide -> SwipeCentred(controls) { MediaCompact(nowPlaying, controls) }
@@ -301,42 +303,48 @@ private const val CUE_MS = 700
 
 /** The small portrait forms: art, title and artist, a play / pause button; skips are the swipe. */
 @Composable
-private fun MediaSlim(np: NowPlaying, controls: Controls, art: Dp, progress: Boolean) {
+private fun MediaSlim(np: NowPlaying, controls: Controls, sizes: PortraitSizes, progress: Boolean) {
     SwipeToChange(controls, Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AlbumArt(np.art, art)
+            AlbumArt(np.art, sizes.art)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                TrackTitle(np.title, MaterialTheme.typography.titleMedium)
-                TrackLine(np.artist, MaterialTheme.typography.bodyMedium)
+                TrackTitle(np.title, sizes.titleStyle())
+                TrackLine(np.artist, sizes.secondaryStyle())
                 if (progress) {
                     Spacer(Modifier.height(10.dp))
                     Progress(np, controls.position, showTimes = false)
                 }
             }
             Spacer(Modifier.width(8.dp))
-            TransportControls(np.isPlaying, controls.withoutSkips(), buttonSize = 52.dp, playSize = 60.dp)
+            TransportControls(np.isPlaying, controls.withoutSkips(), buttonSize = 52.dp, playSize = sizes.play)
         }
     }
 }
 
+@Composable
+private fun PortraitSizes.titleStyle() = MaterialTheme.typography.titleMedium.copy(fontSize = title, lineHeight = title * 1.3f)
+
+@Composable
+private fun PortraitSizes.secondaryStyle() = MaterialTheme.typography.bodyMedium.copy(fontSize = secondary, lineHeight = secondary * 1.3f)
+
 /** A half-width portrait card: one axis down the middle. */
 @Composable
-private fun MediaNarrow(np: NowPlaying, controls: Controls) {
+private fun MediaNarrow(np: NowPlaying, controls: Controls, sizes: PortraitSizes) {
     SwipeToChange(controls, Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            AlbumArt(np.art, 104.dp)
+            AlbumArt(np.art, sizes.art)
             Spacer(Modifier.height(8.dp))
             Text(
                 np.title,
-                style = MaterialTheme.typography.titleMedium,
+                style = sizes.titleStyle(),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -344,7 +352,7 @@ private fun MediaNarrow(np: NowPlaying, controls: Controls) {
             )
             Text(
                 np.artist,
-                style = MaterialTheme.typography.bodyMedium,
+                style = sizes.secondaryStyle(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -353,7 +361,7 @@ private fun MediaNarrow(np: NowPlaying, controls: Controls) {
             Spacer(Modifier.height(6.dp))
             Progress(np, controls.position, showTimes = false)
             Spacer(Modifier.height(8.dp))
-            TransportControls(np.isPlaying, controls.withoutSkips(), buttonSize = 52.dp, playSize = 60.dp)
+            TransportControls(np.isPlaying, controls.withoutSkips(), buttonSize = 52.dp, playSize = sizes.play)
         }
     }
 }

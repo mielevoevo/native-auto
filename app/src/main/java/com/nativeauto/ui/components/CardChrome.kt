@@ -32,6 +32,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import com.nativeauto.ui.theme.PaneTitlePortrait
+import com.nativeauto.ui.theme.PortraitScale
+import com.nativeauto.ui.theme.PortraitSizes
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,6 +93,9 @@ fun DashboardCard(
             haptics.toggle(on = layout.maximized == pane)
         }
     }
+    // 4.6.3: derived from the layout, not measured (rule #6).
+    val slim = LocalPortrait.current && mode == CardMode.Mini && layout.maximized != null
+    CompositionLocalProvider(LocalSlimRow provides slim) {
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -123,6 +130,7 @@ fun DashboardCard(
                 Column(Modifier.weight(1f).fillMaxWidth().then(body)) { content() }
             }
         }
+    }
     }
 }
 
@@ -178,12 +186,11 @@ fun CardChrome(
             .semantics { customActions = listOf(CustomAccessibilityAction("Choose what this pane shows") { picker?.invoke(pane); true }) }
             .testTag("header_${pane.name}")
             // 4.1.1: a portrait card's title sits lower, as it does in landscape: a little extra above it and the header at least as tall as
-            // a header with buttons (Narrow has none). 4.6.1: four stacked cards too (215 dp each, there is room); only the slim
-            // rows beside a maximized card keep a lower one.
+            // a header with buttons (Narrow has none). 4.6.1: four stacked cards too (215 dp each, there is room). 4.6.3: the slim
+            // rows beside a maximized card keep the small lift of 4.1.1 (their content needs the height).
             .then(
                 if (LocalPortrait.current) {
-                    val slim = mode == CardMode.Mini && layout.maximized != null
-                    if (slim) Modifier.padding(top = 4.dp).heightIn(min = 32.dp) else Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
+                    if (LocalSlimRow.current) Modifier.padding(top = 2.dp) else Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
                 } else Modifier,
             )
             .padding(start = 16.dp, end = 4.dp),
@@ -196,12 +203,12 @@ fun CardChrome(
                         imageVector = pane.icon,
                         contentDescription = title,
                         tint = AppTheme.colors.textDim,
-                        modifier = Modifier.size(24.dp).testTag("header_title_${pane.name}"),
+                        modifier = Modifier.size(if (LocalPortrait.current) 28.dp else 24.dp).testTag("header_title_${pane.name}"),
                     )
                 } else {
                     Text(
                         text = title,
-                        style = PaneTitle,
+                        style = if (LocalPortrait.current) PaneTitlePortrait else PaneTitle,
                         color = AppTheme.colors.textDim,
                         maxLines = 1,
                         softWrap = false,
@@ -330,6 +337,17 @@ private const val MAX_HEADER_H = 4096
  */
 val LocalPortrait = staticCompositionLocalOf { false }
 
+/** 4.6.3: this card is a slim row beside a maximized portrait card. Provided by [DashboardCard]. */
+val LocalSlimRow = compositionLocalOf { false }
+
+/** 4.6.3: the portrait sizes for a card of this [mode] (the small shapes; a tall card has its own). */
+@Composable
+internal fun portraitSizes(mode: CardMode): PortraitSizes = when {
+    mode == CardMode.Mini -> if (LocalSlimRow.current) PortraitScale.Slim else PortraitScale.Mini
+    mode == CardMode.Narrow -> PortraitScale.Narrow
+    else -> PortraitScale.Row
+}
+
 /** 4.3b: how cards look: icon titles, the faint pane icon. Provided by DashboardScreen from the settings. */
 @androidx.compose.runtime.Immutable
 data class CardLook(val iconTitles: Boolean = false, val watermark: Boolean = false)
@@ -340,9 +358,10 @@ val LocalCardLook = staticCompositionLocalOf { CardLook() }
 internal const val WATERMARK_ALPHA = 0.055f
 
 /**
- * 4.3b: a large, very faint pane icon behind the card's content, at the bottom right and partly past the edge. Only in
- * Expanded / Fullscreen, and never on the map (full-bleed), the speed card (its hero number) or a call. Drawn in the
- * draw phase only: nothing recomposes for it.
+ * 4.3b: a very faint pane icon behind the card's content. Only in Expanded / Fullscreen, and never on the map
+ * (full-bleed), the speed card (its hero number) or a call. Drawn in the draw phase only: nothing recomposes for it.
+ * 4.6.3 (rider): small, cut off by the card's right edge at the bottom; above the button row of the cards that have one
+ * there (media, clock), so it never sits behind a button.
  */
 @Composable
 private fun paneWatermark(pane: Pane, mode: CardMode): Modifier {
@@ -355,8 +374,10 @@ private fun paneWatermark(pane: Pane, mode: CardMode): Modifier {
     return Modifier
         .clipToBounds()
         .drawBehind {
-            val side = minOf(size.width, size.height) * 0.8f
-            translate(left = size.width - side * 0.8f, top = size.height - side * 0.8f) {
+            val side = (if (mode == CardMode.Fullscreen) 128.dp else 96.dp).toPx()
+            val buttons = if (pane == Pane.MEDIA || pane == Pane.CLOCK) 108.dp.toPx() else 0f
+            val bottom = if (buttons > 0f) side + buttons else side * 0.75f
+            translate(left = size.width - side * 0.75f, top = size.height - bottom) {
                 with(painter) {
                     draw(
                         androidx.compose.ui.geometry.Size(side, side),

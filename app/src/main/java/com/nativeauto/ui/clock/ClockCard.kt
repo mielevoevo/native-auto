@@ -181,13 +181,13 @@ fun ClockCard(mode: CardMode, layout: DashboardLayoutState, viewModel: ClockView
 @Composable
 private fun DigitalFace(time: ClockTime, date: String, mode: CardMode) {
     val portrait = com.nativeauto.ui.components.LocalPortrait.current
+    val sizes = com.nativeauto.ui.components.portraitSizes(mode)
     when {
         mode == CardMode.Compact -> Stacked(time, date, 72.sp, 18.sp)
         // 14b: the four-stack shows the time only; a half-width card a smaller stack; a portrait row stacks too
         // (side by side, 88 sp digits and the date don't fit 400 dp).
-        mode == CardMode.Mini -> Time(time, 64.sp)
-        mode == CardMode.Narrow -> Stacked(time, date, 48.sp, 16.sp)
-        mode == CardMode.Wide && portrait -> Stacked(time, date, 88.sp, 22.sp)
+        mode == CardMode.Mini -> Time(time, sizes.value)
+        mode == CardMode.Narrow || (mode == CardMode.Wide && portrait) -> Stacked(time, date, sizes.value, sizes.date)
         mode == CardMode.Wide -> Row(
             modifier = Modifier.wrapContentSize(unbounded = true),
             verticalAlignment = Alignment.CenterVertically,

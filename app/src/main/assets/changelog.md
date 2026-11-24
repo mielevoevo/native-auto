@@ -1,5 +1,10 @@
 # What's new in Native Auto
 
+## 4.6.3 (34) · 2026-11-24
+- Portrait cards share one set of sizes, so the same kind of text is the same size on every card. Larger: the Garage value, the distance to the turn, track and road names, the trip figures, card titles and icons, album art and Play.
+- A half-width Garage card puts the tank above the range, both bigger. A half-width log face gives the trip's time its own line.
+- The faint card icon is smaller and sits cut off at the card's right edge, clear of the media and clock buttons.
+
 ## 4.6.2 (33) · 2026-11-24
 - Settings have four tabs: Trip and Garage, Display, Map and layout, Others. Audio, Backup, Navigation and Privacy and data are gone; everything in them moved.
 - Trip and Garage: auto-start, resume, pause and end are together in Trip automation; the distance total and the figures are in Trip figures.
