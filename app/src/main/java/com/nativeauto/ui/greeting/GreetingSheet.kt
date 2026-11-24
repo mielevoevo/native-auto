@@ -1,5 +1,10 @@
 package com.nativeauto.ui.greeting
 
+import androidx.compose.material3.Button
+import androidx.compose.ui.text.style.TextOverflow
+import com.nativeauto.garage.FuelLevel
+import com.nativeauto.ui.components.LocalPortrait
+import com.nativeauto.ui.theme.PortraitSheet
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,6 +91,10 @@ fun GreetingSheet(onOpenGarage: () -> Unit, viewModel: GreetingViewModel = hiltV
 
 @Composable
 internal fun GreetingContent(state: GreetingUi, onDone: () -> Unit, onOpenGarage: () -> Unit) {
+    if (LocalPortrait.current) {
+        PortraitGreeting(state, onDone, onOpenGarage)
+        return
+    }
     val colors = AppTheme.colors
     Column(
         Modifier
@@ -129,15 +138,7 @@ internal fun GreetingContent(state: GreetingUi, onDone: () -> Unit, onOpenGarage
                         color = if (level.low) colors.red else colors.text,
                         modifier = Modifier.testTag("greeting_range"),
                     )
-                    Text(
-                        when {
-                            range == null && level.unknownBecause == UnknownFuel.AWAY -> "Fill up or set the fuel level"
-                            range == null -> "Set the fuel level in the Garage"
-                            else -> "range left"
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.textDim,
-                    )
+                    Text(rangeLine(level), style = MaterialTheme.typography.bodyLarge, color = colors.textDim)
                 }
             }
         }
@@ -166,6 +167,92 @@ internal fun GreetingContent(state: GreetingUi, onDone: () -> Unit, onOpenGarage
                 modifier = Modifier.testTag("greeting_service"),
             )
         }
+    }
+}
+
+private fun rangeLine(level: FuelLevel): String = when {
+    level.cautiousRangeKm != null -> "range left"
+    level.unknownBecause == UnknownFuel.AWAY -> "Fill up or set the fuel level"
+    else -> "Set the fuel level in the Garage"
+}
+
+/** 4.6.4: portrait: the range large, the two figures in equal halves, the buttons across the bottom, where the thumb is. */
+@Composable
+private fun PortraitGreeting(state: GreetingUi, onDone: () -> Unit, onOpenGarage: () -> Unit) {
+    val colors = AppTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = "Close", onClick = onDone)
+            .padding(horizontal = 24.dp)
+            .padding(top = 32.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        val card = state.card
+        Column {
+            Text(state.title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.testTag("greeting_title"))
+            card?.let {
+                Text(
+                    it.bike.name,
+                    fontSize = PortraitSheet.label,
+                    color = colors.textDim,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("greeting_bike"),
+                )
+            }
+        }
+        if (card == null) {
+            Text("Add your bike to see its range here", fontSize = PortraitSheet.label, lineHeight = PortraitSheet.label * 1.3f, color = colors.textDim)
+        } else {
+            val level = card.fuel.level
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TankGauge(level.fraction, Modifier.size(PortraitSheet.gaugeWidth, PortraitSheet.gaugeHeight), low = level.low)
+                Spacer(Modifier.width(24.dp))
+                Column {
+                    // No tabular digits: the value doesn't tick, and a tabular 1 would stand off the line under it.
+                    Text(
+                        level.cautiousRangeKm?.let { "$it km" } ?: "—",
+                        style = TextStyle(fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = PortraitSheet.value, lineHeight = PortraitSheet.value),
+                        color = if (level.low) colors.red else colors.text,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.testTag("greeting_range"),
+                    )
+                    Text(rangeLine(level), fontSize = PortraitSheet.label, color = colors.textDim)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                PortraitFact("Odometer", card.odometer.estimateKm?.let(::formatOdometer) ?: "Not set", "greeting_odometer", Modifier.weight(1f))
+                PortraitFact("This week", String.format(Locale.US, "%.1f km", state.weekM / 1000.0), "greeting_week", Modifier.weight(1f))
+            }
+            state.serviceDue?.let { due ->
+                Text(
+                    reminderText(due),
+                    fontSize = PortraitSheet.label,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (due.level == DueLevel.OVERDUE) colors.red else colors.amber,
+                    modifier = Modifier.testTag("greeting_service"),
+                )
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (card == null) {
+                Button(onClick = onOpenGarage, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("greeting_add_bike")) { ButtonText("Open Garage") }
+            }
+            FilledTonalButton(onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("greeting_done")) { ButtonText("Done") }
+        }
+    }
+}
+
+@Composable
+private fun ButtonText(text: String) = Text(text, style = MaterialTheme.typography.titleMedium)
+
+@Composable
+private fun PortraitFact(label: String, value: String, tag: String, modifier: Modifier) {
+    Column(modifier.testTag(tag)) {
+        Text(label, fontSize = PortraitSheet.label, color = AppTheme.colors.textDim)
+        Text(value, fontSize = PortraitSheet.figure, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

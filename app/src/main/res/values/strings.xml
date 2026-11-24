@@ -52,12 +52,9 @@
     <string name="settings_battery">Battery indicator</string>
     <string name="settings_card_titles">Card titles</string>
     <string name="settings_greeting">Greeting with range and bike status</string>
-    <string name="settings_accent">Accent colour</string>
-    <string name="settings_accent_hint">The one highlight on a card</string>
-    <string name="settings_route_colour">Route colour</string>
-    <string name="settings_route_colour_follows">Follows the accent</string>
-    <string name="settings_route_colour_own">Its own colour</string>
-    <string name="settings_automation">Trip automation</string>
+    <string name="settings_accent">Accent color</string>
+    <string name="settings_accent_hint">Highlights and the route line</string>
+    <string name="settings_automation">Trip behavior</string>
     <string name="settings_automation_hint">Auto-start, pause, resume and end</string>
     <string name="settings_call_permission">Call permission</string>
     <string name="settings_call_permission_on">Allowed: phone calls show here, with Answer and End</string>

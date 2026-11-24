@@ -125,16 +125,13 @@ class ReleaseSmokeTest {
         tap("settings_auto_start")
         tap("settings_trip_automation_done")
         gone("trip_automation")
-        // 4.6.2: the greeting's choices, and the route colour on Map and layout.
+        // 4.6.2: the greeting's choices. 4.6.4: Map and layout without the route colour.
         tap("settings_cat_OTHERS")
         tap("settings_greeting_EVERY_OPEN")
         tap("settings_greeting_ONCE_A_DAY")
         find("settings_call_permissions")
         tap("settings_cat_LAYOUT")
-        tap("settings_route_colour")
-        find("route_dialog")
-        tap("route_done")
-        gone("route_dialog")
+        find("settings_voice")
         tap("settings_cat_DISPLAY")
         tap("settings_theme_DARK")
         // 13c: the colours dialog (accent presets), back to the default cyan.
@@ -281,7 +278,7 @@ class ReleaseSmokeTest {
         launch()
         tap("settings_open")
         find("settings_sheet")
-        tap("settings_cat_LAYOUT")
+        tap("settings_cat_DISPLAY")
         tap("settings_orientation_PORTRAIT")
         device.waitForIdle()
         // The settings sheet stays up through the turn; close it in the new shape.
@@ -314,7 +311,7 @@ class ReleaseSmokeTest {
         tap("colours_done")
         gone("colours_dialog")
         // Auto, then back to landscape (the default every install keeps).
-        tap("settings_cat_LAYOUT")
+        tap("settings_cat_DISPLAY")
         tap("settings_orientation_AUTO")
         tap("settings_orientation_LANDSCAPE")
         device.waitForIdle()

@@ -979,13 +979,14 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
   default 30 km (20 / 30 / 40 / 50 / custom); gauge, fine-tuning and threshold in v4.7, fill-up review, range caution,
   service sets and custom fuels in v4.8.
 
-## Roadmap v4.6.1 to v5.0 (rider, 2026-11-24; agreed; 4.6.1 to 4.6.3 done 2026-11-24, phone test next; the rest waits for the rider's "start")
+## Roadmap v4.6.1 to v5.0 (rider, 2026-11-24; agreed; 4.6.1 to 4.6.3 done 2026-11-24, ridden, 4.6.4 from that ride done; 4.7 started (unattended, "start both"); the rest waits for the rider's "start")
 
 | Version | Contents |
 |---|---|
 | 4.6.1 (done) | Fixes, Today tile, low-fuel threshold (30 km default), range adjustment off until 4.7 |
 | 4.6.2 (done) | Settings tabs, greeting choices, call permission |
 | 4.6.3 (done) | Portrait sizes as one shared scale (4.9 reuses it), smaller faint icon on the card edge |
+| 4.6.4 (done) | Ride feedback on 4.6.3, below |
 | 4.7 | Traffic-aware fuel, universal bikes, gauge per bike, Fine-tuning |
 | 4.8 | Fill-up review, range caution, service sets, custom fuels |
 | 4.9 | Tablet preview (bike mode), below |
@@ -998,8 +999,31 @@ paused one shows the log face; a swipe by hand wins until the app is next opened
 
 Still open: fuel starting costs (discuss before 4.7).
 
+### 4.6.4 · Ride feedback on 4.6.3 (rider, 2026-11-24; DONE the same day, see DECISIONS "4.6.4"; versionCode 35)
+Ridden with 4.6.3: "much cleaner", auto-resume and the speed card's switch back are good. **Keep those as they are.**
+The rider's points are first; how to do each is (proposed).
+- **Portrait card titles: slightly more space above** (rider: top only, the left margin is fine). Now 6 dp. (proposed) 10 to 12 dp above,
+  left stays 16, same for icon titles, same gap on every shape; content may not shrink below the 4.6.3 scale. Check the 4-stack (Mini) first: least
+  room. Slim rows beside a maximized card have almost none: 4 dp above at most, measured. Landscape unchanged.
+- **Orientation moves to Display.** (proposed) First in the left column: orientation, theme, card titles, faint icons; right:
+  unit, accent, call card, screen options (4 and 4). Map and layout keeps map width, hold time | voice, auto layout (2 and 2).
+  The orientation row is tall (hint under it): check Display's landscape fold and, if it cuts a row, add the bottom fade.
+- **Route colour goes; the route always follows the accent.** (proposed) Remove the row, its dialog and the setting; a colour
+  stored earlier is ignored and cleared. The light-theme contrast variant stays. Say in the changelog that an own route colour is lost.
+- **Greeting card size in portrait.** Now about a third of the screen, figures bunched left, the right half empty. (proposed) Taller
+  (about 45 %), range larger, Odometer and This week as two equal halves across the width, and Done full width at the bottom, in
+  thumb reach. Sizes from `PortraitSizes`. Also align "range left" with the digits. Empty (no bike), unknown range and service-due
+  forms checked too. Landscape unchanged. **Confirmed: larger in portrait; landscape stays as is (rider).**
+- **"Trip automation" becomes "Trip behavior"** (row, dialog, hint; tags keep their names). American English. CLAUDE.md / DESIGN.md wording follows. Past changelog entries are not rewritten.
+- **American English for all names and text in the app (rider):** "Accent color" and any other British spelling in strings, code-set text
+  and setup pages. Code names, tags and stored keys stay.
+- **Date on the four-stack clock (rider: yes).** Slim rows only if it fits. With it, the open review (proposed): portrait navigation, call
+  card, new dialogs, light theme.
+- Tests affected: `DashboardScreenTest` (settings rows, route colour), `PortraitDashboardTest` (orientation row), `PortraitCardsTest`,
+  `GreetingSheetTest`; portrait design shots in both themes; release smoke test.
+
 ### 4.9 · Tablet preview (bike mode)
-Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 2021 Wi-Fi assumed).
+Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 2021 Wi-Fi assumed); Indonesian unit, not the China HarmonyOS 2 version, so Google apps still work (rider, 2026-11-24).
 - **Detection, no mode switch:** window's smaller side >= 600 dp. Split screen falls back to the phone layout. Layouts saved
   separately from the phone's. One setting, **only on large screens**: Layout > "Large-screen view" Auto / Phone view.
 - **Enlarged by role, not zoom:** speed, clock and turn distance most, text moderately, headers least (4.6.3 scale).

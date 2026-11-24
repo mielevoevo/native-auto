@@ -58,10 +58,6 @@ class MapViewModel @Inject constructor(
     val unit: StateFlow<SpeedUnit> =
         settings.speedUnit.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SpeedUnit.KMH)
 
-    /** 13c: the route line's own colour; null follows the accent. */
-    val routeColor: StateFlow<Int?> =
-        settings.routeColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
     val voiceGuidance: StateFlow<Boolean> =
         settings.voiceGuidance.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 

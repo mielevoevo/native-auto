@@ -184,10 +184,9 @@ private fun DigitalFace(time: ClockTime, date: String, mode: CardMode) {
     val sizes = com.nativeauto.ui.components.portraitSizes(mode)
     when {
         mode == CardMode.Compact -> Stacked(time, date, 72.sp, 18.sp)
-        // 14b: the four-stack shows the time only; a half-width card a smaller stack; a portrait row stacks too
-        // (side by side, 88 sp digits and the date don't fit 400 dp).
-        mode == CardMode.Mini -> Time(time, sizes.value)
-        mode == CardMode.Narrow || (mode == CardMode.Wide && portrait) -> Stacked(time, date, sizes.value, sizes.date)
+        // 14b: a half-width card and a portrait row stack the date under the time (side by side, 88 sp digits and the
+        // date don't fit 400 dp). 4.6.4: four stacked cards and the slim rows too.
+        mode == CardMode.Mini || mode == CardMode.Narrow || (mode == CardMode.Wide && portrait) -> Stacked(time, date, sizes.value, sizes.date)
         mode == CardMode.Wide -> Row(
             modifier = Modifier.wrapContentSize(unbounded = true),
             verticalAlignment = Alignment.CenterVertically,

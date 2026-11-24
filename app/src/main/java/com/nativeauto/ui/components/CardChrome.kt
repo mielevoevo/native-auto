@@ -1,5 +1,7 @@
 package com.nativeauto.ui.components
 
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Dp
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.tween
@@ -47,6 +49,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
@@ -187,13 +190,20 @@ fun CardChrome(
             .testTag("header_${pane.name}")
             // 4.1.1: a portrait card's title sits lower, as it does in landscape: a little extra above it and the header at least as tall as
             // a header with buttons (Narrow has none). 4.6.1: four stacked cards too (215 dp each, there is room). 4.6.3: the slim
-            // rows beside a maximized card keep the small lift of 4.1.1 (their content needs the height).
+            // rows beside a maximized card keep a small lift (their content needs the height). 4.6.4: more above every title, and
+            // one height for all of them: a header with no buttons kept its title at the top of its 48 dp. The room comes
+            // from the empty strip under the title, so no card's content loses height (zIndex: buttons there stay tappable).
             .then(
                 if (LocalPortrait.current) {
-                    if (LocalSlimRow.current) Modifier.padding(top = 2.dp) else Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
+                    if (LocalSlimRow.current) {
+                        Modifier.zIndex(1f).lowerInPlace(10.dp).padding(top = 4.dp).heightIn(min = 32.dp)
+                    } else {
+                        Modifier.zIndex(1f).lowerInPlace(4.dp).padding(top = 10.dp).heightIn(min = 48.dp)
+                    }
                 } else Modifier,
             )
             .padding(start = 16.dp, end = 4.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
         HeaderRow(
             title = {
@@ -266,6 +276,12 @@ fun CardChrome(
             }
         }
     }
+}
+
+/** Takes [by] less height than it draws: the content below starts that much higher, under this one's empty bottom strip. */
+private fun Modifier.lowerInPlace(by: Dp): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    layout(placeable.width, (placeable.height - by.roundToPx()).coerceAtLeast(0)) { placeable.place(0, 0) }
 }
 
 private const val SLOT_TITLE = "title"

@@ -201,6 +201,49 @@ class DesignShotsTest {
         }
     }
 
+    /** 4.6.4: the settings dialogs in both orientations, then portrait cards and settings in the light theme. */
+    @Test fun dialogsAndLight() {
+        fun dialogs(prefix: String) {
+            click("settings_open")
+            rule.waitUntil(5_000) { count("settings_sheet") > 0 }
+            listOf(
+                listOf("TRIP_GARAGE", "settings_trip_automation", "trip_automation", "settings_trip_automation_done"),
+                listOf("TRIP_GARAGE", "settings_trip_options", "trip_options", "settings_trip_options_done"),
+                listOf("DISPLAY", "settings_colours", "colours_dialog", "colours_done"),
+                listOf("DISPLAY", "settings_screen_options", "screen_options", "settings_screen_options_done"),
+            ).forEach { (cat, row, dialog, done) ->
+                rule.onNodeWithTag("settings_cat_$cat", useUnmergedTree = true).performScrollTo()
+                click("settings_cat_$cat")
+                rule.onNodeWithTag(row, useUnmergedTree = true).performScrollTo()
+                click(row)
+                rule.waitUntil(5_000) { count(dialog) > 0 }
+                shot("${prefix}_$dialog")
+                click(done)
+                rule.waitUntil(5_000) { count(dialog) == 0 }
+            }
+            click("settings_done")
+            rule.waitUntil(5_000) { count("settings_sheet") == 0 }
+        }
+        dialogs("dlg_land")
+        runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
+        rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
+        Thread.sleep(1_500)
+        dialogs("dlg_port")
+        runBlocking { resetSettings.settings.setThemeMode(com.nativeauto.settings.ThemeMode.LIGHT) }
+        Thread.sleep(1_500)
+        shot("light_stack3")
+        listOf("STACK4", "BIG_TWO").forEach {
+            click("layouts_open")
+            rule.waitUntil(5_000) { count("layouts_sheet") > 0 }
+            rule.onNodeWithTag("preset_$it", useUnmergedTree = true).performScrollTo()
+            click("preset_$it")
+            rule.waitUntil(5_000) { count("layouts_sheet") == 0 }
+            Thread.sleep(800)
+            shot("light_$it")
+        }
+        dialogs("dlg_light")
+    }
+
     @Test fun portrait() {
         runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
         rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }

@@ -373,18 +373,18 @@ internal fun RefuelDialog(
                     fuel = it
                     price = wholeNumber(priceOf(it, prices))
                 }
-                Segments(AmountMode.entries, mode, { if (it == AmountMode.RUPIAH) "Paid (Rp)" else "Litres" }, { "garage_refuel_mode_${it.name}" }) {
+                Segments(AmountMode.entries, mode, { if (it == AmountMode.RUPIAH) "Paid (Rp)" else "Liters" }, { "garage_refuel_mode_${it.name}" }) {
                     haptics.tick(); mode = it; amount = ""
                 }
             }
             Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     NumberField(
-                        amount, { amount = it }, if (mode == AmountMode.RUPIAH) "Paid (Rp)" else "Litres",
+                        amount, { amount = it }, if (mode == AmountMode.RUPIAH) "Paid (Rp)" else "Liters",
                         amount.isNotBlank() && amounts == null, "garage_refuel_amount", Modifier.weight(1f),
                         whole = mode == AmountMode.RUPIAH,
                     )
-                    NumberField(price, { price = it }, "Rp per litre", priceValue == null, "garage_refuel_price", Modifier.weight(1f), whole = true)
+                    NumberField(price, { price = it }, "Rp per liter", priceValue == null, "garage_refuel_price", Modifier.weight(1f), whole = true)
                 }
                 Text(
                     amounts?.let { (litres, rp) -> if (mode == AmountMode.RUPIAH) "= ${formatLitres(litres)}" else "= ${formatRupiah(rp)}" }
@@ -498,7 +498,7 @@ internal fun FuelPriceDialog(fuel: FuelType, current: Double, onSave: (Double) -
         },
     ) {
         Text(
-            "Rupiah per litre. Used for the next fill-ups and the refill estimate; past fill-ups keep their price.",
+            "Rupiah per liter. Used for the next fill-ups and the refill estimate; past fill-ups keep their price.",
             style = MaterialTheme.typography.bodyLarge,
             color = AppTheme.colors.textDim,
         )

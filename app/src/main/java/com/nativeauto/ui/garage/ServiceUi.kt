@@ -72,7 +72,7 @@ internal fun ServicesSection(
     }
     if (services.isEmpty()) {
         Text(
-            "Add what you service (oil, CVT, tyres…) with your own intervals, and dates like vehicle tax.",
+            "Add what you service (oil, CVT, tires…) with your own intervals, and dates like vehicle tax.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textDim,
         )

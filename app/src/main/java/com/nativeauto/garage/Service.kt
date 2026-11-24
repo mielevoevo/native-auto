@@ -60,7 +60,7 @@ data class ServiceRecord(
 
 /** Names offered when adding an item: the rider sets the intervals. */
 val SERVICE_NAMES = listOf(
-    "Engine oil", "Gear oil", "CVT belt", "CVT rollers", "Tyre pressure", "Front tyre", "Rear tyre",
+    "Engine oil", "Gear oil", "CVT belt", "CVT rollers", "Tire pressure", "Front tire", "Rear tire",
     "Brake pads", "Brake fluid", "Air filter", "Spark plug", "Coolant",
 )
 

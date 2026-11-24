@@ -101,10 +101,6 @@ interface SettingsRepository {
     val accentColor: Flow<Int> get() = flowOf(LEGACY_ACCENT_ARGB)
     suspend fun setAccentColor(argb: Int) {}
 
-    /** 13c: the map's route line colour as ARGB; null follows the accent. */
-    val routeColor: Flow<Int?> get() = flowOf(null)
-    suspend fun setRouteColor(argb: Int?) {}
-
     /**
      * 13c: once per install, at app start: gives settings that differ between a fresh install and an existing
      * one their first value (the accent: green when fresh, cyan when anything was saved before).
@@ -349,14 +345,9 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[ACCENT] = argb }
     }
 
-    override val routeColor: Flow<Int?> = prefs.map { it[ROUTE_COLOR] }.distinctUntilChanged()
-
-    override suspend fun setRouteColor(argb: Int?) {
-        store.edit { if (argb == null) it.remove(ROUTE_COLOR) else it[ROUTE_COLOR] = argb }
-    }
-
     override suspend fun initialiseDefaults(freshInstall: Boolean) {
         store.initialiseAccent(freshInstall)
+        store.dropRouteColor()
     }
 
     override val tankIcon: Flow<TankIcon> =
@@ -452,7 +443,6 @@ class DataStoreSettingsRepository @Inject constructor(
         val TOTAL_PERIOD = stringPreferencesKey("total_period")
         val TANK_ICON = stringPreferencesKey("tank_icon")
         val ACCENT = intPreferencesKey("accent_color")
-        val ROUTE_COLOR = intPreferencesKey("route_color")
         val CALL_CONTROLS = booleanPreferencesKey("call_controls")
         val CARD_TITLE_STYLE = stringPreferencesKey("card_title_style")
         val PANE_WATERMARK = booleanPreferencesKey("pane_watermark")
@@ -482,4 +472,9 @@ internal suspend fun DataStore<Preferences>.initialiseAccent(freshInstall: Boole
             p[ACCENT_KEY] = initialAccent(hasSavedPreferences = p.asMap().isNotEmpty(), freshInstall = freshInstall).dark.toArgb()
         }
     }
+}
+
+/** 4.6.4: the route line follows the accent; a colour of its own (13c to 4.6.3) is forgotten. */
+internal suspend fun DataStore<Preferences>.dropRouteColor() {
+    edit { it.remove(intPreferencesKey("route_color")) }
 }

@@ -894,8 +894,8 @@ class DashboardScreenTest {
         fun tab(c: String) { tag("settings_cat_$c").performScrollTo(); click("settings_cat_$c") }
         fun rows(c: String, vararg tags: String) { tab(c); tags.forEach { tag(it).performScrollTo().assertIsDisplayed() } }
         rows("TRIP_GARAGE", "settings_garage", "settings_history", "settings_trip_automation", "settings_trip_options", "settings_reset_trip")
-        rows("DISPLAY", "settings_theme_DARK", "settings_card_titles_TEXT", "settings_pane_watermark", "settings_call_controls", "settings_unit_KMH", "settings_colours", "settings_screen_options")
-        rows("LAYOUT", "settings_orientation_AUTO", "settings_split_50", "settings_drag_hold_1", "settings_voice", "settings_auto_layout", "settings_route_colour")
+        rows("DISPLAY", "settings_orientation_AUTO", "settings_theme_DARK", "settings_card_titles_TEXT", "settings_pane_watermark", "settings_call_controls", "settings_unit_KMH", "settings_colours", "settings_screen_options")
+        rows("LAYOUT", "settings_split_50", "settings_drag_hold_1", "settings_voice", "settings_auto_layout")
         rows("OTHERS", "settings_greeting_ONCE_A_DAY", "settings_whats_new", "backup_export", "backup_import", "settings_call_permissions", "settings_privacy_permissions", "settings_privacy_notifications", "settings_reset_app")
         rows("DEBUG", "debug_fake_gps")
         // 4.6.2: the greeting has three choices.
@@ -904,9 +904,8 @@ class DashboardScreenTest {
         rule.waitUntil(5_000) { runBlocking { resetSettings.settings.greetingMode.first() } == com.nativeauto.settings.GreetingMode.EVERY_OPEN }
     }
 
-    @Test fun theAccentCanBePickedByPresetOrHexAndTheRouteColourFollowsOrOverrides() {
+    @Test fun theAccentCanBePickedByPresetOrHex() {
         fun accent() = runBlocking { resetSettings.settings.accentColor.first() }
-        fun route() = runBlocking { resetSettings.settings.routeColor.first() }
         assertEquals(0xFF3FC8E0.toInt(), accent())
         openSettings()
         click("settings_colours")
@@ -930,22 +929,6 @@ class DashboardScreenTest {
 
         click("colours_done")
         awaitGone("colours_dialog")
-
-        // Route line (4.6.2: its own dialog, with the map): follows the accent until overridden.
-        assertEquals(null, route())
-        click("settings_cat_LAYOUT")
-        tag("settings_route_colour").performScrollTo()
-        click("settings_route_colour")
-        awaitSheet("route_dialog")
-        click("route_follow")
-        rule.waitUntil(5_000) { route() != null }
-        click("route_preset_magenta")
-        rule.waitUntil(5_000) { route() == 0xFFFF6BCB.toInt() }
-        assertEquals("the accent is untouched", 0xFF3DDC84.toInt(), accent())
-        click("route_follow")
-        rule.waitUntil(5_000) { route() == null }
-        click("route_done")
-        awaitGone("route_dialog")
         closeSettings()
     }
 
@@ -969,6 +952,8 @@ class DashboardScreenTest {
         openSettings("DISPLAY")
         click("settings_card_titles_ICON")
         rule.waitUntil(5_000) { runBlocking { resetSettings.settings.cardTitleStyle.first() } == com.nativeauto.settings.CardTitleStyle.ICON }
+        // 4.6.4: Orientation moved above it, so on a landscape phone the row is under the fold.
+        tag("settings_pane_watermark").performScrollTo()
         click("settings_pane_watermark")
         rule.waitUntil(5_000) { runBlocking { resetSettings.settings.paneWatermark.first() } }
         closeSettings()

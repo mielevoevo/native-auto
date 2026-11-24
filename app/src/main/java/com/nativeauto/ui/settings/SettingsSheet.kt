@@ -116,7 +116,6 @@ fun SettingsSheet(
     var screenOpen by rememberSaveable { mutableStateOf(false) }
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
     var automationOpen by rememberSaveable { mutableStateOf(false) }
-    var routeOpen by rememberSaveable { mutableStateOf(false) }
     var coloursOpen by rememberSaveable { mutableStateOf(false) }
     var changelogOpen by rememberSaveable { mutableStateOf(false) }
     val haptics = rememberHaptics()
@@ -125,11 +124,9 @@ fun SettingsSheet(
     if (screenOpen) ScreenOptionsDialog(viewModel, onDismiss = { screenOpen = false })
     if (optionsOpen) TripFiguresDialog(viewModel, onDismiss = { optionsOpen = false })
     if (automationOpen) TripAutomationDialog(viewModel, onDismiss = { automationOpen = false })
-    if (coloursOpen || routeOpen) {
+    if (coloursOpen) {
         val accent by viewModel.accentColor.collectAsStateWithLifecycle()
-        val route by viewModel.routeColor.collectAsStateWithLifecycle()
-        if (coloursOpen) AccentDialog(accent, onAccent = viewModel::setAccentColor, onDismiss = { coloursOpen = false })
-        if (routeOpen) RouteColourDialog(accent, route, onRoute = viewModel::setRouteColor, onDismiss = { routeOpen = false })
+        AccentDialog(accent, onAccent = viewModel::setAccentColor, onDismiss = { coloursOpen = false })
     }
 
     ModalBottomSheet(
@@ -204,11 +201,11 @@ fun SettingsSheet(
                 }
                 // Each page starts at its top.
                 val pageScroll = key(category) { rememberScrollState() }
-                Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(pageScroll).testTag("settings_page_${category.name}")) {
+                Column(Modifier.fillMaxWidth().weight(1f).fadingBottom(pageScroll).verticalScroll(pageScroll).testTag("settings_page_${category.name}")) {
                     when (category) {
                         SettingsCategory.TRIP_GARAGE -> TripGaragePage(viewModel, wide, onOpenHistory, onOpenGarage, onAutomation = { automationOpen = true }, onFigures = { optionsOpen = true })
                         SettingsCategory.DISPLAY -> DisplayPage(viewModel, wide, onColours = { coloursOpen = true }, onScreen = { screenOpen = true })
-                        SettingsCategory.LAYOUT -> LayoutPage(viewModel, layout, wide, onRoute = { routeOpen = true })
+                        SettingsCategory.LAYOUT -> LayoutPage(viewModel, layout, wide)
                         SettingsCategory.OTHERS -> OthersPage(viewModel, wide, onChangelog = { changelogOpen = true })
                         SettingsCategory.DEBUG -> DebugPage(viewModel, wide)
                     }
@@ -251,9 +248,27 @@ private fun DisplayPage(viewModel: SettingsViewModel, wide: Boolean, onColours: 
     val titleStyle by viewModel.cardTitleStyle.collectAsStateWithLifecycle()
     val watermark by viewModel.paneWatermark.collectAsStateWithLifecycle()
     val unit by viewModel.speedUnit.collectAsStateWithLifecycle()
+    val orientation by viewModel.orientationMode.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
+            // 4.6.4: from Map and layout, beside the theme as on the setup's Appearance page.
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ChoiceRow(
+                    label = R.string.settings_orientation,
+                    options = com.nativeauto.settings.OrientationMode.entries,
+                    selected = orientation,
+                    text = { it.label },
+                    tag = { "settings_orientation_${it.name}" },
+                    stacked = true,
+                ) { haptics.tick(); viewModel.setOrientationMode(it) }
+                Text(
+                    stringResource(R.string.settings_orientation_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.textDim,
+                    modifier = Modifier.testTag("settings_orientation_hint"),
+                )
+            }
             ChoiceRow(
                 label = R.string.settings_theme,
                 options = ThemeMode.entries,
@@ -277,7 +292,6 @@ private fun DisplayPage(viewModel: SettingsViewModel, wide: Boolean, onColours: 
                 checked = watermark,
                 tag = "settings_pane_watermark",
             ) { haptics.toggle(it); viewModel.setPaneWatermark(it) }
-            CallCardRow()
         },
         right = {
             ChoiceRow(
@@ -295,6 +309,7 @@ private fun DisplayPage(viewModel: SettingsViewModel, wide: Boolean, onColours: 
                 tag = "settings_colours",
                 leading = { ColourDot(Color(accent), "settings_accent_swatch") },
             ) { haptics.tap(); onColours() }
+            CallCardRow()
             ActionRow(
                 title = stringResource(R.string.settings_screen_options),
                 hint = stringResource(R.string.settings_screen_options_hint),
@@ -311,34 +326,15 @@ private fun ColourDot(color: Color, tag: String) {
     Box(Modifier.size(28.dp).clip(CircleShape).background(color).testTag(tag))
 }
 
-/** 4.6.2: the screen's arrangement on the left, the map and navigation on the right. */
+/** 4.6.2: the cards' arrangement on the left, navigation on the right. */
 @Composable
-private fun LayoutPage(viewModel: SettingsViewModel, layout: DashboardLayoutState, wide: Boolean, onRoute: () -> Unit) {
+private fun LayoutPage(viewModel: SettingsViewModel, layout: DashboardLayoutState, wide: Boolean) {
     val dragHold by viewModel.dragHoldMs.collectAsStateWithLifecycle()
-    val orientation by viewModel.orientationMode.collectAsStateWithLifecycle()
     val autoLayout by viewModel.autoLayout.collectAsStateWithLifecycle()
     val voice by viewModel.voiceGuidance.collectAsStateWithLifecycle()
-    val accent by viewModel.accentColor.collectAsStateWithLifecycle()
-    val route by viewModel.routeColor.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     PageColumns(wide,
         left = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ChoiceRow(
-                    label = R.string.settings_orientation,
-                    options = com.nativeauto.settings.OrientationMode.entries,
-                    selected = orientation,
-                    text = { it.label },
-                    tag = { "settings_orientation_${it.name}" },
-                    stacked = true,
-                ) { haptics.tick(); viewModel.setOrientationMode(it) }
-                Text(
-                    stringResource(R.string.settings_orientation_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = AppTheme.colors.textDim,
-                    modifier = Modifier.testTag("settings_orientation_hint"),
-                )
-            }
             ChoiceRow(
                 label = R.string.settings_map_width,
                 options = SPLIT_PRESETS,
@@ -369,13 +365,6 @@ private fun LayoutPage(viewModel: SettingsViewModel, layout: DashboardLayoutStat
                 checked = autoLayout,
                 tag = "settings_auto_layout",
             ) { haptics.toggle(it); viewModel.setAutoLayout(it) }
-            ActionRow(
-                title = stringResource(R.string.settings_route_colour),
-                hint = stringResource(if (route == null) R.string.settings_route_colour_follows else R.string.settings_route_colour_own),
-                action = stringResource(R.string.settings_telemetry_choose),
-                tag = "settings_route_colour",
-                leading = { ColourDot(Color(route ?: accent), "settings_route_swatch") },
-            ) { haptics.tap(); onRoute() }
         },
     )
 }
@@ -657,9 +646,9 @@ private fun TripFiguresDialog(viewModel: SettingsViewModel, onDismiss: () -> Uni
                     tag = { "settings_period_${it.name}" },
                     stacked = true,
                 ) { haptics.tick(); viewModel.setTotalPeriod(it) }
-                Text(stringResource(R.string.settings_telemetry_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.settings_telemetry_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TelemetryStat.entries.forEach { stat ->
                         val shown = stat !in hiddenStats
@@ -785,6 +774,18 @@ private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState
         if (scroll.canScrollBackward) {
             drawRect(
                 brush = Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+    }
+
+/** 4.6.4: a page taller than the sheet fades at the fold instead of ending mid-row. */
+private fun Modifier.fadingBottom(scroll: androidx.compose.foundation.ScrollState): Modifier =
+    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+        drawContent()
+        if (scroll.canScrollForward) {
+            drawRect(
+                brush = Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - TAB_FADE.toPx(), endY = size.height),
                 blendMode = BlendMode.DstIn,
             )
         }

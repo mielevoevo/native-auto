@@ -917,3 +917,15 @@ repeated fix with a speed counts as riding) and `settings put global hide_error_
 - `ui/theme/PortraitSizes.kt`: the portrait sizes by role; `portraitSizes(mode)`; `LocalSlimRow`. New portrait sizes go there.
 - Never run a release build while editing sources: lint crashed once when files changed under it.
 - `DesignShotsTest.portraitCards`: the portrait card shapes with a bike and a track (`pc_*` shots).
+
+## Run 4.6.4 and 4.7 (built 2026-11-24, unattended; choices in DECISIONS.md "Run 4.6.4 and 4.7")
+
+### 4.6.4: ride feedback (versionCode 35)
+- **Portrait header (`CardChrome`):** every title centred in a 48 dp header, 10 dp above it (slim rows 32 / 4); `lowerInPlace` takes the
+  extra height out of the strip under the title, so content keeps its height. Test: `PortraitDashboardTest` (titles >= 22 dp, all equal).
+- **Settings:** Orientation is first on Display; "Trip behavior" (tags and code stay `trip_automation`). **No route colour any more**: the
+  route follows the accent, `dropRouteColor()` clears a stored one. `fadingBottom` on every page. Display scrolls in landscape: tests
+  `performScrollTo()` before tapping its lower rows.
+- **Greeting in portrait:** `PortraitGreeting`, sizes in `PortraitSheet` (`PortraitSizes.kt`); landscape is the 4.3c card.
+- **App text is American English** (color, liter, tire); code names, tags and stored keys keep their spelling.
+- A single line of text keeps the font's own height whatever `lineHeight` says: `CenteredTurn` puts the distance in a fixed-height box.

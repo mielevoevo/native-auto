@@ -101,18 +101,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setAutoStartHoldS(seconds) }
     }
 
-    /** 13c: the accent (ARGB) and the route line's own colour (null follows the accent). */
+    /** 13c: the accent (ARGB). */
     val accentColor: StateFlow<Int> =
         settings.accentColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LEGACY_ACCENT_ARGB)
-    val routeColor: StateFlow<Int?> =
-        settings.routeColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setAccentColor(argb: Int) {
         viewModelScope.launch { settings.setAccentColor(argb) }
-    }
-
-    fun setRouteColor(argb: Int?) {
-        viewModelScope.launch { settings.setRouteColor(argb) }
     }
 
     /** 4.2.1: auto-resume as one choice: 0 = off, else the hold in seconds. */

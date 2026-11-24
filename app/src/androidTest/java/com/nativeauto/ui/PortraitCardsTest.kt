@@ -160,6 +160,21 @@ class PortraitCardsTest {
         }
     }
 
+    /** 4.6.4: the whole stack is inside the content of a four-stack card (161 dp), a two-line road included. */
+    @Test fun theTurnStackFitsAFourStackCard() {
+        host(Slot.MINI) {
+            // Room to spare, so nothing is squeezed: the stack's own height is what is measured.
+            Box(Modifier.size(390.dp, 210.dp)) {
+                TurnFace(navigating("Turn right onto Jalan Raya Yogyakarta - Solo - Semarang Km 14"), SpeedUnit.KMH, CardMode.Mini, portrait = true, onEnd = {})
+            }
+        }
+        val heights = listOf("next_turn_glyph", "next_turn_road", "next_turn_distance_line", "next_turn_eta").associateWith { t ->
+            tag(t).fetchSemanticsNode().let { it.size.height / it.layoutInfo.density.density }
+        }
+        val total = heights.values.sum() + 4f // the gaps
+        assertTrue("$total dp: $heights", total <= 161.5f)
+    }
+
     // ---- media: swipe changes track, play / pause stays ----
 
     private fun track() = NowPlaying("Song", "Artist", "Album", null, true, 30_000, 200_000, "pkg")

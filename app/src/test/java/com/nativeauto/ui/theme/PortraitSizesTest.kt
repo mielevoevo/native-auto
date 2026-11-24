@@ -36,7 +36,7 @@ class PortraitSizesTest {
 
     /** The turn card's stack (glyph, road lines, distance, arrival line, its gaps) inside the card's content height. */
     @Test fun `the navigation stack fits its card`() {
-        fun height(s: PortraitSizes): Float = s.glyph.value + 4f + s.title.value * 1.25f * s.roadLines + 2f + s.valueShared.value + 2f + s.secondary.value * 1.25f
+        fun height(s: PortraitSizes): Float = s.glyph.value + (if (s.glyph > 48.dp) 4f else 0f) + s.title.value * 1.25f * s.roadLines + 2f + s.valueShared.value + 2f + s.secondary.value * 1.25f
         assertTrue("slim ${height(PortraitScale.Slim)}", height(PortraitScale.Slim) <= 122f)
         assertTrue("mini ${height(PortraitScale.Mini)}", height(PortraitScale.Mini) <= 161f)
         assertTrue("row ${height(PortraitScale.Row)}", height(PortraitScale.Row) <= 230f)

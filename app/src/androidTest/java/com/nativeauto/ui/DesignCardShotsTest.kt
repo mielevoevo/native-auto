@@ -98,4 +98,35 @@ class DesignCardShotsTest {
         frame(860.dp, 340.dp) { TurnFace(nav, SpeedUnit.KMH, CardMode.Fullscreen, portrait = false, onEnd = {}) }
         shot("card_nav_fullscreen")
     }
+
+    /** 4.6.4: the portrait turn card in its small shapes, worst case (two-line road, long arrival line). */
+    @Test fun portraitNavigation() {
+        rule.runOnUiThread { rule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT }
+        Thread.sleep(2_000)
+        val nav = NavState.Navigating(
+            destination = Place("Malioboro", null, GeoPoint(-7.7926, 110.3655)),
+            geometry = emptyList(),
+            instruction = Instruction("Jalan Raya Yogyakarta - Solo - Semarang Km 14", ManeuverKind.Turn, TurnDirection.Right),
+            nextInstruction = null,
+            distanceToManeuverM = 350.0, distanceRemainingM = 354_000.0, durationRemainingS = 9_000.0,
+            position = null, offRoute = false, rerouting = false,
+        )
+        rule.setContent {
+            NativeAutoTheme {
+                androidx.compose.runtime.CompositionLocalProvider(com.nativeauto.ui.components.LocalPortrait provides true) {
+                    androidx.compose.foundation.layout.Column(Modifier.background(Color.Black).padding(8.dp)) {
+                        listOf(CardMode.Mini to (390.dp to 161.dp), CardMode.Wide to (390.dp to 230.dp), CardMode.Narrow to (190.dp to 340.dp)).forEach { (mode, size) ->
+                            androidx.compose.material3.Surface(
+                                Modifier.padding(4.dp).size(size.first, size.second),
+                                color = Color.Black,
+                                contentColor = com.nativeauto.ui.theme.AppTheme.colors.text,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.DarkGray),
+                            ) { TurnFace(nav, SpeedUnit.KMH, mode, portrait = true, onEnd = {}) }
+                        }
+                    }
+                }
+            }
+        }
+        shot("card_nav_portrait")
+    }
 }

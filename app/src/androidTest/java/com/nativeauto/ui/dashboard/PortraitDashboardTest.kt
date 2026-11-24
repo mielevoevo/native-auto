@@ -141,6 +141,10 @@ class PortraitDashboardTest {
             assertEquals("$p has no maximize button", 0, count("maximize_${p.name}"))
             assertEquals("$p has no swap button", 0, count("swap_${p.name}"))
         }
+        // 4.6.4: the titles stand at one height in their cards, clear of the edge; the clock has its date.
+        val tops = listOf(Pane.SPEED, Pane.MEDIA, Pane.CLOCK).map { tag("header_title_${it.name}").getBoundsInRoot().top.value - slot(it).getBoundsInRoot().top.value }
+        tops.forEach { assertTrue("title ${it} dp under the card's edge", it >= 22f); near("one height", tops[0], it, 1f) }
+        tag("clock_date").assertIsDisplayed()
         // The status corner (layouts, settings) stays on the top card.
         tag("layouts_open").assertIsDisplayed()
         tag("settings_open").assertIsDisplayed()
@@ -184,12 +188,12 @@ class PortraitDashboardTest {
     @Test fun settingsHasOneColumnAnOrientationRowAndItChangesTheScreen() {
         goPortrait()
         click("settings_open"); awaitSheet("settings_sheet")
-        click("settings_cat_LAYOUT")
+        click("settings_cat_DISPLAY")
         tag("settings_orientation_PORTRAIT").performScrollTo().assertIsDisplayed()
         tag("settings_orientation_AUTO").assertIsDisplayed()
         tag("settings_orientation_hint").assertIsDisplayed()
         // One column: the two rows are stacked, not side by side.
-        near("rows share a left edge", tag("settings_orientation_LANDSCAPE").getBoundsInRoot().left.value, tag("settings_drag_hold_1").getBoundsInRoot().left.value, 2f)
+        near("rows share a left edge", tag("settings_orientation_LANDSCAPE").getBoundsInRoot().left.value, tag("settings_theme_DARK").getBoundsInRoot().left.value, 2f)
         click("settings_orientation_LANDSCAPE")
         rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
         rule.waitForIdle()

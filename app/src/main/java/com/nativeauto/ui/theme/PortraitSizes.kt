@@ -40,6 +40,15 @@ data class PortraitSizes(
     val roadLines: Int = 2,
 )
 
+/** The greeting sheet in portrait (4.6.4): its range, a figure and the lines under them. */
+object PortraitSheet {
+    val value = 72.sp
+    val figure = 28.sp
+    val label = 18.sp
+    val gaugeWidth = 56.dp
+    val gaugeHeight = 100.dp
+}
+
 /** Longer than this, a value is drawn at [PortraitSizes.valueLong] ("123 km" fits, "12.345 km" is long). */
 const val LONG_VALUE_CHARS = 7
 

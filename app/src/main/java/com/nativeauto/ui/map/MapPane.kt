@@ -63,7 +63,6 @@ import com.nativeauto.ui.components.rememberHaptics
 import com.nativeauto.ui.dashboard.CardMode
 import com.nativeauto.ui.dashboard.DashboardLayoutState
 import com.nativeauto.ui.dashboard.Pane
-import com.nativeauto.ui.theme.accentFor
 import com.nativeauto.ui.theme.AppTheme
 import java.util.WeakHashMap
 
@@ -240,10 +239,8 @@ private fun DashboardMap(
     val bottomRow = portraitFull && nav is NavState.Navigating && showNavPanels && !compactNav
     val stopFollowing = { onFollowingChange(false) }
     val navPhase = nav::class
-    // 13c: the route line is the rider's route colour, or follows the accent.
-    val routeArgb by actions.routeColor.collectAsStateWithLifecycle()
-    val routeColour = routeArgb?.let { androidx.compose.ui.graphics.Color(it) }?.let { accentFor(it, AppTheme.colors.isDark) } ?: AppTheme.colors.accent
-    val look = MapLook.of(AppTheme.colors.isDark).withRoute(routeColour)
+    // The route line is the accent (4.6.4: it no longer has a colour of its own).
+    val look = MapLook.of(AppTheme.colors.isDark).withRoute(AppTheme.colors.accent)
 
     val overlay = remember(nav.routeGeometry, nav.destination, navPhase) {
         RouteOverlay(

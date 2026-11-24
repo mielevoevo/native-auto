@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -292,10 +294,15 @@ private fun CenteredTurn(
         verticalArrangement = Arrangement.Center,
     ) {
         state.instruction?.let { ManeuverGlyph(it, color, Modifier.size(sizes.glyph).testTag("next_turn_glyph")) }
-        Spacer(Modifier.height(4.dp))
+        // The small glyphs carry their own air (and a four-stack card needs the height).
+        if (sizes.glyph > 48.dp) Spacer(Modifier.height(4.dp))
         RoadText(road, sizes.title, maxLines = sizes.roadLines, align = TextAlign.Center, lineHeight = sizes.title * 1.25f)
         Spacer(Modifier.height(2.dp))
-        DistanceText(distance, sizes.valueShared)
+        // As tall as its digits. A single line keeps the font's own, taller height whatever lineHeight says, and that pushed
+        // the arrival line off a four-stack card under a two-line road (4.6.4).
+        Box(
+            Modifier.testTag("next_turn_distance_line").height(with(LocalDensity.current) { sizes.valueShared.toDp() }).wrapContentHeight(unbounded = true),
+        ) { DistanceText(distance, sizes.valueShared) }
         Spacer(Modifier.height(2.dp))
         Text(
             eta,

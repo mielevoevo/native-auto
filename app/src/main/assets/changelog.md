@@ -1,5 +1,14 @@
 # What's new in Native Auto
 
+## 4.6.4 (35) · 2026-11-24
+- Portrait cards have more space above their titles, the same on every card: small cards had the least. Nothing inside the cards got smaller.
+- Four stacked cards: the navigation card no longer cuts off its arrival line under a long road name.
+- The greeting is larger in portrait: a bigger range and tank, the two figures across the width, and Done along the bottom. Landscape is unchanged.
+- Settings: Orientation is now on Display, above the theme. Trip automation is now Trip behavior. A page that doesn't fit fades at the bottom instead of ending mid-row.
+- Route color is gone: the route line always follows the accent color. If you had picked a separate route color, it is no longer used.
+- The clock shows the date on four stacked cards too.
+- All text is in American English. Service items you already named keep their names.
+
 ## 4.6.3 (34) · 2026-11-24
 - Portrait cards share one set of sizes, so the same kind of text is the same size on every card. Larger: the Garage value, the distance to the turn, track and road names, the trip figures, card titles and icons, album art and Play.
 - A half-width Garage card puts the tank above the range, both bigger. A half-width log face gives the trip's time its own line.

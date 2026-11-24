@@ -1,5 +1,6 @@
 package com.nativeauto.ui.theme
 
+import com.nativeauto.settings.dropRouteColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -116,6 +117,14 @@ class AccentColorTest {
         store.edit { it[intPreferencesKey("accent_color")] = 0xFFB794F6.toInt() }
         store.initialiseAccent(freshInstall = true)
         assertEquals(0xFFB794F6.toInt(), store.data.first()[intPreferencesKey("accent_color")])
+    }
+
+    @Test fun `a route colour from before 4_6_4 is forgotten and nothing else`() = runTest {
+        val store = TestStore("route")
+        store.edit { it[intPreferencesKey("route_color")] = 1; it[intPreferencesKey("accent_color")] = 2 }
+        store.dropRouteColor()
+        assertEquals(null, store.data.first()[intPreferencesKey("route_color")])
+        assertEquals(2, store.data.first()[intPreferencesKey("accent_color")])
     }
 
     @Test fun `running it twice changes nothing`() = runTest {

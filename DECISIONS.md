@@ -1127,3 +1127,34 @@ run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
   is covered by MigrationTest only. APKs in `.dev/apk/` (`4.6.1-461`, `4.6.2-462`, `4.6.3-463`).
 - **Memory:** the PC ran out again once. Small batches, Gradle heap 2 to 2.5 GB, 2 workers, `gradlew --stop` between and a check
   of the free memory before each batch got it through.
+
+## Run 4.6.4 and 4.7 (2026-11-24, unattended, rider: "start both")
+
+### 4.6.4: ride feedback on 4.6.3 (versionCode 35)
+
+- **Title spacing (rider: slightly more above, portrait, left stays).** Measuring found the cause: a header without buttons (four-stack,
+  half-width) kept its title at the top of its 48 dp, so it stood 6 dp under the edge while cards with buttons had 20. Now all stand
+  about 24 dp under it (10 dp above a centred 48 dp header), slim rows about 10 (were 2). *Reason for 10, not the planned 12:* with the titles
+  centred, 12 would be more than "slightly". The extra height comes out of the empty strip under the title (`lowerInPlace`), so no content
+  lost height; the header is drawn above the content there, so its buttons keep their whole touch area.
+- **Orientation** is first on Display (with its hint), call card moved right: 4 and 4 rows. Map and layout: 2 and 2. Display is taller than
+  a landscape sheet, so pages now fade at the fold (`fadingBottom`, all pages; closes the 4.6.3 leftover).
+- **Route color removed** (row, dialog, setting). `dropRouteColor()` clears a stored one at each start. The accent's hint names the route line.
+- **Greeting, portrait:** own layout (`PortraitGreeting`, sizes in `PortraitSheet`), about half the screen; landscape untouched.
+- **American English:** color, liter, tire, behavior. *Kept:* code names, tags, stored keys, old changelog entries, service items the rider
+  already has, dates (24 Nov) and rupiah format (a regional choice, not spelling).
+- **Four-stack clock** shows the date, slim rows too (both fit).
+- **Found in the review and fixed:** the four-stack navigation card cut its arrival line under a two-line road (since 4.6.3: a single text line
+  keeps the font's own height, 46 dp for 40 sp, whatever `lineHeight` says; the size test counted 40). The Trip figures note sat under the
+  distance total instead of with the figures.
+- **Logged, not fixed:** a portrait dialog in the light theme has the dimmed screen showing in the gesture-bar strip below it; in the dark
+  theme it can't be seen. While a restyle loads (offline) the light header stands on the still-dark map for a moment. The status bar shows over
+  the dashboard while a sheet is open (since the first sheets).
+- **Design review:** gates pass (G2: the half-width log buttons' 54 dp stays noted). Scores: greeting portrait 3/3/3/3/3/3, Display 2/2/3/3/3/2,
+  cards 3/3/3/3/3/3. Seen on shots now: all four settings dialogs in both orientations and light, portrait navigation, the call card, portrait light.
+- **Tests (2026-11-24, emulator):** 515 unit tests. Device: DashboardScreenTest (54), PortraitDashboardTest, GreetingSheetTest, GarageScreenTest,
+  PortraitCardsTest (9), MediaCardTest, CallCardTest, MapPaneTest (traffic skipped: none on the free map), SetupFlowTest. Two tests failed first,
+  both because Orientation moved: the faint-icon row is now under the fold in landscape (the test scrolls to it) and the smoke test looked for
+  Orientation on Map and layout. **Not run:** MigrationTest, TripFilesTest, TripSummaryDashTest (no database, trip file or summary change).
+- **Release:** ReleaseSmokeTest 2 of 2. The exact APK was installed over 4.6.3 (with a bike and a fuel level) and launched: no crash, the right
+  "What's new". `.dev/apk/NativeAuto-4.6.4-464-release.apk`.

@@ -156,6 +156,26 @@ class CallCardTest {
         assertTrue(!received.contains(ANSWER))
     }
 
+    /** 4.6.4: not a check: the portrait call card for the `DESIGN.md` review (see `DesignShotsTest`). */
+    @Test fun shotsOfThePortraitCard() {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("designShots") == "1")
+        kotlinx.coroutines.runBlocking { resetSettings.settings.setOrientationMode(com.nativeauto.settings.OrientationMode.PORTRAIT) }
+        fun shot(name: String) {
+            rule.waitForIdle()
+            Thread.sleep(1_500)
+            val p = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("screencap -p /data/local/tmp/design/$name.png")
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(p).use { it.readBytes() }
+        }
+        Thread.sleep(2_500)
+        postIncoming()
+        await("call_answer")
+        Thread.sleep(8_000) // the heads-up notification goes
+        shot("call_port_ringing")
+        postOngoing()
+        await("call_end")
+        shot("call_port_on")
+    }
+
     @Test fun anActiveCallOffersMuteOnlyWhereItTakesEffect() {
         postOngoing()
         await("call_end")

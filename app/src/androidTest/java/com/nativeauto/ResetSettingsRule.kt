@@ -58,9 +58,8 @@ class ResetSettingsRule : ExternalResource() {
         settings.setClockSeconds(false)
         settings.setGarageValue(com.nativeauto.settings.GarageValue.RANGE)
         settings.setTankIcon(com.nativeauto.settings.TankIcon.GAUGE)
-        // 13c / 4.1.1: the colours of a fresh install (cyan accent, route line following it).
+        // 13c / 4.1.1: the colours of a fresh install (cyan accent).
         settings.setAccentColor(0xFF3FC8E0.toInt())
-        settings.setRouteColor(null)
         settings.setCallControls(true)
         settings.setCardTitleStyle(com.nativeauto.settings.CardTitleStyle.TEXT)
         settings.setPaneWatermark(false)

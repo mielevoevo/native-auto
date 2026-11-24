@@ -90,6 +90,29 @@ class GreetingSheetTest {
         rule.waitUntil(5_000) { count("greeting_sheet") == 0 }
     }
 
+    /** 4.6.4: portrait: a larger sheet, its figures in equal halves, Done across the bottom; nothing cut. */
+    @Test fun inPortraitItIsLargerWithDoneAcrossTheBottom() {
+        runBlocking {
+            entry.garage().addBike(BikeDraft("Gen 1", BikeModel.NMAX_GEN1, 6.6, 1.3, FuelType.PERTAMAX, DEFAULT_KM_PER_L), odometerKm = 12_000.0)
+            resetSettings.settings.setOrientationMode(com.nativeauto.settings.OrientationMode.PORTRAIT)
+        }
+        rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT }
+        newDay()
+        reopen()
+        rule.waitUntil(10_000) { count("greeting_range") == 1 }
+        rule.waitForIdle()
+        fun box(t: String) = rule.onNodeWithTag(t, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow
+        val px = rule.activity.resources.displayMetrics
+        val done = box("greeting_done")
+        assertTrue("Done spans the sheet", done.width > px.widthPixels * 0.8f)
+        assertEquals("equal halves", box("greeting_odometer").width, box("greeting_week").width, 2f)
+        val height = done.bottom - box("greeting_title").top
+        assertTrue("content is ${height / px.heightPixels} of the screen", height / px.heightPixels in 0.33f..0.55f)
+        assertTrue("the range fits", box("greeting_range").right <= done.right)
+        click("greeting_done")
+        rule.waitUntil(5_000) { count("greeting_sheet") == 0 }
+    }
+
     /** 4.6.2: every open greets, but coming straight back (a permission screen, a file picker) is the same open. */
     @Test fun everyOpenGreetsAgainTheSameDayButNotWhenComingStraightBack() {
         // Let the launch be handled first (once a day, already greeted): setting the mode sooner greets on the launch itself.
