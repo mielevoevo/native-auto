@@ -1066,16 +1066,30 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
   - Per 5 s window: max(0, rolling + air drag + slope, signed + change of speed, signed) + a low-speed and idling cost per second. Today climbing
     counts but descending is never credited, and crawling and standing are recorded but unused.
   - Slope from smoothed altitude over 100 m or more; phone altitude is noisy, so no slope without enough distance.
-  - **Idling (rider): no start-stop logic; while a trip runs, the engine runs.** (proposed) Paused time costs nothing; starting cost 0.25 L/h,
-    a guess to check against fill-ups.
+  - **Idling (rider): no start-stop logic; while a trip runs, the engine runs.** (proposed) Paused time costs nothing.
+  - **Idle and moving fuel are learned per bike from its own fill-ups, no assumed L/h (rider; also not by class or displacement).** (proposed) Until
+    learned, idling adds nothing beyond what the bike's km/L already holds. Per full-to-full span, fit liters per km on work per km and standing
+    hours per km; only time above the bike's usual counts, so it isn't charged twice. Idle joins after about 6 covered spans whose standing time
+    differs, only if positive and it beats the fit without it; otherwise left out. Low-speed cost is learned the same way, later, if at all.
   - **Passenger / cargo load: not counted (rider).**
   - Light: cheap sums per accepted fix (already done at 1 Hz, nothing extra from the GPS); range recalculated once a minute, earlier only when the
     last 1 km differs by 25 % or more from the figure in use for 30 s, at most every 15 s; no work without a trip. The fit runs at fill-ups.
   - Skipping fixes instead would miss the bursts. Range drops sooner than it rises, **within -20 / +10 % (rider: good).**
   - **Range shown in 2 km steps (rider, if light).** (proposed) Rounded down; 5 km until the estimate is learned; falls at once, rises only by 4 km or
     more, a fill-up resets it. One rounding rule for every range on screen.
+  - Work per km uses fixed general scooter constants (rolling, drag): only a relative scale, each bike's fill-ups set what it means in fuel.
   - Same gate as 4.3d: four usable tanks, must beat the plain figure. 4.8 computes it beside the plain range and compares at each fill-up; the
     range shown follows it only after that. Trips saved before 4.8 lack the new sums, unless rebuilt from their track (no altitude there).
+
+**Prep for the session that builds 4.8 (waits for "start"):**
+- Order, one version and one changelog entry: key scrubbing, custom fuels, fill-up review, service types, range math last.
+- Start at: `garage/Fuel.kt`, `garage/RidingLoad.kt`, `garage/Service.kt`, `garage/Garage.kt` (`BikeType`, `FuelType`), `history/TripRecorder.kt`,
+  `history/Database.kt` (Room v9 to v10), `garage/GarageBackup.kt`, `ui/garage/`, `app/build.gradle.kts`.
+- Watch: `RefuelRecord.fuel` turns an unknown fuel into Pertamax, so custom fuels need that first. `RANGE_FOLLOWS_RIDING` stays false until the gate is met.
+  Old trips lack the new sums. Old backups must still import.
+- Tests: unit (fit, gate, rounding, review rule, migration, backup), the Garage device tests, keyless build (map, route, search), release smoke.
+- Before building: look at real fill-ups and recorded trips; unattended or reviewed run is the rider's choice.
+- Still proposed: caution levels, the rounding rules, service lists, learning gates.
 
 ### 4.10 · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
