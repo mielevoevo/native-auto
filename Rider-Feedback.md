@@ -990,9 +990,10 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
 | 4.7 (done) | Traffic recording (range not changed yet), universal bikes, gauge per bike, Fine-tuning |
 | 4.8 | Fill-up review, range caution, service sets, custom fuels; API key scrubbing (4.8 or 4.9, rider) |
 | 4.9 | Tablet preview: large-screen foundation for car mode, below |
-| 4.10 | Google map, navigation and search (plan only, billing not settled), below |
+| 4.10 | Feedback on 4.8 and 4.9 (probably, rider) |
 | 5.0 | Car mode (parked until the rider calls for it); public keyless release (WIP), below |
 | 5.1 | App tutorial: how to use the app, on first install or after Reset app (rider; WIP) |
+| 5.2 | Google map, navigation and search (was 4.10; plan only, billing not settled), below |
 
 Speed or log face (4.6.1, rider): opened while stationary shows the log face (Start); while moving shows speed.
 Proposed details: moving = 10 km/h for 3 s; no fix yet counts as stationary; a running trip stays on speed at stops, a
@@ -1137,10 +1138,11 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
 parts, own fuels, backups, speed-shaded map, GPX altitude, small fixes, key scrubbing; new range gate). Still waits for "start".
 **4.9 (rider): universal for tablets;** the Tab S8 and the MatePad are only devices to check on. (proposed) Decide by window size and features (GPS,
 Google services), never by model; check about 600, 800 and 1000+ dp, split screen, no GPS, no Google services.
-**When to start 5.0 (rider asked; proposed):** by conditions, not a date: 4.8 ridden two tanks, 4.9 used a week on a tablet, no open serious bug, car mode
-agreed. One feedback version before it: 4.10 = feedback, and Google moves to 5.2 (billing; the public 5.0 is keyless anyway). Bug fixes stay 4.x.1.
+**Decided (rider, 2026-11-26): Google moves to 5.2,** core functions first; 4.10 is probably the feedback version. Telemetry gathering doesn't hold up 5.0. Tablet: look and
+layout checked now, real car testing when the rider is back. Order: 4.8, 4.9, 4.10 feedback, 5.0, 5.1 tutorial, 5.2 Google. Bug fixes stay x.y.1.
+(proposed) 5.0 may be built once 4.8 has been ridden about a week with one fill-up and no serious bug, the 4.9 look is OK and car mode is agreed; published after one real drive.
 
-### 4.10 · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
+### 5.2 (was 4.10) · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
   with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
 - (proposed) Restrict the key to the package, signing certificate and the Maps SDK, with a quota and budget alert. A shipped key stays readable,
