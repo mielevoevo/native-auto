@@ -19,6 +19,8 @@ data class CallState(
     val routes: List<AudioRoute>,
     /** Wall-clock ms the call became active (the notification's chronometer, else when we first saw it on). */
     val activeSinceMs: Long?,
+    /** 4.7.1: the big line ([callTitle]): the caller, unless the rider hides names. */
+    val title: String = info.caller,
 )
 
 /**
@@ -40,9 +42,12 @@ class CallRepository @Inject constructor(
     private val audioTick = MutableStateFlow(0)
     private var activeSince: Long? = null
 
+    /** The two switches and the dialer's name in one flow: `combine` takes five. */
+    private val options = combine(settings.callControls, settings.callerName, notifications.dialerName, ::Triple)
+
     val state: StateFlow<CallState?> =
-        combine(notifications.call, phone.state, phone.canControl, audioTick, settings.callControls) { observed, cellular, control, _, enabled ->
-            val info = if (enabled) mergeCall(observed?.info, cellular) else null
+        combine(notifications.call, phone.state, phone.canControl, audioTick, options) { observed, cellular, control, _, (enabled, showCaller, dialerName) ->
+            val info = if (enabled) mergeCall(observed?.info, cellular, dialerName) else null
             if (info == null) {
                 activeSince = null
                 audio.newCall()
@@ -68,6 +73,7 @@ class CallRepository @Inject constructor(
                 route = if (info.phase == CallPhase.ACTIVE) audio.current() else null,
                 routes = routes,
                 activeSinceMs = info.startedAtMs ?: activeSince,
+                title = callTitle(info, showCaller),
             )
         }.stateIn(scope, SharingStarted.Eagerly, null)
 

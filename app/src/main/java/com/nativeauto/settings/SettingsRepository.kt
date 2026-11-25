@@ -82,6 +82,10 @@ interface SettingsRepository {
     val callControls: Flow<Boolean> get() = flowOf(true)
     suspend fun setCallControls(enabled: Boolean) {}
 
+    /** 4.7.1: the call card names the caller (ringing and on the call). On by default. */
+    val callerName: Flow<Boolean> get() = flowOf(true)
+    suspend fun setCallerName(show: Boolean) {}
+
     /** 13b: seconds at 10 km/h before auto-start acts, one of [AUTO_START_HOLD_CHOICES_S]. */
     val autoStartHoldS: Flow<Int>
     suspend fun setAutoStartHoldS(seconds: Int)
@@ -311,6 +315,12 @@ class DataStoreSettingsRepository @Inject constructor(
         store.edit { it[PANE_WATERMARK] = enabled }
     }
 
+    override val callerName: Flow<Boolean> = prefs.map { it[CALLER_NAME] ?: true }.distinctUntilChanged()
+
+    override suspend fun setCallerName(show: Boolean) {
+        store.edit { it[CALLER_NAME] = show }
+    }
+
     override suspend fun setCallControls(enabled: Boolean) {
         store.edit { it[CALL_CONTROLS] = enabled }
     }
@@ -444,6 +454,7 @@ class DataStoreSettingsRepository @Inject constructor(
         val TANK_ICON = stringPreferencesKey("tank_icon")
         val ACCENT = intPreferencesKey("accent_color")
         val CALL_CONTROLS = booleanPreferencesKey("call_controls")
+        val CALLER_NAME = booleanPreferencesKey("caller_name")
         val CARD_TITLE_STYLE = stringPreferencesKey("card_title_style")
         val PANE_WATERMARK = booleanPreferencesKey("pane_watermark")
         /** The 4.3c switch; only read, for installs that set it before 4.6.2. */

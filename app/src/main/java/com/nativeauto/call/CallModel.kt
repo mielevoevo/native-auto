@@ -74,9 +74,38 @@ fun classifyCall(n: NotificationFacts): CallInfo? {
     }
     // A non-CallStyle call notification that is neither ongoing nor has any action is a leftover: ignore it.
     if (!isCallStyle && !n.ongoing && n.actionTitles.isEmpty() && !n.hasAnswerIntent && !n.hasHangUpIntent) return null
-    val caller = listOfNotNull(n.personName, n.title, n.text).map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: n.app
+    val caller = callerName(n) ?: n.app
     val started = if (phase == CallPhase.ACTIVE && n.showsChronometer && n.whenMs > 0) n.whenMs else null
     return CallInfo(caller = caller, app = n.app, phase = phase, startedAtMs = started)
+}
+
+/** What dialers write instead of a name; never shown as the caller. */
+private val GENERIC_CALL_TEXT = setOf(
+    "incoming call", "incoming voice call", "incoming video call", "ongoing call", "ongoing voice call", "ongoing video call",
+    "outgoing call", "phone call", "voice call", "video call", "call", "calling", "dialing", "ringing", "on hold", "call in progress",
+    "panggilan masuk", "panggilan suara masuk", "panggilan video masuk", "panggilan keluar", "panggilan berlangsung",
+    "panggilan sedang berlangsung", "panggilan aktif", "panggilan", "memanggil", "berdering", "menelepon",
+)
+private val CALL_DURATION = Regex("""\d{1,2}(:\d{2}){1,2}""")
+
+/** 4.7.1: the first of person, title and text that is a name or number, not "Incoming call" or a running duration. */
+fun callerName(n: NotificationFacts): String? = listOfNotNull(n.personName, n.title, n.text).map { it.trim() }.firstOrNull {
+    val plain = it.lowercase().trimEnd('.', '\u2026', ' ')
+    plain.isNotEmpty() && plain !in GENERIC_CALL_TEXT && !CALL_DURATION.matches(plain) && !it.equals(n.app, ignoreCase = true)
+}
+
+/**
+ * 4.7.1: some phones' dialers post their call in a form [classifyCall] doesn't accept. While the phone rings or is off-hook
+ * ([mergeCall]), an ongoing notification of the dialer still tells who it is.
+ */
+fun dialerCallerName(n: NotificationFacts): String? =
+    if (n.ongoing && n.category != CATEGORY_MISSED_CALL) callerName(n) else null
+
+/** 4.7.1: the card's big line: the caller, or only what kind of call it is when the rider hides names. */
+fun callTitle(info: CallInfo, showCaller: Boolean): String = when {
+    showCaller -> info.caller
+    info.phase == CallPhase.RINGING -> "Incoming call"
+    else -> "On a call"
 }
 
 private val ANSWER_WORDS = listOf("answer", "accept", "pick up", "jawab", "terima", "angkat")
@@ -142,11 +171,12 @@ data class NotificationActions(val answer: Boolean, val decline: Boolean, val ha
 /**
  * The call to show: the notification's, else one made from the cellular state alone (a dialer that posts no
  * notification, or one we can't read). With neither there is no call.
+ * [dialerName] (4.7.1): who the dialer's notification names, for a phone call seen through the cellular state only.
  */
-fun mergeCall(notificationCall: CallInfo?, phone: PhoneState): CallInfo? = when {
+fun mergeCall(notificationCall: CallInfo?, phone: PhoneState, dialerName: String? = null): CallInfo? = when {
     notificationCall != null -> notificationCall
-    phone == PhoneState.RINGING -> CallInfo(caller = "Incoming call", app = "Phone", phase = CallPhase.RINGING)
-    phone == PhoneState.OFFHOOK -> CallInfo(caller = "Phone call", app = "Phone", phase = CallPhase.ACTIVE)
+    phone == PhoneState.RINGING -> CallInfo(caller = dialerName ?: "Incoming call", app = "Phone", phase = CallPhase.RINGING)
+    phone == PhoneState.OFFHOOK -> CallInfo(caller = dialerName ?: "Phone call", app = "Phone", phase = CallPhase.ACTIVE)
     else -> null
 }
 

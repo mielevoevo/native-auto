@@ -76,6 +76,30 @@ class CallModelTest {
         assertEquals("Phone", classifyCall(facts(template = CALL_STYLE_TEMPLATE, callType = 1))!!.caller)
     }
 
+    // ---- 4.7.1: the caller's name ----
+
+    @Test fun `generic call texts and durations are never the caller`() {
+        assertEquals("Ayu", classifyCall(facts(category = "call", title = "Incoming call", text = "Ayu", answer = true))!!.caller)
+        assertEquals("Budi", classifyCall(facts(category = "call", title = "Panggilan masuk", text = "Budi", answer = true))!!.caller)
+        assertEquals("+62 812", classifyCall(facts(category = "call", title = "0:42", text = "+62 812", hangUp = true, ongoing = true))!!.caller)
+        assertEquals("Phone", classifyCall(facts(category = "call", title = "Incoming call", text = "Phone", answer = true))!!.caller)
+    }
+
+    @Test fun `the dialer's ongoing notification names a call seen only through the phone state`() {
+        assertEquals("Ayu", dialerCallerName(facts(title = "Ayu", text = "Indonesia", ongoing = true)))
+        assertNull(dialerCallerName(facts(title = "Ayu")))
+        assertEquals("Ayu", mergeCall(null, PhoneState.RINGING, "Ayu")!!.caller)
+        assertEquals("Phone call", mergeCall(null, PhoneState.OFFHOOK, null)!!.caller)
+        assertNull(mergeCall(null, PhoneState.IDLE, "Ayu"))
+    }
+
+    @Test fun `hiding names leaves only the kind of call`() {
+        val ringing = CallInfo("Ayu", "Phone", CallPhase.RINGING)
+        assertEquals("Ayu", callTitle(ringing, true))
+        assertEquals("Incoming call", callTitle(ringing, false))
+        assertEquals("On a call", callTitle(ringing.copy(phase = CallPhase.ACTIVE), false))
+    }
+
     // ---- choosing an action by its label ----
 
     @Test fun `action labels match whole words only`() {

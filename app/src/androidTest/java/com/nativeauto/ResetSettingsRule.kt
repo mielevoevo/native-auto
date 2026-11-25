@@ -61,6 +61,7 @@ class ResetSettingsRule : ExternalResource() {
         // 13c / 4.1.1: the colours of a fresh install (cyan accent).
         settings.setAccentColor(0xFF3FC8E0.toInt())
         settings.setCallControls(true)
+        settings.setCallerName(true)
         settings.setCardTitleStyle(com.nativeauto.settings.CardTitleStyle.TEXT)
         settings.setPaneWatermark(false)
         settings.setGreetingMode(com.nativeauto.settings.GreetingMode.ONCE_A_DAY)

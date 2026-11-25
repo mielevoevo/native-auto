@@ -35,6 +35,11 @@ class CallSettingsViewModel @Inject constructor(
 
     fun setEnabled(on: Boolean) { viewModelScope.launch { settings.setCallControls(on) } }
 
+    val callerName: StateFlow<Boolean> = settings.callerName
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setCallerName(show: Boolean) { viewModelScope.launch { settings.setCallerName(show) } }
+
     val canRead: StateFlow<Boolean> = phone.canRead
     val canControl: StateFlow<Boolean> = phone.canControl
 
@@ -48,6 +53,16 @@ internal fun CallCardRow(viewModel: CallSettingsViewModel = hiltViewModel()) {
     val haptics = rememberHaptics()
     SwitchRow(label = R.string.settings_call_controls, hint = R.string.settings_call_controls_hint, checked = enabled, tag = "settings_call_controls") {
         haptics.toggle(it); viewModel.setEnabled(it)
+    }
+}
+
+/** 4.7.1 (Display): the caller's name on the call card and pill, ringing and on the call. */
+@Composable
+internal fun CallerNameRow(viewModel: CallSettingsViewModel = hiltViewModel()) {
+    val shown by viewModel.callerName.collectAsStateWithLifecycle()
+    val haptics = rememberHaptics()
+    SwitchRow(label = R.string.settings_caller_name, hint = R.string.settings_caller_name_hint, checked = shown, tag = "settings_caller_name") {
+        haptics.toggle(it); viewModel.setCallerName(it)
     }
 }
 

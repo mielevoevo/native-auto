@@ -238,10 +238,14 @@ private fun DashboardScreenBody(
                                     layout = layout,
                                     holdMs = { hold },
                                     // A fullscreen map's body keeps its long-press (a destination): it lifts from its header.
-                                    allowAt = { pane != Pane.CALL && (pane != Pane.MAP || layout.fullscreen != Pane.MAP || it.y <= mapHeaderPx) },
+                                    // 4.7.1: the call card too, so a long press on End or Decline stays a press.
+                                    allowAt = {
+                                        val headerOnly = pane == Pane.CALL || (pane == Pane.MAP && layout.fullscreen == Pane.MAP)
+                                        !headerOnly || it.y <= mapHeaderPx
+                                    },
                                     onLift = { haptics.lift() },
                                     onArm = { dragScope.launch { haptics.lift(); delay(ARM_BUZZ_GAP_MS); haptics.lift() } },
-                                    onPick = { pickerFor = it },
+                                    onPick = picker,
                                     onSwap = { haptics.tap() },
                                 )
                                 .graphicsLayer {

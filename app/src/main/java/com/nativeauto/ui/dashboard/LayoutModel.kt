@@ -205,7 +205,7 @@ internal object LayoutCodec {
             val preset = LayoutPreset.entries.firstOrNull { it.name == name.trim() } ?: return@mapNotNull null
             val panes = list.split(',').map { s -> Pane.entries.firstOrNull { it.name == s.trim() } ?: return@mapNotNull null }
             if (panes.size != preset.slots || panes.toSet().size != panes.size) return@mapNotNull null
-            preset to panes
+            preset to panes.withoutCall(preset)
         }.toMap()
         return LayoutPreset.entries.associateWith { parsed[it] ?: DefaultAssignments.getValue(it) }
     }
@@ -214,6 +214,16 @@ internal object LayoutCodec {
 
     /** A saved portrait preset, or null (blank, unknown, or a landscape name). */
     fun portraitPreset(name: String): LayoutPreset? = LayoutPreset.entries.firstOrNull { it.name == name && it.portrait }
+}
+
+/**
+ * 4.7.1: up to 4.7 a card dropped onto the call card was replaced by it for good. A saved layout damaged that way gets
+ * the first default pane it lacks (else any other) in the call card's place, so the rest of the arrangement is kept.
+ */
+internal fun List<Pane>.withoutCall(preset: LayoutPreset): List<Pane> {
+    if (Pane.CALL !in this) return this
+    val fill = (DefaultAssignments.getValue(preset) + Pane.entries).first { it != Pane.CALL && it !in this }
+    return map { if (it == Pane.CALL) fill else it }
 }
 
 /**

@@ -1192,3 +1192,19 @@ run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
   screen, right after the boot, with an empty crash log; cause not confirmed. The same build by hand started, and the rerun was 2 of 2. The exact APK
   was installed over 4.6.4: odometer, fuel level and range kept, no crash. `.dev/apk/NativeAuto-4.7-470-release.apk`. No way back to 4.6.x
   without losing the data (database v9): back up first.
+
+## 4.7.1: call card patch (2026-11-25, versionCode 37)
+
+- **Bug:** dropping a card onto the call card wrote the temporary call card into the saved layout, and the dropped card left it.
+  It stayed after the call and after a restart. **Fix:** arranging always works on the pane the call card stands in for; the call card
+  is never stored. A drop that lands after the call has ended does nothing.
+- **Repair:** a saved layout holding the call card gets the first default pane it lacks (else another) there. The thrown-away card can't
+  be known for certain; keeping the rest of the arrangement beats resetting the layout.
+- **Dragging the call card is allowed, from its top strip only** (64 dp): the rider expected it, and a long press on End / Decline must
+  stay a press. It never opens the pane picker.
+- **Caller name:** one switch (Display, under Call card, on by default) for ringing and on the call, card and pill. One switch rather than two:
+  the request reads as show / hide in both. "Screen options" moved above the two call rows, so it stays reachable without scrolling. Hidden: "Incoming call" + "Ringing", or "On a call" + the duration.
+- **Where the name comes from:** notifications only: generic texts are skipped, and the dialer's own ongoing notification names a SIM call.
+  Not verified on HyperOS. READ_CALL_LOG + READ_CONTACTS would be the fallback; not added (sensitive, needs the rider's OK).
+- **Left as is:** fullscreen pressed on the call card makes the pane under it fullscreen, with the call as the pill.
+- **Design review:** the new row uses the existing switch row; no new color, size or component. Pass.

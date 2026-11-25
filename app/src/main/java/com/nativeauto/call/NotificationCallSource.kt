@@ -45,6 +45,14 @@ class NotificationCallSource @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
     private val calls = LinkedHashMap<String, ObservedCall>()
+
+    /** 4.7.1: names from the dialer's own ongoing notifications that aren't recognisable calls, by key. */
+    private val dialerNames = LinkedHashMap<String, String>()
+    private val _dialerName = MutableStateFlow<String?>(null)
+
+    /** Who the phone's dialer names; only meaningful while the phone rings or is off-hook. In memory only. */
+    val dialerName: StateFlow<String?> = _dialerName.asStateFlow()
+
     private val _call = MutableStateFlow<ObservedCall?>(null)
 
     /** The call to show: the ringing one first (several may be up at once, e.g. a call waiting). */
@@ -52,6 +60,7 @@ class NotificationCallSource @Inject constructor(
 
     @Synchronized
     fun onPosted(sbn: StatusBarNotification) {
+        dialerNames.remove(sbn.key)
         val observed = observe(sbn)
         if (observed == null) calls.remove(sbn.key) else calls[sbn.key] = observed
         publish()
@@ -59,13 +68,15 @@ class NotificationCallSource @Inject constructor(
 
     @Synchronized
     fun onRemoved(key: String) {
-        if (calls.remove(key) != null) publish()
+        val named = dialerNames.remove(key) != null
+        if (calls.remove(key) != null || named) publish()
     }
 
     /** The listener (re)connected: start from what is up right now. */
     @Synchronized
     fun reset(active: Array<StatusBarNotification>?) {
         calls.clear()
+        dialerNames.clear()
         active?.forEach { sbn -> observe(sbn)?.let { calls[sbn.key] = it } }
         publish()
     }
@@ -73,10 +84,12 @@ class NotificationCallSource @Inject constructor(
     @Synchronized
     fun clear() {
         calls.clear()
+        dialerNames.clear()
         publish()
     }
 
     private fun publish() {
+        _dialerName.value = dialerNames.values.lastOrNull()
         val best = pickCall(calls.values.map { it.info })
         _call.value = calls.values.firstOrNull { it.info == best }
         if (com.nativeauto.BuildConfig.DEBUG) Log.d(TAG, "call notifications: ${calls.size}, showing $best")
@@ -107,7 +120,9 @@ class NotificationCallSource @Inject constructor(
             showsChronometer = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false),
             ongoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0,
         )
-        classifyCall(facts)?.let { info ->
+        val call = classifyCall(facts)
+        if (call == null && isDialer(sbn.packageName)) dialerCallerName(facts)?.let { dialerNames[sbn.key] = it }
+        call?.let { info ->
             // The notification's own intents first; older call notifications only have labelled actions.
             fun action(index: Int?) = index?.let { n.actions?.getOrNull(it)?.actionIntent }
             val answerIntent = answer ?: action(findAnswerAction(titles))
@@ -127,6 +142,10 @@ class NotificationCallSource @Inject constructor(
         null
     }
 
+    /** The phone's own dialer, or the in-call screen some skins ship apart from it. */
+    private fun isDialer(pkg: String): Boolean =
+        pkg == IN_CALL_UI || pkg == context.getSystemService(android.telecom.TelecomManager::class.java)?.defaultDialerPackage
+
     @Suppress("DEPRECATION")
     private fun intentExtra(extras: android.os.Bundle, key: String): PendingIntent? = extras.getParcelable(key) as? PendingIntent
 
@@ -138,3 +157,4 @@ class NotificationCallSource @Inject constructor(
 }
 
 private const val TAG = "NativeAuto/Call"
+private const val IN_CALL_UI = "com.android.incallui"

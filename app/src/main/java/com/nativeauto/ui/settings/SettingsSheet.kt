@@ -309,13 +309,14 @@ private fun DisplayPage(viewModel: SettingsViewModel, wide: Boolean, onColours: 
                 tag = "settings_colours",
                 leading = { ColourDot(Color(accent), "settings_accent_swatch") },
             ) { haptics.tap(); onColours() }
-            CallCardRow()
             ActionRow(
                 title = stringResource(R.string.settings_screen_options),
                 hint = stringResource(R.string.settings_screen_options_hint),
                 action = stringResource(R.string.settings_telemetry_choose),
                 tag = "settings_screen_options",
             ) { haptics.tap(); onScreen() }
+            CallCardRow()
+            CallerNameRow()
         },
     )
 }

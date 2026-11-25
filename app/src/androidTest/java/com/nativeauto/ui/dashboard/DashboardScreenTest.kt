@@ -894,7 +894,7 @@ class DashboardScreenTest {
         fun tab(c: String) { tag("settings_cat_$c").performScrollTo(); click("settings_cat_$c") }
         fun rows(c: String, vararg tags: String) { tab(c); tags.forEach { tag(it).performScrollTo().assertIsDisplayed() } }
         rows("TRIP_GARAGE", "settings_garage", "settings_history", "settings_trip_automation", "settings_trip_options", "settings_reset_trip")
-        rows("DISPLAY", "settings_orientation_AUTO", "settings_theme_DARK", "settings_card_titles_TEXT", "settings_pane_watermark", "settings_call_controls", "settings_unit_KMH", "settings_colours", "settings_screen_options")
+        rows("DISPLAY", "settings_orientation_AUTO", "settings_theme_DARK", "settings_card_titles_TEXT", "settings_pane_watermark", "settings_call_controls", "settings_unit_KMH", "settings_colours", "settings_caller_name", "settings_screen_options")
         rows("LAYOUT", "settings_split_50", "settings_drag_hold_1", "settings_voice", "settings_auto_layout")
         rows("OTHERS", "settings_greeting_ONCE_A_DAY", "settings_whats_new", "backup_export", "backup_import", "settings_call_permissions", "settings_privacy_permissions", "settings_privacy_notifications", "settings_reset_app")
         rows("DEBUG", "debug_fake_gps")

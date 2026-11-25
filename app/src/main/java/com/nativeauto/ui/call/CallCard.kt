@@ -122,7 +122,7 @@ private fun CallBody(call: CallState, now: Long, mode: CardMode, vm: CallViewMod
     val portrait = LocalPortrait.current
     val colors = AppTheme.colors
     val status = when (call.info.phase) {
-        CallPhase.RINGING -> "Incoming call"
+        CallPhase.RINGING -> ringingStatus(call)
         CallPhase.ACTIVE -> call.activeSinceMs?.let { formatCallDuration(now - it) } ?: "On the call"
     }
     Column(
@@ -133,7 +133,7 @@ private fun CallBody(call: CallState, now: Long, mode: CardMode, vm: CallViewMod
         // The who and how long: kept together so the controls can sit apart, in the lower part, in portrait.
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f, fill = portrait && !big), verticalArrangement = Arrangement.Center) {
         Text(
-            call.info.caller,
+            call.title,
             style = TextStyleFor(if (big) 44.sp else if (small) 24.sp else 30.sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -202,6 +202,9 @@ private fun CallBody(call: CallState, now: Long, mode: CardMode, vm: CallViewMod
     }
 }
 
+/** Never the same words twice: with no name to show, the big line already says "Incoming call". */
+private fun ringingStatus(call: CallState) = if (call.title == "Incoming call") "Ringing" else "Incoming call"
+
 private fun AudioRoute?.icon(): ImageVector = when (this) {
     AudioRoute.SPEAKER -> AppIcons.VolumeUp
     AudioRoute.BLUETOOTH -> AppIcons.Bluetooth
@@ -261,7 +264,7 @@ fun CallPill(modifier: Modifier = Modifier, viewModel: CallViewModel = hiltViewM
     val haptics = rememberHaptics()
     val colors = AppTheme.colors
     val ringing = c.info.phase == CallPhase.RINGING
-    val status = if (ringing) "Incoming call" else c.activeSinceMs?.let { formatCallDuration(now - it) } ?: "On the call"
+    val status = if (ringing) ringingStatus(c) else c.activeSinceMs?.let { formatCallDuration(now - it) } ?: "On the call"
     androidx.compose.material3.Surface(
         modifier = modifier.testTag("call_pill"),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
@@ -275,7 +278,7 @@ fun CallPill(modifier: Modifier = Modifier, viewModel: CallViewModel = hiltViewM
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Column(Modifier.widthIn(max = 160.dp)) {
-                Text(c.info.caller, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("call_pill_name"))
+                Text(c.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("call_pill_name"))
                 Text(
                     status,
                     style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),

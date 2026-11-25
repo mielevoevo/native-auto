@@ -940,4 +940,7 @@ repeated fix with a speed counts as riding) and `settings put global hide_error_
 - **Traffic:** `LoadSums.crawlS / crawlM / crawlClimbM` → `trips.loadCrawl*` (Room **v9**, `MIGRATION_8_9`; optional in the backup), shown by
   `trafficLine` (`history_traffic`). The range reads none of it.
 - Portrait Garage: the bike row needs its `IntrinsicSize.Min` height (`PortraitDashboardTest.theGarageShowsTheBikePageUnderTheBikes`).
+- **4.7.1 (versionCode 37):** `Pane.CALL` is never stored: `assign` / `swap` go through `arranged()`, `LayoutCodec` and the Saver repair old saves
+  (`withoutCall`). The call card lifts from its top 64 dp. `SettingsRepository.callerName` (`settings_caller_name`) → `CallState.title`; `callerName()` /
+  `dialerCallerName()` in `CallModel.kt`. Device tests on a crash-looping emulator: cold boot (`-no-snapshot-load`), `svc wifi disable`, install with adb.
 - Shots: `DesignShotsTest.garage47`. Shell heredocs halve backslashes here: write newline escapes as `chr(92)+'n'` in edit scripts.

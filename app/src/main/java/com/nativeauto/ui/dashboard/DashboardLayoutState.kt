@@ -186,6 +186,10 @@ class DashboardLayoutState(
     private fun real(pane: Pane?): Pane? =
         if (pane == Pane.CALL) callTakeoverPane(baseView, bigOnLeft, split) ?: pane else pane
 
+    /** [pane] as it may be stored: the call card's own pane, or null when the call card isn't on screen (the call just ended). */
+    private fun arranged(pane: Pane): Pane? =
+        if (pane == Pane.CALL && Pane.CALL !in view.panes) null else real(pane)?.takeIf { it != Pane.CALL }
+
     // ---- arrangement: the user's own, ends an override ----
 
     /** One tap in the switcher. Starts unzoomed: a new layout is a fresh view. A layout of the other orientation is ignored. */
@@ -202,6 +206,9 @@ class DashboardLayoutState(
      * this layout the two trade places; otherwise [slotPane] leaves the layout.
      */
     fun assign(slotPane: Pane, pane: Pane) {
+        // 4.7.1: the call card is only a stand-in. It is never stored: moving it moves the pane underneath.
+        val slotPane = arranged(slotPane) ?: return
+        val pane = arranged(pane) ?: return
         if (slotPane == pane) return
         arrangeByHand()
         val list = assignments.getValue(preset).toMutableList()
@@ -218,6 +225,7 @@ class DashboardLayoutState(
 
     /** The header's swap button: with the pane above / below, or (alone in its column) across. */
     fun swap(pane: Pane) {
+        val pane = arranged(pane) ?: return
         arrangeByHand()
         val list = assignments.getValue(preset)
         val slot = list.indexOf(pane).takeIf { it >= 0 } ?: return
@@ -323,7 +331,7 @@ class DashboardLayoutState(
             val (preset, panes, full, max) = s.split('|')
             LayoutView(
                 LayoutPreset.valueOf(preset),
-                panes.split(',').map(Pane::valueOf),
+                panes.split(',').map(Pane::valueOf).withoutCall(LayoutPreset.valueOf(preset)),
                 full.takeIf { it.isNotEmpty() }?.let(Pane::valueOf),
                 max.takeIf { it.isNotEmpty() }?.let(Pane::valueOf),
             )

@@ -1121,3 +1121,9 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
 - (proposed) A settings field for a user's own TomTom key. Fair-use limits of the free routing, search and map servers.
 - `.dev/release.ps1` (local, untested) uploads the APK and notes with GitHub CLI. Before using it: dry run, and add a check that
   stops a keyed APK.
+
+## 4.7.1 (2026-11-25)
+
+- Call card bug and caller name: built, see DECISIONS.md "4.7.1". To check on the phone: a SIM call's name on the card, a swap during a call.
+- S8 screenshots (v4.7, 2560x1600), for 4.9: phone-sized content in large cards (Rows, Quad and Duo are mostly empty), small controls and text,
+  the map at world view with no fix; the two-column bike editor fits.

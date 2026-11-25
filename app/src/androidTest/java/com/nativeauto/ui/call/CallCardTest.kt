@@ -19,6 +19,9 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.flow.first
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
@@ -146,6 +149,56 @@ class CallCardTest {
         manager.cancel(ID)
         awaitGone("call_name")
         rule.waitUntil(10_000) { slotArea("MEDIA") > 1f }
+    }
+
+    private fun dragPane(from: String, to: String, atY: Float) {
+        val start = tag("slot_$from").fetchSemanticsNode().boundsInRoot
+        val end = tag("slot_$to").fetchSemanticsNode().boundsInRoot
+        tag("slot_$from").performTouchInput {
+            val p = Offset(width * 0.15f, height * atY)
+            down(p)
+            advanceEventTime(1_300)
+            val target = end.center - start.topLeft
+            repeat(10) { i -> moveTo(p + (target - p) * ((i + 1) / 10f)) }
+            up()
+        }
+        rule.waitForIdle()
+    }
+
+    /** 4.7.1: a drop onto the call card, then the call card dragged by its header; nothing is lost and it goes with the call. */
+    @Test fun swappingWithTheCallCardInQuadLosesNoCard() {
+        click("layouts_open")
+        click("preset_QUAD")
+        rule.waitUntil(10_000) { slotArea("CLOCK") > 1f }
+        postIncoming()
+        await("call_name")
+        rule.waitUntil(10_000) { slotArea("MEDIA") < 1f }
+        val callAt = tag("slot_CALL").getBoundsInRoot()
+        dragPane("MAP", "CALL", 0.1f)
+        Thread.sleep(1_500)
+        assertEquals("the map took the call card's place", callAt, tag("slot_MAP").getBoundsInRoot())
+        listOf("MAP", "SPEED", "CALL", "CLOCK").forEach { assertTrue("$it on screen", slotArea(it) > 1f) }
+        val speedAt = tag("slot_SPEED").getBoundsInRoot()
+        dragPane("CALL", "SPEED", 0.1f)
+        Thread.sleep(1_500)
+        assertEquals("the call card took speed's place", speedAt, tag("slot_CALL").getBoundsInRoot())
+        listOf("MAP", "SPEED", "CALL", "CLOCK").forEach { assertTrue("$it still on screen", slotArea(it) > 1f) }
+        manager.cancel(ID)
+        rule.waitUntil(10_000) { slotArea("CALL") < 1f }
+        rule.waitUntil(10_000) { listOf("MAP", "SPEED", "MEDIA", "CLOCK").all { slotArea(it) > 1f } }
+        rule.waitUntil(10_000) { tag("slot_MEDIA").getBoundsInRoot() == speedAt }
+        val saved = kotlinx.coroutines.runBlocking { resetSettings.settings.savedLayout.first() }.slots
+        assertTrue("never saved: $saved", "CALL" !in saved)
+    }
+
+    @Test fun theCallersNameCanBeHidden() {
+        kotlinx.coroutines.runBlocking { resetSettings.settings.setCallerName(false) }
+        postIncoming()
+        await("call_name")
+        assertEquals("Incoming call", text("call_name"))
+        assertEquals("Ringing", text("call_status"))
+        kotlinx.coroutines.runBlocking { resetSettings.settings.setCallerName(true) }
+        rule.waitUntil(5_000) { text("call_name") == "Ayu Lestari" }
     }
 
     @Test fun decliningFiresTheNotificationsOwnDeclineIntent() {

@@ -1,5 +1,10 @@
 # What's new in Native Auto
 
+## 4.7.1 (37) · 2026-11-25
+- Fixed: dropping a card onto the call card during a call threw that card away and left an empty call card behind, even after restarting. Layouts damaged this way are repaired when the app opens; if the wrong card came back, hold it and pick another.
+- The call card can be dragged by its top strip. The card it stands in for moves with it and comes back there after the call.
+- The call card skips texts like "Incoming call" when looking for the caller's name, and also reads the name from the phone's own dialer. Caller name (Settings, Display) hides it.
+
 ## 4.7 (36) · 2026-11-24
 - Back up before you install this one: the database changes, so you can't go back to an older version without losing the app's data. Your bikes, trips and fill-ups carry over.
 - Garage: more bikes to pick from: Vario 110, 125, 150 and 160, BeAT, PCX 150 and 160, beside both NMAX. A preset only fills in the tank, reserve and gauge; Other bike keeps what you type.

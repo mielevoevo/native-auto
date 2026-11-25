@@ -111,6 +111,8 @@
     <string name="settings_import_action">Import</string>
     <string name="settings_call_controls">Call card</string>
     <string name="settings_call_controls_hint">Calls on the dashboard, with Answer and Decline</string>
+    <string name="settings_caller_name">Caller name</string>
+    <string name="settings_caller_name_hint">Shows who it is, ringing and on the call</string>
     <string name="settings_whats_new">What\'s new</string>
     <string name="settings_whats_new_hint">Changes in each version</string>
     <string name="settings_open">Open</string>
