@@ -1084,12 +1084,27 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
 **Prep for the session that builds 4.8 (waits for "start"):**
 - Order, one version and one changelog entry: key scrubbing, custom fuels, fill-up review, service types, range math last.
 - Start at: `garage/Fuel.kt`, `garage/RidingLoad.kt`, `garage/Service.kt`, `garage/Garage.kt` (`BikeType`, `FuelType`), `history/TripRecorder.kt`,
-  `history/Database.kt` (Room v9 to v10), `garage/GarageBackup.kt`, `ui/garage/`, `app/build.gradle.kts`.
+  `history/Database.kt` (Room v10 to v11), `garage/GarageBackup.kt`, `ui/garage/`, `app/build.gradle.kts`.
 - Watch: `RefuelRecord.fuel` turns an unknown fuel into Pertamax, so custom fuels need that first. `RANGE_FOLLOWS_RIDING` stays false until the gate is met.
   Old trips lack the new sums. Old backups must still import.
 - Tests: unit (fit, gate, rounding, review rule, migration, backup), the Garage device tests, keyless build (map, route, search), release smoke.
 - Before building: look at real fill-ups and recorded trips; unattended or reviewed run is the rider's choice.
 - Still proposed: caution levels, the rounding rules, service lists, learning gates.
+
+**Decided (rider, 2026-11-25, after a first look at a backup):**
+- Plain range for now; the rider keeps collecting tanks. Once a bike meets its gate, the range **switches by itself**, per bike: replace the constant
+  `RANGE_FOLLOWS_RIDING = false` with the gate, tested on both sides of it (below: plain; met: switches; no longer better: back to plain).
+- The rider always refills to the top, so earlier entries saved as partial need the 4.8 editing to become full. (proposed) Weight tanks by liters.
+- (proposed) Rebuild load, crawl and standing sums of old trips from their saved points: checked on 7 trips, distance, aero, accel and stops match.
+  No altitude in those points. **4.7.2 (done 2026-11-25) saves altitude per point**, fuller backups and the handover switch; see DECISIONS.md "4.7.2".
+- A second phone records a second bike in parallel and is merged by backup import. Same bike id needed: import the first phone's backup there first.
+  Bikes learn separately. Import leaves the fields of a bike that already exists alone (its learned correction too).
+- 4.10: the rider likes the Navigation SDK; the Google map alone with the current search and navigation is also fine.
+- **Backup (rider: yes), in 4.8:** a choice at Back up: Everything, or **Garage only** (bikes, refuels, odometer, services; no trips, GPX or places; an import
+  adds no trips). And an **optional password**, off by default, for either. (proposed) AES-256 ZIP (`java.util.zip` can't: zip4j, to check under R8), so a
+  PC can open it too. ZIP entry names stay readable, so GPX names (dates) go in one inner archive. Password asked at import, wrong one = clear message,
+  nothing imported; never stored, no recovery (said when it is set). Old and unprotected backups still import.
+  Tests: round trip, wrong password, Garage only holds no trip data, old backups, release smoke.
 
 ### 4.10 · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on

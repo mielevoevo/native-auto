@@ -199,7 +199,8 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                 },
                 prefillKm = odo?.estimateKm,
                 skipLabel = "Cancel",
-                onSave = { km -> haptics.confirm(); viewModel.enterReading(id, km); correcting = null },
+                askOtherPhone = odo?.lastReading != null,
+                onSave = { km, otherPhone -> haptics.confirm(); viewModel.enterReading(id, km, otherPhone); correcting = null },
                 onSkip = { correcting = null },
             )
         }

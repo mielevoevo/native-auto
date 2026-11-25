@@ -323,6 +323,59 @@ class DesignShotsTest {
         }
     }
 
+    /** 4.7.2: the odometer dialog with "Recorded on another phone", as a correction and as the prompt after days away. */
+    @Test fun odometer472() {
+        val entry = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        )
+        val draft = com.nativeauto.garage.BikeDraft("Gen 1", com.nativeauto.garage.BikeModel.NMAX_GEN1, 6.6, 1.3, com.nativeauto.garage.FuelType.PERTAMAX, com.nativeauto.garage.DEFAULT_KM_PER_L)
+        fun dialogs(p: String) {
+            val long = runBlocking {
+                entry.garageDao().clear()
+                entry.garage().addBike(draft, 12_345.0)
+                val id = entry.garage().addBike(draft.copy(name = "Work scooter Gen 2"), 30_000.0)
+                entry.garageDao().updateBike(entry.garageDao().bike(id)!!.copy(lastUsedAtMs = System.currentTimeMillis() - 8 * 86_400_000L))
+                id
+            }
+            click("settings_open")
+            rule.waitUntil(5_000) { count("settings_sheet") > 0 }
+            click("settings_cat_TRIP_GARAGE")
+            rule.onNodeWithTag("settings_garage", useUnmergedTree = true).performScrollTo()
+            click("settings_garage")
+            rule.waitUntil(5_000) { count("garage_correct") > 0 }
+            rule.onNodeWithTag("garage_correct", useUnmergedTree = true).performScrollTo()
+            click("garage_correct")
+            rule.waitUntil(5_000) { count("garage_odo_other_phone") > 0 }
+            click("garage_odo_other_phone")
+            shot("${p}_correct")
+            click("garage_odo_input")
+            Thread.sleep(1_500)
+            shot("${p}_correct_keyboard")
+            click("garage_odo_skip")
+            rule.waitUntil(5_000) { count("garage_odometer_dialog") == 0 }
+            runBlocking { entry.garage().activate(long) }
+            rule.waitUntil(5_000) { count("garage_odo_other_phone") > 0 }
+            shot("${p}_away")
+            click("garage_odo_skip")
+            rule.waitUntil(5_000) { count("garage_odometer_dialog") == 0 }
+            click("garage_back")
+            rule.waitUntil(5_000) { count("garage_screen") == 0 }
+        }
+        try {
+            dialogs("g472_land")
+            runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
+            rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
+            Thread.sleep(1_500)
+            dialogs("g472_port")
+            runBlocking { resetSettings.settings.setThemeMode(com.nativeauto.settings.ThemeMode.LIGHT) }
+            Thread.sleep(800)
+            dialogs("g472_light")
+        } finally {
+            runBlocking { entry.garageDao().clear() }
+        }
+    }
+
     @Test fun portrait() {
         runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
         rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }

@@ -1208,3 +1208,25 @@ run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
   Not verified on HyperOS. READ_CALL_LOG + READ_CONTACTS would be the fallback; not added (sensitive, needs the rider's OK).
 - **Left as is:** fullscreen pressed on the call card makes the pane under it fullscreen, with the call as the pill.
 - **Design review:** the new row uses the existing switch row; no new color, size or component. Pass.
+
+## 4.7.2: altitude, fuller backups, handover between phones (2026-11-25, versionCode 38, unattended, rider: "start v4.7.2")
+
+- **Records only:** no range math changed; `RANGE_FOLLOWS_RIDING` stays false. Riding behavior is 4.8.
+- **Altitude per point** (track and trip checkpoint, Room v10): what the fused provider gives, to 0.1 m, with its vertical accuracy. The accuracy was
+  not in the agreed scope; added because it can't be recorded afterwards and 4.8 needs it to judge slopes. No new sensor, no extra GPS request.
+  Found on the way: a recovered trip lost its climb, as the checkpoint had no altitude. Fixed by the same columns.
+- **Not in GPX:** the height is above the ellipsoid, GPX's `<ele>` is above sea level (tens of meters apart in Java). Points carry it in `backup.json`
+  only, as extra values older versions ignore; the backup format stays 2.
+- **Backup:** gauge readings and dash km/L go along. Import also takes over a service done later on the other phone (small extra: without it, an imported
+  service kept showing as due). A bike already there keeps its own details and learned correction.
+- **"Recorded on another phone"** (odometer prompt and Correct, off by default): the gap is stored as untracked km, so the tank stays measurable, and the
+  reading teaches no GPS correction. A switch above the field, because the keyboard's check saves at once.
+- **Emulator:** its fused altitude follows the emulated barometer, not the GPS height (100 m against 333 m); changing the pressure moved it. On
+  the rider's phone saved trips show varying climb, so altitude does change there. What a barometer-less phone gives is to be seen in the next backup.
+- **Not changed:** the Correct dialog doesn't prefill the odometer (seen in the shots, older than 4.7.2).
+- **Design review:** the settings' own switch row in an existing dialog; landscape, portrait, light, keyboard up, long bike name. Pass.
+- **Tests:** 538 unit (new `TwoPhoneMergeTest`: weekly imports stack, renamed bikes, one tank across two phones, same file twice). Device: MigrationTest
+  (v1, v8, v9), TripFilesTest, GarageScreenTest, 22 of 22. A GPS trip on the emulator: 289 points, none without altitude. Not run on two real phones.
+- **Release:** the exact APK installed over 4.7.1 (bike, odometer, fuel and range kept), then the smoke test on it, 2 of 2. The smoke test fails at
+  `settings_open` when the app was *updated* before it: cleared data on an updated install opens What's new. Uninstall first. Likely 4.7's unexplained first run too.
+  `.dev/apk/NativeAuto-4.7.2-472-release.apk`. No way back to 4.7.1 without losing the data (database v10): back up first.

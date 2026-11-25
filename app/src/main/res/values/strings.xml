@@ -117,4 +117,6 @@
     <string name="settings_whats_new_hint">Changes in each version</string>
     <string name="settings_open">Open</string>
     <string name="changelog_title">What\'s new</string>
+    <string name="garage_other_phone">Recorded on another phone</string>
+    <string name="garage_other_phone_hint">Counts as normal riding. Import that phone\'s backup for its trips and refuels.</string>
 </resources>

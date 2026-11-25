@@ -151,6 +151,40 @@ class GarageScreenTest {
         assertEquals("AWAY", runBlocking { dao.lastReading(gen2)!!.kind })
     }
 
+    /** 4.7.2: km recorded on another phone, from the prompt and from a correction. */
+    @Test fun kmFromAnotherPhoneCountAsTheBikesOwn() {
+        val garage = entry.garage()
+        val dao = entry.garageDao()
+        val gen2 = runBlocking {
+            garage.addBike(nmax, odometerKm = 12_000.0)
+            val gen2 = garage.addBike(nmax.copy(name = "Gen 2", model = BikeModel.NMAX_GEN2), odometerKm = 30_000.0)
+            dao.updateBike(dao.bike(gen2)!!.copy(lastUsedAtMs = System.currentTimeMillis() - AWAY_AFTER_MS - 86_400_000))
+            gen2
+        }
+        openGarage()
+        await("garage_bike_Gen 2")
+        click("garage_bike_Gen 2")
+        click("garage_ride")
+        await("garage_odometer_dialog")
+        tag("garage_odo_other_phone").assertIsDisplayed()
+        click("garage_odo_other_phone")
+        tag("garage_odo_input").performTextReplacement("30230")
+        click("garage_odo_save")
+        awaitGone("garage_odometer_dialog")
+        awaitText("Untracked +230 km")
+
+        click("garage_correct")
+        await("garage_odometer_dialog")
+        click("garage_odo_other_phone")
+        tag("garage_odo_input").performTextReplacement("30300")
+        click("garage_odo_save")
+        awaitGone("garage_odometer_dialog")
+        rule.waitUntil(5_000) { tag("garage_odometer").fetchText() == "30,300 km" }
+        val last = runBlocking { dao.lastReading(gen2)!! }
+        assertEquals("UNTRACKED", last.kind)
+        assertEquals(70.0, last.awayKm, 0.0)
+    }
+
     // ---- 11b ----
 
     @Test fun aFullFillUpStartsTheRangeAndCostsStayHiddenUntilAsked() {

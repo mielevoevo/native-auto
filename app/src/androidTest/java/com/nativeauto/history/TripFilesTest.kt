@@ -54,7 +54,8 @@ class TripFilesTest {
     }
 
     @Test fun aBackupImportsBackWithoutDuplicates() = runBlocking {
-        dao.insertWithTrack(trip, emptyList())
+        val point = TrackPointRecord(tripId = 0, timeMs = start, latitude = -7.8, longitude = 110.37, speedMps = 15f, bearingDeg = 0f, accuracyM = 4f, altitudeM = 113.4f, altitudeAccuracyM = 2.5f)
+        dao.insertWithTrack(trip, listOf(point))
         val uri = files.backupShareIntent().sharedUri()
 
         // Same file again: everything is already there.
@@ -62,6 +63,10 @@ class TripFilesTest {
         // Remove the trip, then restore it from the backup.
         dao.observeAll().first().filter { it.startedAtMs == start }.forEach { dao.delete(it.id) }
         assertEquals(1, files.import(uri).trips)
-        assertEquals(900.0, dao.observeAll().first().single { it.startedAtMs == start }.distanceM, 0.0)
+        val back = dao.observeAll().first().single { it.startedAtMs == start }
+        assertEquals(900.0, back.distanceM, 0.0)
+        // 4.7.2: the altitude comes back with the track.
+        assertEquals(113.4f, dao.points(back.id).single().altitudeM)
+        assertEquals(2.5f, dao.points(back.id).single().altitudeAccuracyM)
     }
 }

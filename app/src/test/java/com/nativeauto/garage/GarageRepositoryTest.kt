@@ -380,6 +380,45 @@ class GarageRepositoryTest {
         assertEquals(false, rig.garage.fuel(gen2).first().consumption.learned)
     }
 
+    @Test fun `km recorded on another phone keep the fuel level and the tank measurable`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        val gen2 = rig.garage.addBike(rig.nmax.copy(name = "Gen 2"), odometerKm = 30_000.0)
+        rig.garage.activate(gen2)
+        rig.garage.logRefuel(gen2, refuel(full = true, litres = 5.0, odometerKm = 30_000.0))
+        rig.garage.activate(gen1)
+        advanceTimeBy(AWAY_AFTER_MS)
+        rig.garage.activate(gen2)
+        rig.garage.answerOdometerPrompt(30_100.0, otherPhone = true)
+        val r = rig.dao.lastReading(gen2)!!
+        assertEquals(ReadingKind.UNTRACKED, r.readingKind)
+        assertEquals(100.0, r.awayKm, 1e-9)
+        val f = rig.garage.fuel(gen2).first()
+        assertNull(f.level.unknownBecause)
+        assertEquals(rig.dao.bike(gen2)!!.tankLitres - 100.0 / f.level.kmPerL, f.level.litres!!, 1e-9)
+        // The next full fill measures the tank, the other phone's km included.
+        rig.savedTrip(gen2, 100.0)
+        advanceTimeBy(1_000)
+        rig.garage.logRefuel(gen2, refuel(full = true, litres = 5.0, odometerKm = 30_200.0))
+        val tank = rig.garage.fuel(gen2).first().consumption.measures.single()
+        assertTrue(tank.used)
+        assertEquals(40.0, tank.kmPerL, 1e-9)
+    }
+
+    @Test fun `a correction for another phone's km teaches no factor, up or down`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 100.0)
+        // 8 km more were ridden with the other phone: within the plausible band, so it would have been learned as drift.
+        assertEquals(ReadingDecision.Store(ReadingKind.UNTRACKED, awayKm = 8.0), rig.garage.enterReading(gen1, 1_108.0, otherPhone = true))
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 100.0, startedAgoMs = 600_000)
+        assertEquals(ReadingDecision.Store(ReadingKind.CORRECTION), rig.garage.enterReading(gen1, 1_205.0, otherPhone = true))
+        assertEquals(1.0, rig.dao.bike(gen1)!!.odoFactor, 0.0)
+        assertEquals(1_205.0, rig.garage.estimateNow(gen1)!!, 1e-9)
+    }
+
     @Test fun `deleting a bike drops its fill-ups`() = runTest {
         val rig = Rig(this)
         val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)

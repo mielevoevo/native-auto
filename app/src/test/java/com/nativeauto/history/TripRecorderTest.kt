@@ -231,6 +231,24 @@ class TripRecorderTest {
         assertEquals(emptyList<TrackPointRecord>(), rig.dao.points(t.id))
     }
 
+    @Test fun `each point keeps its altitude to a tenth of a metre, or none`() = runTest {
+        val rig = Rig(this)
+        rig.startTrip()
+        rig.emit(rig.fix().copy(altitudeM = 113.449, altitudeAccuracyM = 2.26f))
+        repeat(10) { i ->
+            advanceTimeBy(1_000)
+            rig.north += SPEED
+            // A fix without altitude, and one that isn't a number.
+            rig.emit(rig.fix().copy(altitudeM = if (i == 0) null else if (i == 1) Double.NaN else 120.0 + i, altitudeAccuracyM = if (i == 2) Float.NaN else null))
+        }
+        rig.tracker.end(); runCurrent()
+        val points = rig.dao.points(rig.dao.trips.value.single().id)
+        assertEquals(113.4f, points[0].altitudeM)
+        assertEquals(2.3f, points[0].altitudeAccuracyM)
+        assertEquals(listOf(null, null, 122f, 123f), points.subList(1, 5).map { it.altitudeM })
+        assertNull(points[3].altitudeAccuracyM)
+    }
+
     @Test fun `a trip is tagged with the bike active when it is saved`() = runTest {
         val rig = Rig(this)
         rig.bikeId = "Gen 1"
@@ -463,6 +481,33 @@ class TripRecorderTest {
         assertNull(second.checkpoints.trip)
         // The end-of-trip summary isn't raised for it.
         assertNull(second.recorder.lastOutcome.value)
+    }
+
+    @Test fun `a recovered trip keeps its altitudes and its climb`() = runTest {
+        val first = Rig(this)
+        first.startTrip()
+        first.emit(first.fix().copy(altitudeM = 100.0, altitudeAccuracyM = 3f))
+        repeat(70) { i ->
+            advanceTimeBy(1_000)
+            first.north += SPEED
+            first.emit(first.fix().copy(altitudeM = 101.0 + i, altitudeAccuracyM = 3f))
+        }
+        first.kill()
+        // As it is stored: every field makes it through the checkpoint's row.
+        val stored = first.checkpoints.fixes.toList()
+        first.checkpoints.fixes.clear()
+        first.checkpoints.fixes += stored.map { it.toRecord().toSample() }
+        assertEquals(stored, first.checkpoints.fixes.toList())
+
+        advanceTimeBy(TripRecorder.RESUME_WITHIN_MS)
+        val second = Rig(this, after = first)
+        assertEquals(Recovery.SavedEnded, second.recorder.recover())
+        runCurrent()
+        val t = second.dao.trips.value.single()
+        val points = second.dao.points(t.id)
+        assertEquals(100f, points.first().altitudeM)
+        assertTrue(points.all { it.altitudeM != null && it.altitudeAccuracyM == 3f })
+        assertTrue("climb ${t.loadClimbM}", t.loadClimbM!! > 40)
     }
 
     @Test fun `no checkpoint means nothing to recover`() = runTest {

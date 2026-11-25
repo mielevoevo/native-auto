@@ -110,7 +110,8 @@ enum class ReadingKind {
     AWAY,
     /**
      * 11b: the rider's own ride without the app (phone at home, app not running), added by hand
-     * as [OdometerReading.awayKm] on top of the estimate. Counts for servicing and fuel like a
+     * as [OdometerReading.awayKm] on top of the estimate. 4.7.2: also km recorded with another phone (its backup
+     * brings the trips and fill-ups). Counts for servicing and fuel like a
      * tracked ride (km/L still applies), teaches nothing, adds no trips. With 0 km (4.7): the estimate at the moment the
      * rider changed the odometer correction, so the new one counts from there on and nothing jumps.
      */
@@ -347,6 +348,12 @@ interface GarageDao {
 
     @Query("SELECT * FROM service_records ORDER BY timeMs, id")
     suspend fun allServiceRecords(): List<ServiceRecord>
+
+    @Query("SELECT * FROM fuel_marks ORDER BY timeMs, id")
+    suspend fun allFuelMarks(): List<FuelMark>
+
+    @Query("SELECT * FROM dash_kmpl ORDER BY timeMs, id")
+    suspend fun allDashKmPerL(): List<DashKmPerL>
 
     @Query("DELETE FROM service_items")
     suspend fun deleteAllServices()

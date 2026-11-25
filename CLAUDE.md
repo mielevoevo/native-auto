@@ -944,3 +944,8 @@ repeated fix with a speed counts as riding) and `settings put global hide_error_
   (`withoutCall`). The call card lifts from its top 64 dp. `SettingsRepository.callerName` (`settings_caller_name`) → `CallState.title`; `callerName()` /
   `dialerCallerName()` in `CallModel.kt`. Device tests on a crash-looping emulator: cold boot (`-no-snapshot-load`), `svc wifi disable`, install with adb.
 - Shots: `DesignShotsTest.garage47`. Shell heredocs halve backslashes here: write newline escapes as `chr(92)+'n'` in edit scripts.
+
+- **4.7.2 (versionCode 38):** `SpeedSample.altitudeAccuracyM`; `track_points` / `live_points` gain `altitudeM`, `altitudeAccuracyM` (Room **v10**,
+  `MIGRATION_9_10`; 4.8 is v11), recorded only, not in GPX. Backup: `fuelMarks`, `dashKmPerL` (format 2). `decideReading(otherPhone)` /
+  `enterReading(otherPhone)`: UNTRACKED, teaches no factor (`garage_odo_other_phone`). `TwoPhoneMergeTest`. `ReleaseSmokeTest` needs a fresh install
+  (uninstall first; What's new covers the dashboard on an updated one).

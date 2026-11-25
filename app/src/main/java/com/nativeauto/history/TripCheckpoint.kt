@@ -47,6 +47,9 @@ data class LivePointRecord(
     val speedAccuracyMps: Float?,
     val accuracyM: Float,
     val bearingDeg: Float?,
+    /** 4.7.2: as on the fix, so a recovered trip keeps its altitudes and climb. */
+    val altitudeM: Double? = null,
+    val altitudeAccuracyM: Float? = null,
 )
 
 @Dao
@@ -106,14 +109,16 @@ class RoomTripCheckpoints @Inject constructor(private val dao: LiveTripDao) : Tr
     override suspend fun clear() = dao.clear()
 }
 
-private fun SpeedSample.toRecord() = LivePointRecord(
+internal fun SpeedSample.toRecord() = LivePointRecord(
     timestampNanos = timestampNanos, latitude = latitude, longitude = longitude, speedMps = speedMps,
     speedAccuracyMps = speedAccuracyMps, accuracyM = horizontalAccuracyM, bearingDeg = bearingDeg,
+    altitudeM = altitudeM, altitudeAccuracyM = altitudeAccuracyM,
 )
 
-private fun LivePointRecord.toSample() = SpeedSample(
+internal fun LivePointRecord.toSample() = SpeedSample(
     timestampNanos = timestampNanos, speedMps = speedMps, speedAccuracyMps = speedAccuracyMps,
     horizontalAccuracyM = accuracyM, latitude = latitude, longitude = longitude, bearingDeg = bearingDeg,
+    altitudeM = altitudeM, altitudeAccuracyM = altitudeAccuracyM,
 )
 
 /** The figures to checkpoint. */

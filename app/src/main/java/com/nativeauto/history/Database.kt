@@ -85,6 +85,12 @@ data class TrackPointRecord(
     val speedMps: Float,
     val bearingDeg: Float?,
     val accuracyM: Float,
+    /**
+     * 4.7.2: metres above the WGS84 ellipsoid and how sure that is, to 0.1 m. For slopes (differences), not a height
+     * above sea level. Null before v4.7.2 and on fixes without one.
+     */
+    val altitudeM: Float? = null,
+    val altitudeAccuracyM: Float? = null,
 )
 
 @Dao
@@ -162,7 +168,7 @@ interface RecentPlaceDao {
         RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
         ServiceItem::class, ServiceRecord::class, FuelMark::class, DashKmPerL::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -306,5 +312,14 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         db.execSQL("UPDATE bikes SET gaugeBars = 6 WHERE model = 'NMAX_GEN1'")
         db.execSQL("ALTER TABLE bikes ADD COLUMN odoFactorManual REAL")
         listOf("loadCrawlS", "loadCrawlM", "loadCrawlClimbM").forEach { db.execSQL("ALTER TABLE trips ADD COLUMN $it REAL") }
+    }
+}
+
+/** 4.7.2: each fix's altitude, on saved trips and in the checkpoint of the trip in progress. */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        listOf("track_points", "live_points").forEach { table ->
+            listOf("altitudeM", "altitudeAccuracyM").forEach { db.execSQL("ALTER TABLE $table ADD COLUMN $it REAL") }
+        }
     }
 }

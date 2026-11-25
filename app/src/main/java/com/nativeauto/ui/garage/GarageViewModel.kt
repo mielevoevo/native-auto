@@ -51,7 +51,8 @@ class GarageViewModel @Inject constructor(private val garage: GarageRepository) 
 
     fun ride(id: String) = viewModelScope.launch { garage.activate(id) }
 
-    fun enterReading(id: String, km: Double) = viewModelScope.launch { garage.enterReading(id, km) }
+    fun enterReading(id: String, km: Double, otherPhone: Boolean = false) =
+        viewModelScope.launch { garage.enterReading(id, km, otherPhone = otherPhone) }
 
     // ---- 11b ----
 
@@ -105,7 +106,8 @@ class GarageViewModel @Inject constructor(private val garage: GarageRepository) 
         return false
     }
 
-    fun answerOdometerPrompt(km: Double?) = viewModelScope.launch { garage.answerOdometerPrompt(km) }
+    fun answerOdometerPrompt(km: Double?, otherPhone: Boolean = false) =
+        viewModelScope.launch { garage.answerOdometerPrompt(km, otherPhone) }
 
     fun answerWhichBike(id: String) = viewModelScope.launch { garage.answerWhichBike(id) }
 

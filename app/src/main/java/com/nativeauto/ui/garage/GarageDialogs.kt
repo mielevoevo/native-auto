@@ -1,5 +1,6 @@
 package com.nativeauto.ui.garage
 
+import com.nativeauto.ui.settings.SwitchRow
 import com.nativeauto.ui.settings.fadingBottom
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
@@ -55,6 +56,7 @@ import com.nativeauto.ui.components.LocalPortrait
 import com.nativeauto.ui.components.PinnedActionDialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nativeauto.R
 import com.nativeauto.garage.BikeDraft
 import com.nativeauto.garage.DEFAULT_LOW_FUEL_KM
 import com.nativeauto.garage.LOW_FUEL_CHOICES_KM
@@ -407,17 +409,23 @@ internal fun NumberField(
     )
 }
 
-/** One reading: correcting from the Garage, or the away prompt ("Gen 2's odometer now?"). */
+/**
+ * One reading: correcting from the Garage, or the away prompt ("Gen 2's odometer now?"). [askOtherPhone] (4.7.2): offers
+ * "Recorded on another phone"; above the field, as the keyboard's ✓ saves at once.
+ */
 @Composable
 internal fun OdometerDialog(
     title: String,
     text: String,
     prefillKm: Double?,
     skipLabel: String,
-    onSave: (Double) -> Unit,
+    askOtherPhone: Boolean,
+    onSave: (km: Double, otherPhone: Boolean) -> Unit,
     onSkip: () -> Unit,
 ) {
     var value by rememberSaveable { mutableStateOf(prefillKm?.roundToLong()?.toString() ?: "") }
+    var otherPhone by rememberSaveable { mutableStateOf(false) }
+    val haptics = rememberHaptics()
     val km = parseNumber(value, thousands = true)
     GarageDialog(
         tag = "garage_odometer_dialog",
@@ -427,17 +435,23 @@ internal fun OdometerDialog(
             TextButton(onClick = onSkip, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_odo_skip")) { Text(skipLabel) }
             Spacer(Modifier.width(8.dp))
             FilledTonalButton(
-                onClick = { onSave(km!!) },
+                onClick = { onSave(km!!, otherPhone) },
                 enabled = km != null,
                 modifier = Modifier.heightIn(min = 56.dp).testTag("garage_odo_save"),
             ) { Text("Save") }
         },
     ) {
         Text(text, style = MaterialTheme.typography.bodyLarge, color = AppTheme.colors.textDim)
+        if (askOtherPhone) {
+            SwitchRow(R.string.garage_other_phone, R.string.garage_other_phone_hint, otherPhone, "garage_odo_other_phone") {
+                haptics.toggle(it)
+                otherPhone = it
+            }
+        }
         // The keyboard's ✓ saves too: one tap fewer at the pump.
         NumberField(
             value, { value = it }, "Odometer (km)", value.isNotBlank() && km == null, "garage_odo_input", Modifier.fillMaxWidth(),
-            whole = true, onDone = { km?.let(onSave) },
+            whole = true, onDone = { km?.let { onSave(it, otherPhone) } },
         )
     }
 }
@@ -458,7 +472,8 @@ fun GaragePrompts(viewModel: GarageViewModel = hiltViewModel()) {
                 "is logged as away km: it counts toward servicing, but not as your trips.",
             prefillKm = p.estimateKm,
             skipLabel = "Skip",
-            onSave = { haptics.confirm(); viewModel.answerOdometerPrompt(it) },
+            askOtherPhone = p.estimateKm != null,
+            onSave = { km, otherPhone -> haptics.confirm(); viewModel.answerOdometerPrompt(km, otherPhone) },
             onSkip = { haptics.tap(); viewModel.answerOdometerPrompt(null) },
         )
         is GaragePrompt.WhichBike -> {

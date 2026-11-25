@@ -112,6 +112,8 @@ internal class FakeGarageDao : GarageDao {
         dash.value += entry.copy(id = id)
         return id
     }
+    override suspend fun allFuelMarks() = marks.value.sortedWith(compareBy({ it.timeMs }, { it.id }))
+    override suspend fun allDashKmPerL() = dash.value.sortedWith(compareBy({ it.timeMs }, { it.id }))
     override suspend fun deleteAllFuelMarks() { marks.value = emptyList() }
     override suspend fun deleteAllDashKmPerL() { dash.value = emptyList() }
 }

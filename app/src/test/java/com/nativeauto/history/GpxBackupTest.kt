@@ -58,6 +58,16 @@ class GpxBackupTest {
         assertNull(back.points[1].bearingDeg)
     }
 
+    @Test fun `altitude travels in the backup, only on the points that have one, and stays out of the gpx`() {
+        val high = listOf(points[0].copy(altitudeM = 123.4f, altitudeAccuracyM = 2.5f), points[1].copy(altitudeM = -3.1f), points[1])
+        val json = Backup.encode(listOf(Backup.TripWithTrack(trip, high)))
+        assertEquals(high.map { it.copy(id = 0, tripId = 0) }, Backup.decode(json).single().points)
+        // A point without altitude is written as before: six values.
+        assertTrue(json.contains("[1762650001000,-7.79991,110.37008,11.0,null,5.0]"))
+        // The height is above the ellipsoid, which GPX's <ele> isn't.
+        assertFalse(buildGpx(trip, high).contains("<ele>"))
+    }
+
     @Test fun `the riding load travels in the backup, and a trip without it reads back without it`() {
         val loaded = trip.copy(loadIndex = 412.5, loadDistanceM = 600.0, loadAero = 60_000.0, loadAccel = 12.5, loadClimbM = 3.0, loadStops = 2, loadCrawlS = 90.5, loadCrawlM = 210.0, loadCrawlClimbM = 4.0)
         val back = Backup.decode(Backup.encode(listOf(Backup.TripWithTrack(loaded, points), Backup.TripWithTrack(trip, points))))

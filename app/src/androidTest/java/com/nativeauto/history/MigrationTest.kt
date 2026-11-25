@@ -56,7 +56,7 @@ class MigrationTest {
             db.version = 1
         }
 
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7, com.nativeauto.history.MIGRATION_7_8, MIGRATION_8_9).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7, com.nativeauto.history.MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build()
         try {
             val dao = room.trips()
             val old = dao.observeAll().first().single()
@@ -157,6 +157,41 @@ class MigrationTest {
         }
     }
 
+    /** The columns v10 (4.7.2) adds, taken away again. */
+    private fun dropV10(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        listOf("track_points", "live_points").forEach { t ->
+            listOf("altitudeM", "altitudeAccuracyM").forEach { db.execSQL("ALTER TABLE $t DROP COLUMN $it") }
+        }
+    }
+
+    /** 4.7.2: a v9 history as 4.7.1 leaves it, a trip in progress included; its points just have no altitude. */
+    @Test fun v9TracksAndTheTripInProgressSurvive() = runBlocking {
+        val v9 = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        v9.openHelper.writableDatabase.let { db ->
+            dropV10(db)
+            db.execSQL("INSERT INTO track_points (tripId, timeMs, latitude, longitude, speedMps, bearingDeg, accuracyM) VALUES (3, 1000, -7.8, 110.4, 9.5, 45.0, 4.0)")
+            db.execSQL("INSERT INTO live_points (timestampNanos, latitude, longitude, speedMps, speedAccuracyMps, accuracyM, bearingDeg) VALUES (7, -7.8, 110.4, 9.5, 0.4, 4.0, null)")
+            db.execSQL("PRAGMA user_version = 9")
+        }
+        v9.close()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_9_10).build()
+        try {
+            val old = room.trips().points(3).single()
+            assertEquals(9.5f, old.speedMps)
+            assertNull(old.altitudeM)
+            assertNull(old.altitudeAccuracyM)
+            assertNull(room.liveTrip().points().single().altitudeM)
+            room.trips().insertPoints(listOf(old.copy(id = 0, tripId = 4, altitudeM = 113.4f, altitudeAccuracyM = 2.5f)))
+            assertEquals(113.4f, room.trips().points(4).single().altitudeM)
+            val live = room.liveTrip().points().single().copy(id = 0, timestampNanos = 8, altitudeM = 113.449, altitudeAccuracyM = 2.5f)
+            room.liveTrip().insertPoints(listOf(live))
+            assertEquals(113.449, room.liveTrip().points().last().altitudeM!!, 0.0)
+            assertEquals(2.5f, room.liveTrip().points().last().altitudeAccuracyM)
+        } finally {
+            room.close()
+        }
+    }
+
     /** 4.7: a v8 garage as 4.6.x leaves it: bikes keep their gauge, readings, fill-ups and learned figures. */
     @Test fun v8BikesKeepTheirGaugeAndData() = runBlocking {
         val v8 = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
@@ -165,6 +200,7 @@ class MigrationTest {
             db.execSQL("ALTER TABLE bikes DROP COLUMN gaugeBars")
             db.execSQL("ALTER TABLE bikes DROP COLUMN odoFactorManual")
             listOf("loadCrawlS", "loadCrawlM", "loadCrawlClimbM").forEach { db.execSQL("ALTER TABLE trips DROP COLUMN $it") }
+            dropV10(db)
             listOf("g1" to "NMAX_GEN1", "g2" to "NMAX_GEN2", "o" to "OTHER").forEach { (id, model) ->
                 db.execSQL(
                     "INSERT INTO bikes (id, name, type, model, tankLitres, reserveLitres, fuelType, startKmPerL, odoFactor, active, lastUsedAtMs, createdAtMs, lowFuelKm) " +
@@ -178,7 +214,7 @@ class MigrationTest {
             db.execSQL("PRAGMA user_version = 8")
         }
         v8.close()
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_8_9).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_8_9, MIGRATION_9_10).build()
         try {
             val garage = room.garage()
             assertEquals(listOf(6, 8, 8), listOf("g1", "g2", "o").map { garage.bike(it)!!.gaugeBars })

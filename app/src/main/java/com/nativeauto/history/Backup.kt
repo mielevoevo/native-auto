@@ -33,7 +33,8 @@ import kotlinx.serialization.json.putJsonArray
  * The ZIP backup (Rider-Feedback "Decided", 9d): `backup.json` holds everything needed to restore
  * (every trip with all its figures and its full track), and `gpx/` holds one GPX per trip for other
  * apps. Import reads only `backup.json`. Format 2 (11c) adds the Garage (`garage`, see
- * [GarageBackup]); format 1 files still import (no Garage in them).
+ * [GarageBackup]); format 1 files still import (no Garage in them). 4.7.2 adds altitude to the points, and gauge readings
+ * and dash km/L to the Garage; both optional, so the format stays 2.
  *
  * Plain JVM code (java.util.zip + the kotlinx JSON tree), so it's unit-tested without a device.
  */
@@ -106,16 +107,21 @@ object Backup {
                     r.loadCrawlS?.let { put("loadCrawlS", it) }
                     r.loadCrawlM?.let { put("loadCrawlM", it) }
                     r.loadCrawlClimbM?.let { put("loadCrawlClimbM", it) }
-                    // Compact: one array per point, [timeMs, lat, lon, speed, bearing|null, accuracy].
+                    // Compact: one array per point, [timeMs, lat, lon, speed, bearing|null, accuracy], and since 4.7.2
+                    // [.., altitude, its accuracy|null] on points that have one (older versions read the first six).
                     putJsonArray("points") {
                         t.points.forEach { p ->
                             add(
                                 JsonArray(
-                                    listOf(
-                                        JsonPrimitive(p.timeMs), JsonPrimitive(p.latitude), JsonPrimitive(p.longitude),
-                                        JsonPrimitive(p.speedMps), p.bearingDeg?.let(::JsonPrimitive) ?: JsonNull,
-                                        JsonPrimitive(p.accuracyM),
-                                    ),
+                                    buildList {
+                                        add(JsonPrimitive(p.timeMs)); add(JsonPrimitive(p.latitude)); add(JsonPrimitive(p.longitude))
+                                        add(JsonPrimitive(p.speedMps)); add(p.bearingDeg?.let(::JsonPrimitive) ?: JsonNull)
+                                        add(JsonPrimitive(p.accuracyM))
+                                        p.altitudeM?.let {
+                                            add(JsonPrimitive(it))
+                                            add(p.altitudeAccuracyM?.let(::JsonPrimitive) ?: JsonNull)
+                                        }
+                                    },
                                 ),
                             )
                         }
@@ -177,6 +183,8 @@ object Backup {
                     speedMps = a[3].jsonPrimitive.float,
                     bearingDeg = a[4].jsonPrimitive.floatOrNull,
                     accuracyM = a[5].jsonPrimitive.float,
+                    altitudeM = a.getOrNull(6)?.jsonPrimitive?.floatOrNull,
+                    altitudeAccuracyM = a.getOrNull(7)?.jsonPrimitive?.floatOrNull,
                 )
             }
             TripWithTrack(trip, points)

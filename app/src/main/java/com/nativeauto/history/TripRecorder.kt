@@ -250,6 +250,8 @@ class TripRecorder @Inject constructor(
                 speedMps = it.speedMps,
                 bearingDeg = it.bearingDeg,
                 accuracyM = it.horizontalAccuracyM,
+                altitudeM = it.altitudeM?.toTenths(),
+                altitudeAccuracyM = it.altitudeAccuracyM?.toDouble()?.toTenths(),
             )
         }
         val id = dao.insertWithTrack(record, full)
@@ -297,6 +299,9 @@ sealed interface TripOutcome {
     /** Under the short-trip limits (or no usable path): not kept. */
     data object TooShort : TripOutcome
 }
+
+/** 4.7.2: to 0.1 m (what GPS altitude is worth, and short in the backup); null when it isn't a number. */
+internal fun Double.toTenths(): Float? = if (isFinite()) Math.round(this * 10) / 10f else null
 
 /** 4.3d: the riding load's sums on a trip record (the index is null on a trip too short to say). */
 internal fun TripRecord.withLoad(l: com.nativeauto.garage.LoadSums) = copy(

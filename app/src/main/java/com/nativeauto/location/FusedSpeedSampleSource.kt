@@ -150,4 +150,5 @@ internal fun Location.toSpeedSample() = SpeedSample(
     bearingDeg = if (hasBearing()) bearing else null,
     hasSpeed = hasSpeed(),
     altitudeM = if (hasAltitude()) altitude else null,
+    altitudeAccuracyM = if (hasAltitude() && hasVerticalAccuracy()) verticalAccuracyMeters else null,
 )

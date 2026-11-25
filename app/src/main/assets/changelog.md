@@ -1,5 +1,12 @@
 # What's new in Native Auto
 
+## 4.7.2 (38) · 2026-11-25
+- Back up before you install this one: the database changes, so you can't go back to an older version without losing the app's data. Your bikes, trips and fill-ups carry over.
+- Trips now save the altitude at every point, also when a trip is recovered after the app was closed by the phone. The range doesn't use it yet; a later version learns from it.
+- Backups now include fuel level entries and the dash km/L. Older backups still import.
+- Odometer: Recorded on another phone. When someone rides your bike with the app on another phone, turn it on when you enter the odometer. The distance counts as normal riding, so the tank still teaches km/L.
+- Importing another phone's backup also updates a service that was done later there.
+
 ## 4.7.1 (37) · 2026-11-25
 - Fixed: dropping a card onto the call card during a call threw that card away and left an empty call card behind, even after restarting. Layouts damaged this way are repaired when the app opens; if the wrong card came back, hold it and pick another.
 - The call card can be dragged by its top strip. The card it stands in for moves with it and comes back there after the call.

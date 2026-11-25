@@ -34,6 +34,8 @@ class GarageBackupTest {
         serviceRecords = listOf(
             ServiceRecord(id = 1, itemId = 40, bikeId = "b1", itemName = "Engine oil", timeMs = 10, odometerKm = 12_000.0, costRp = 55_000.0, note = "Yamalube"),
         ),
+        fuelMarks = listOf(FuelMark(id = 4, bikeId = "b1", timeMs = 16, odometerKm = 12_060.0, bars = 3, ofBars = 6, litres = 2.75)),
+        dashKmPerL = listOf(DashKmPerL(id = 5, bikeId = "b2", timeMs = 17, kmPerL = 38.4, tripKm = 12.5)),
     )
 
     @Test fun `the garage survives a round trip through the ZIP`() {
@@ -46,6 +48,8 @@ class GarageBackupTest {
         assertEquals(data.prices, back.prices)
         assertEquals(data.services, back.services)
         assertEquals(data.serviceRecords.map { it.copy(id = 0) }, back.serviceRecords)
+        assertEquals(data.fuelMarks.map { it.copy(id = 0) }, back.fuelMarks)
+        assertEquals(data.dashKmPerL.map { it.copy(id = 0) }, back.dashKmPerL)
     }
 
     @Test fun `a format 1 backup has no garage and still reads`() {
@@ -61,8 +65,8 @@ class GarageBackupTest {
         dao.upsertPrice(FuelPrice("PERTAMAX", 16_000.0, 99))
 
         val added = GarageBackup.restore(dao, data)
-        // Gen 1, 2 readings, 1 fill-up, 2 items, 1 record.
-        assertEquals(7, added)
+        // Gen 1, 2 readings, 1 fill-up, 2 items, 1 record, 1 gauge reading, 1 dash figure.
+        assertEquals(9, added)
         assertEquals(listOf("b2"), dao.bikes.value.filter { it.active }.map { it.id })
         assertEquals(1.02, dao.bike("b1")!!.odoFactor, 0.0)
         // The newer local price stays.

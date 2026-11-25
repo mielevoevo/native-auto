@@ -501,18 +501,19 @@ class GarageRepository @Inject constructor(
 
     /**
      * The rider's reading for [bikeId]. From the away prompt ([away]), a higher value becomes
-     * away km; otherwise it's a correction, which teaches the GPS factor. Returns what was stored.
+     * away km; otherwise it's a correction, which teaches the GPS factor. [otherPhone] (4.7.2): km recorded with another
+     * phone count as untracked and teach nothing, whatever was entered. Returns what was stored.
      */
-    suspend fun enterReading(bikeId: String, km: Double, away: Boolean = false): ReadingDecision = lock.withLock {
+    suspend fun enterReading(bikeId: String, km: Double, away: Boolean = false, otherPhone: Boolean = false): ReadingDecision = lock.withLock {
         val bike = dao.bike(bikeId) ?: return@withLock ReadingDecision.Unchanged
         val prev = dao.lastReading(bikeId)
         val gpsM = prev?.let { gpsSince(bike, it) } ?: 0.0
         val estimate = estimateOdometerKm(prev, bike.factor, gpsM)
-        val decision = decideReading(km, estimate, away)
+        val decision = decideReading(km, estimate, away, otherPhone)
         if (decision is ReadingDecision.Store) {
             // An estimate kept at a change of the correction (4.7) isn't a reading to measure from.
             val measured = prev != null && !(prev.readingKind == ReadingKind.UNTRACKED && prev.awayKm == 0.0)
-            if (decision.kind == ReadingKind.CORRECTION && prev != null && measured) {
+            if (decision.kind == ReadingKind.CORRECTION && prev != null && measured && !otherPhone) {
                 val factor = learnFactor(bike.odoFactor, prev.km, km, gpsM / 1000.0)
                 if (factor != bike.odoFactor) dao.setFactor(bikeId, factor)
             }
@@ -534,10 +535,10 @@ class GarageRepository @Inject constructor(
     }
 
     /** The away prompt's answer (null = skipped: counters carry on from the app's own km). */
-    suspend fun answerOdometerPrompt(km: Double?) {
+    suspend fun answerOdometerPrompt(km: Double?, otherPhone: Boolean = false) {
         val p = _prompt.value as? GaragePrompt.OdometerNow ?: return
         _prompt.value = null
-        if (km != null) enterReading(p.bike.id, km, away = true)
+        if (km != null) enterReading(p.bike.id, km, away = true, otherPhone = otherPhone)
     }
 
     private var checking = false

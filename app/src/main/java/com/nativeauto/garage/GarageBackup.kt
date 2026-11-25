@@ -22,6 +22,9 @@ data class GarageData(
     val prices: List<FuelPrice> = emptyList(),
     val services: List<ServiceItem> = emptyList(),
     val serviceRecords: List<ServiceRecord> = emptyList(),
+    /** 4.7.2: gauge readings and dash km/L; none in older backups. */
+    val fuelMarks: List<FuelMark> = emptyList(),
+    val dashKmPerL: List<DashKmPerL> = emptyList(),
 ) {
     val isEmpty: Boolean get() = bikes.isEmpty() && prices.isEmpty()
 }
@@ -41,6 +44,8 @@ object GarageBackup {
         prices = dao.allPrices(),
         services = dao.allServices(),
         serviceRecords = dao.allServiceRecords(),
+        fuelMarks = dao.allFuelMarks(),
+        dashKmPerL = dao.allDashKmPerL(),
     )
 
     fun encode(g: GarageData): JsonObject = buildJsonObject {
@@ -91,6 +96,19 @@ object GarageBackup {
                 }
             }
         }
+        putJsonArray("fuelMarks") {
+            g.fuelMarks.forEach { m ->
+                addJsonObject {
+                    put("bikeId", m.bikeId); put("timeMs", m.timeMs); put("odometerKm", m.odometerKm)
+                    put("bars", m.bars); put("ofBars", m.ofBars); put("litres", m.litres)
+                }
+            }
+        }
+        putJsonArray("dashKmPerL") {
+            g.dashKmPerL.forEach { d ->
+                addJsonObject { put("bikeId", d.bikeId); put("timeMs", d.timeMs); put("kmPerL", d.kmPerL); put("tripKm", d.tripKm) }
+            }
+        }
     }
 
     fun decode(o: JsonObject): GarageData {
@@ -137,12 +155,21 @@ object GarageBackup {
                     odometerKm = r.dbl("odometerKm"), costRp = r.dbl("costRp"), note = r.str("note"),
                 )
             },
+            fuelMarks = list("fuelMarks").map { m ->
+                FuelMark(
+                    bikeId = m.str("bikeId")!!, timeMs = m.lng("timeMs")!!, odometerKm = m.dbl("odometerKm")!!,
+                    bars = m.int("bars") ?: 0, ofBars = m.int("ofBars") ?: DEFAULT_GAUGE_BARS, litres = m.dbl("litres")!!,
+                )
+            },
+            dashKmPerL = list("dashKmPerL").map { d ->
+                DashKmPerL(bikeId = d.str("bikeId")!!, timeMs = d.lng("timeMs")!!, kmPerL = d.dbl("kmPerL")!!, tripKm = d.dbl("tripKm") ?: 0.0)
+            },
         )
     }
 
     /**
-     * Merges [g] into the Garage. Bikes are matched by id; readings, fill-ups and service records
-     * by bike and time; service items by bike, name and creation time. Restored bikes are inactive
+     * Merges [g] into the Garage. Bikes are matched by id; readings, fill-ups, gauge readings, dash km/L and service
+     * records by bike and time; service items by bike, name and creation time. Restored bikes are inactive
      * when a bike is already being ridden here (one active bike). A fuel price replaces the local
      * one only if it's newer. Returns how many entries were added.
      */
@@ -171,12 +198,20 @@ object GarageBackup {
         g.services.filter { it.bikeId in known }.forEach { s ->
             val same = localServices.firstOrNull { it.bikeId == s.bikeId && it.name == s.name && it.createdAtMs == s.createdAtMs }
             idMap[s.id] = same?.id ?: dao.insertService(s.copy(id = 0)).also { added++ }
+            // 4.7.2: done later on the other phone: this one's item starts over from there too.
+            if (same != null && s.lastDoneMs > same.lastDoneMs) {
+                dao.updateService(same.copy(lastDoneMs = s.lastDoneMs, lastDoneKm = s.lastDoneKm, dueDateMs = s.dueDateMs))
+            }
         }
         val records = dao.allServiceRecords().mapTo(HashSet()) { Triple(it.bikeId, it.timeMs, it.itemName) }
         g.serviceRecords.filter { it.bikeId in known && records.add(Triple(it.bikeId, it.timeMs, it.itemName)) }.forEach {
             dao.insertServiceRecord(it.copy(id = 0, itemId = idMap[it.itemId] ?: 0))
             added++
         }
+        val marks = dao.allFuelMarks().mapTo(HashSet()) { it.bikeId to it.timeMs }
+        g.fuelMarks.filter { it.bikeId in known && marks.add(it.bikeId to it.timeMs) }.forEach { dao.insertFuelMark(it.copy(id = 0)); added++ }
+        val dash = dao.allDashKmPerL().mapTo(HashSet()) { it.bikeId to it.timeMs }
+        g.dashKmPerL.filter { it.bikeId in known && dash.add(it.bikeId to it.timeMs) }.forEach { dao.insertDashKmPerL(it.copy(id = 0)); added++ }
         return added
     }
 }

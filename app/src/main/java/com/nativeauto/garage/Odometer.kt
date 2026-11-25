@@ -66,10 +66,13 @@ const val AWAY_MIN_KM = 1.0
 
 /**
  * [entered] against the current [estimate] (null: no reading yet). From the away prompt
- * ([away]), a higher reading is away km; a lower one is just a correction.
+ * ([away]), a higher reading is away km; a lower one is just a correction. [otherPhone] (4.7.2, from
+ * either dialog): the km were recorded with another phone, whose backup brings the trips and
+ * fill-ups, so they count as the bike's own riding (untracked km) and the tank stays measurable.
  */
-fun decideReading(entered: Double, estimate: Double?, away: Boolean): ReadingDecision = when {
+fun decideReading(entered: Double, estimate: Double?, away: Boolean, otherPhone: Boolean = false): ReadingDecision = when {
     estimate == null -> ReadingDecision.Store(ReadingKind.SET)
+    otherPhone && entered - estimate >= AWAY_MIN_KM -> ReadingDecision.Store(ReadingKind.UNTRACKED, awayKm = entered - estimate)
     away && abs(entered - estimate) < AWAY_MIN_KM -> ReadingDecision.Unchanged
     away && entered > estimate -> ReadingDecision.Store(ReadingKind.AWAY, awayKm = entered - estimate)
     else -> ReadingDecision.Store(ReadingKind.CORRECTION)

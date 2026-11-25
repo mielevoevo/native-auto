@@ -67,6 +67,13 @@ class OdometerTest {
         assertEquals(ReadingDecision.Unchanged, decideReading(12_000.4, 12_000.0, away = true))
         // Lower than the estimate: just a correction.
         assertEquals(ReadingDecision.Store(ReadingKind.CORRECTION), decideReading(11_950.0, 12_000.0, away = true))
+        // 4.7.2: recorded on another phone: the bike's own riding, from either dialog. Not higher: as before.
+        listOf(true, false).forEach { away ->
+            assertEquals(ReadingDecision.Store(ReadingKind.UNTRACKED, awayKm = 230.0), decideReading(12_230.0, 12_000.0, away, otherPhone = true))
+            assertEquals(ReadingDecision.Store(ReadingKind.CORRECTION), decideReading(11_950.0, 12_000.0, away, otherPhone = true))
+            assertEquals(ReadingDecision.Store(ReadingKind.SET), decideReading(12_000.0, null, away, otherPhone = true))
+        }
+        assertEquals(ReadingDecision.Unchanged, decideReading(12_000.4, 12_000.0, away = true, otherPhone = true))
     }
 
     @Test fun `away check after three days unused`() {
