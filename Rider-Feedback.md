@@ -1147,6 +1147,11 @@ shades). The rider decides later whether they need polishing. (proposed) Large s
 screen is about 635 x 800 and would otherwise count as a tablet.
 **4.8 testing (rider):** what riding 4.8 turns up can be fixed in 4.10.
 
+**Rider, 2026-11-26: "Start 4.8 unattended."** Spec: `.dev/Phase-4.8-Unattended.md`. Tablet mockups: **the six grid (C) is dropped (rider): crowded, not useful.**
+**LHD / RHD (rider asked for notes; proposed):** one setting "Driver's side" Right / Left, car mode only. RHD (Indonesia) as drawn: map left, cards and buttons on the
+right, by the driver. LHD: A and B mirrored, D's strip reversed (speed by the driver), E's columns swapped, map buttons on the left edge. Never mirrored: text,
+turn arrows, previous / next, the history. Uses the existing side swap (`bigOnLeft`). Routing is not affected.
+
 ### 5.2 (was 4.10) · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
   with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
