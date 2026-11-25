@@ -1106,6 +1106,18 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
   nothing imported; never stored, no recovery (said when it is set). Old and unprotected backups still import.
   Tests: round trip, wrong password, Garage only holds no trip data, old backups, release smoke.
 
+**Discussion 2026-11-26 (rider; 4.8 still waits for "start"):**
+- **Decided (rider):** 4.8 stays one version. Caution Normal (today's range), -10 %, -20 %. Altitude in GPX exports (raw GPS height, labeled, not `<ele>`).
+  Refills are always to the top, the 9 Nov one (4.665 L) too: marked full it gives the first usable tank, 206 km on 5.56 L = 37.0 km/L, 92 % recorded.
+- **Dash km/L per ride dropped as a learning source:** the rider never resets the dash. Its figure falls while standing with the engine on (36 to 34), which
+  fits an idle cost but measures no single ride.
+- (proposed) Gate: four tanks that differ enough in work per km, and beating the plain range; four alike tanks teach nothing. One tank took 12 days.
+- (proposed) Tanks rebuilt from old points count without slope; slope joins after four tanks with altitude.
+- Measured on 58 rides: work per km varies about 27 % between rides of 5 km or more. GPS speed jumps change it by under 2 %, so no special handling.
+- **Idea (rider): speed shades on the history route map.** (proposed) Trip detail only, accent shades in fixed speed steps, smoothed over about 100 m, small
+  legend; brighter = faster on the dark map, darker = faster on the light one. Uses saved points (since 9c); older trips keep the plain line. New cache name.
+- Also open: "Disconnect" in `HANG_UP_WORDS`, odometer prefill in Correct, altitude on the Redmi (backup needed), the 316 s gap in the test ride.
+
 ### 4.10 · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
   with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
