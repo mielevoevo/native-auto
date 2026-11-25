@@ -988,9 +988,9 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
 | 4.6.3 (done) | Portrait sizes as one shared scale (4.9 reuses it), smaller faint icon on the card edge |
 | 4.6.4 (done) | Ride feedback on 4.6.3, below |
 | 4.7 (done) | Traffic recording (range not changed yet), universal bikes, gauge per bike, Fine-tuning |
-| 4.8 | Fill-up review, range caution, service sets, custom fuels |
+| 4.8 | Fill-up review, range caution, service sets, custom fuels; API key scrubbing (4.8 or 4.9, rider) |
 | 4.9 | Tablet preview: large-screen foundation for car mode, below |
-| 4.10 | Google Maps SDK (plan only, billing not settled), below |
+| 4.10 | Google map, navigation and search (plan only, billing not settled), below |
 | 5.0 | Car mode (parked until the rider calls for it); public keyless release (WIP), below |
 | 5.1 | App tutorial: how to use the app, on first install or after Reset app (rider; WIP) |
 
@@ -1054,11 +1054,35 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
 - WIP for the iOS port: try Spotify's iOS SDK (media control there; possible five-user limit). Later idea: a phone sends its GPS to the tablet.
 - Rider's check beforehand: does v4.6 open on the MatePad, does the map draw, does the speed move (outdoors)?
 
-### 4.10 · Google Maps SDK (rider, 2026-11-25; PLAN ONLY)
+### 4.8 · Brief (rider, 2026-11-25; NOT started; one version, 4.8)
+- **Decided (rider):** range caution per bike, new bikes start on Normal. Service intervals stay empty; the usual routine parts are offered and
+  follow the motorcycle type. Custom fuels are shared by all bikes. The range should follow riding behavior (below), kept light.
+- (proposed) Caution: Normal, Cautious (-10 %), Very cautious (-20 %). Custom fuels: own name and price, old fill-ups keep theirs.
+- (proposed) Service: only `SCOOTER_CVT` exists, so add geared (chain), underbone (chain) and Other. Lists of parts per type, no numbers.
+- (proposed, asked about) Fill-up review: before saving, ask only when an entry looks wrong: Fix, Save anyway, Don't learn from this; past fill-ups editable.
+- Key scrubbing (see 5.0).
+- **Range and riding behavior (rider's list; math to discuss):** uphill, short bursts in traffic, uphill speeding, downhill normal and fast,
+  traffic lugging. (proposed) One demand figure instead of a rule per case:
+  - Per 5 s window: max(0, rolling + air drag + slope, signed + change of speed, signed) + a low-speed and idling cost per second. Today climbing
+    counts but descending is never credited, and crawling and standing are recorded but unused.
+  - Slope from smoothed altitude over 100 m or more; phone altitude is noisy, so no slope without enough distance.
+  - Idling: per bike "stops its engine at lights" switch, as GPS can't tell; starting cost to discuss. Never counted while auto-paused.
+  - Light: cheap sums per accepted fix (already done at 1 Hz, nothing extra from the GPS); range recalculated once a minute, earlier only when the
+    last 1 km differs by 25 % or more from the figure in use for 30 s, at most every 15 s; no work without a trip. The fit runs at fill-ups.
+  - Skipping fixes instead would miss the bursts. Range drops sooner than it rises, within -20 / +10 %.
+  - Same gate as 4.3d: four usable tanks, must beat the plain figure. 4.8 computes it beside the plain range and compares at each fill-up; the
+    range shown follows it only after that. Trips saved before 4.8 lack the new sums, unless rebuilt from their track (no altitude there).
+
+### 4.10 · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
   with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
 - (proposed) Restrict the key to the package, signing certificate and the Maps SDK, with a quota and budget alert. A shipped key stays readable,
-  so decide whether v5.0's keyless public build leaves it out too. Places and the Navigation SDK are separate products, not included.
+  so decide whether v5.0's keyless public build leaves it out too. 
+- **Scope (rider): also Google navigation and search,** so it feels familiar to Google Maps users; inside our own cards, not the Google Maps app
+  embedded. The open stack (MapLibre, Ferrostar / Valhalla, Photon) stays as the fallback.
+- Navigation SDK contains the Maps SDK and can't sit beside `play-services-maps`: the Google map card must be rebuilt on it, and `maps-compose` tried
+  or dropped. Billed per destination. To check: two-wheeler routing in Indonesia, free amount, minSdk, terms on mixing Google search or routes with another map.
+
 
 ### 4.9 / 5.0 · GPS and companion mode (rider, 2026-11-25; NOT started)
 - **Decided (rider):** a tablet without GPS defaults to companion mode (media, clock, small map); **tablets only**. Phones keep today's
@@ -1071,6 +1095,8 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
 
 ### 5.0 · Public keyless release (WIP, rider, 2026-11-25; NOT started)
 - **Repo releases start at v5.0 (rider),** the first version with the API key fix. Until then testers get builds privately.
+- **Key scrubbing in 4.8 or 4.9 (rider), if it breaks neither map nor navigation;** else the open services. Code check: without keys the app
+  already uses them. (proposed) 4.8, with a check that fails a keyed public APK; repo release still v5.0.
 - Keyless: a build option that leaves out the TomTom key (a key in an APK can be extracted). Replace the old key at v5.0. Map, routing
   and voice need no key; place search, name-only links and addresses use Photon, which finds fewer places.
 - Check before release: search, map and routing on the keyless build; README version; debug keystore backed up.
