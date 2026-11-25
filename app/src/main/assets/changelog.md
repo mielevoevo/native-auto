@@ -1,5 +1,8 @@
 # What's new in Native Auto
 
+## 4.7.3 (39) · 2026-11-26
+- Portrait: in the slim speed card beside a maximized card, today's distance is no longer cut off. The figures now sit beside the buttons.
+
 ## 4.7.2 (38) · 2026-11-25
 - Back up before you install this one: the database changes, so you can't go back to an older version without losing the app's data. Your bikes, trips and fill-ups carry over.
 - Trips now save the altitude at every point, also when a trip is recovered after the app was closed by the phone. The range doesn't use it yet; a later version learns from it.

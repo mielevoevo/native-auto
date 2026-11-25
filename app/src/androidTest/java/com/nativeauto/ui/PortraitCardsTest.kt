@@ -1,6 +1,7 @@
 package com.nativeauto.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -131,6 +132,67 @@ class PortraitCardsTest {
         val lefts = listOf("inline_stat_max", "inline_stat_avg", "inline_stat_distance", "inline_stat_elapsed").map { tag(it).left() }
         lefts.forEach { assertNear("figures share one left edge", lefts.first(), it, 0.5f) }
     }
+
+    // ---- log face: the last line is never cut ----
+
+    /** 4.7.3: every portrait shape of the log face on a 393 x 873 dp phone: the period total is whole, inside the card and clear of the dots. */
+    @Test fun theLogFacesLastLineIsWholeInEveryPortraitShape() {
+        val shapes = listOf(
+            // name, mode, width, height, beside a maximized card
+            LogShape("slim row", CardMode.Mini, 384.dp, 136.dp, slim = true),
+            LogShape("slim row on top", CardMode.Mini, 384.dp, 136.dp, slim = true, top = true),
+            LogShape("four-stack", CardMode.Mini, 384.dp, 209.dp),
+            LogShape("four-stack on top", CardMode.Mini, 384.dp, 209.dp, top = true),
+            LogShape("half width", CardMode.Narrow, 188.dp, 383.dp),
+            LogShape("three rows", CardMode.Wide, 384.dp, 281.dp),
+            LogShape("maximized of four", CardMode.Expanded, 384.dp, 427.dp),
+            LogShape("two stacked", CardMode.Expanded, 384.dp, 427.dp),
+            LogShape("big of three", CardMode.Expanded, 384.dp, 471.dp),
+        )
+        val item = com.nativeauto.garage.ServiceItem(bikeId = "b", name = "Engine oil", kind = "DISTANCE", lastDoneMs = 0, createdAtMs = 0)
+        val due = com.nativeauto.garage.ServiceDue(item, 80.0, null, com.nativeauto.garage.DueLevel.SOON, 0.05)
+        val all = com.nativeauto.settings.TelemetryStat.entries.toSet()
+        val logs = listOf(
+            "plain" to com.nativeauto.ui.speed.TripLogUi(periodM = 123_400.0),
+            "service" to com.nativeauto.ui.speed.TripLogUi(periodM = 123_400.0, reminder = due),
+            "all figures" to com.nativeauto.ui.speed.TripLogUi(periodM = 123_400.0, reminder = due, visible = all),
+        )
+        val wrong = mutableListOf<String>()
+        for (s in shapes) for ((state, log) in logs) for (scale in listOf(1f, 1.15f)) {
+            val layout = DashboardLayoutState(com.nativeauto.ui.dashboard.LayoutPreset.STACK4, portrait = true)
+            // On top the header holds the battery and the status buttons, which makes it taller.
+            if (layout.view.panes.first() != com.nativeauto.ui.dashboard.Pane.SPEED && s.top) layout.assign(layout.view.panes.first(), com.nativeauto.ui.dashboard.Pane.SPEED)
+            if (s.slim) layout.toggleMaximized(layout.view.panes.first { it != com.nativeauto.ui.dashboard.Pane.SPEED })
+            assertEquals(s.slim, layout.maximized != null)
+            host(Slot.ROW) {
+                val d = androidx.compose.ui.platform.LocalDensity.current
+                CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, scale),
+                    com.nativeauto.ui.components.LocalStatusCorner provides com.nativeauto.ui.components.StatusCorner(
+                        "12:45", com.nativeauto.device.BatteryStatus(91, false), onOpenLayouts = {}, onOpenSettings = {},
+                    )) {
+                    Box(Modifier.requiredSize(s.w, s.h)) {
+                        SpeedCardContent(s.mode, layout, driving, log, face = com.nativeauto.ui.speed.SpeedFace.LOG)
+                    }
+                }
+            }
+            // Unclipped: what is cut off counts too.
+            fun box(t: String) = rule.onNodeWithTag(t, useUnmergedTree = true).fetchSemanticsNode().let { n ->
+                val k = n.layoutInfo.density.density
+                (n.positionInRoot.y / k) to ((n.positionInRoot.y + n.size.height) / k)
+            }
+            val faces = box("speed_faces")
+            val dots = box("face_dots")
+            val total = box(if (log.reminder != null && s.mode != CardMode.Expanded) "service_reminder" else "log_period")
+            val start = box("log_start")
+            android.util.Log.i("LogFace", "${s.name} $state x$scale: faces $faces start $start total $total dots $dots")
+            if (total.second > dots.first + 0.5f || start.first < faces.first - 0.5f) {
+                wrong += "${s.name} $state x$scale: face $faces, controls from ${start.first}, total to ${total.second}, dots at ${dots.first}"
+            }
+        }
+        assertTrue(wrong.joinToString("; "), wrong.isEmpty())
+    }
+
+    private class LogShape(val name: String, val mode: CardMode, val w: androidx.compose.ui.unit.Dp, val h: androidx.compose.ui.unit.Dp, val slim: Boolean = false, val top: Boolean = false)
 
     // ---- Navigation: one centre axis ----
 

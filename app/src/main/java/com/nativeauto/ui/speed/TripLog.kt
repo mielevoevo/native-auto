@@ -172,8 +172,8 @@ internal fun LogFace(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, act
 
 /**
  * The small log face: the controls, the trip's line, and the service badge or the period total. [sizes] in portrait. A
- * half-width card gives the trip's time its own line (a long trip's distance and time don't fit one); a slim row takes
- * the smaller controls and gaps.
+ * half-width card gives the trip's time its own line (a long trip's distance and time don't fit one); a slim row puts
+ * the lines beside smaller controls.
  */
 @Composable
 private fun LogCompact(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, actions: TripLogActions, sizes: PortraitSizes?) {
@@ -183,13 +183,27 @@ private fun LogCompact(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, a
         (if (sizes == null) base else base.copy(fontSize = sizes.secondary, lineHeight = sizes.secondary * 1.25f)).copy(fontFeatureSettings = "tnum")
     }
     val distance = "Trip ${"%.1f".format(ui.distance)} ${ui.unit.distanceLabel}"
+    if (slim) {
+        // 4.7.3: the figures beside the controls. Stacked, they were taller than the row: the dots covered the total, and
+        // under a header with the status buttons it was cut.
+        Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            LogControls(ui.tripState, log.endArmed, actions, small = true)
+            Column(Modifier.padding(start = 12.dp)) {
+                Text(distance, style = line, color = AppTheme.colors.text, maxLines = 1, softWrap = false, modifier = Modifier.testTag("log_line"))
+                // A due service may take two lines: the time makes room for it.
+                if (log.reminder == null) Text(formatElapsed(ui.elapsed), style = line, color = AppTheme.colors.text, maxLines = 1, softWrap = false, modifier = Modifier.testTag("log_line_time"))
+                log.reminder?.let { ServiceBadge(it, maxLines = 2) } ?: PeriodTotal(log, ui, small = true, line, gap = 0.dp)
+            }
+        }
+        return
+    }
     Column(
         Modifier.requiredHeightIn(min = 112.dp).fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LogControls(ui.tripState, log.endArmed, actions, small = narrow || slim)
-        Spacer(Modifier.height(if (slim) 6.dp else 10.dp))
+        LogControls(ui.tripState, log.endArmed, actions, small = narrow)
+        Spacer(Modifier.height(10.dp))
         Text(
             if (narrow) distance else "$distance · ${formatElapsed(ui.elapsed)}",
             style = line,
@@ -200,7 +214,7 @@ private fun LogCompact(mode: CardMode, ui: SpeedometerUiState, log: TripLogUi, a
         )
         if (narrow) Text(formatElapsed(ui.elapsed).toString(), style = line, color = AppTheme.colors.text, maxLines = 1, softWrap = false, modifier = Modifier.padding(top = 4.dp).testTag("log_line_time"))
         // A due service outranks the total on the small face: it's rare and it matters.
-        log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) } ?: PeriodTotal(log, ui, small = true, line, gap = if (slim) 2.dp else 4.dp)
+        log.reminder?.let { ServiceBadge(it, Modifier.padding(top = 4.dp)) } ?: PeriodTotal(log, ui, small = true, line)
     }
 }
 

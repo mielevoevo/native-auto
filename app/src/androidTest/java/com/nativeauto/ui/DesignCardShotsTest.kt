@@ -99,6 +99,53 @@ class DesignCardShotsTest {
         shot("card_nav_fullscreen")
     }
 
+    /** 4.7.3: the slim portrait row (393 x 873 dp phone): log face plain, with a service, on top; the trip summary; the speed face. */
+    @Test fun slimSpeedRows() {
+        rule.runOnUiThread { rule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT }
+        Thread.sleep(2_000)
+        val driving = SpeedometerUiState.Empty.copy(
+            speed = 88, maxSpeed = 112, avgSpeed = 47, distance = 123.4, elapsed = kotlin.time.Duration.parse("10h 14m 34s"),
+            gps = com.nativeauto.trip.GpsStatus.Fix, tripState = TripState.Running, unit = SpeedUnit.KMH,
+        )
+        val ended = driving.copy(tripState = TripState.Ended)
+        val item = com.nativeauto.garage.ServiceItem(bikeId = "b", name = "Engine oil and filter", kind = "DISTANCE", lastDoneMs = 0, createdAtMs = 0)
+        val due = com.nativeauto.garage.ServiceDue(item, -1_234.0, null, com.nativeauto.garage.DueLevel.OVERDUE, 1.2)
+        val log = TripLogUi(periodM = 223_400.0, bikeName = "Gen 1")
+        data class R(val ui: SpeedometerUiState, val log: TripLogUi, val top: Boolean = false, val face: com.nativeauto.ui.speed.SpeedFace = com.nativeauto.ui.speed.SpeedFace.LOG)
+        val rows = listOf(
+            R(driving, log), R(driving, log.copy(reminder = due)), R(driving, log.copy(reminder = due), top = true),
+            R(ended, log.copy(outcome = TripOutcome.Saved(trip))), R(ended, log.copy(outcome = TripOutcome.Saved(trip), reminder = due), top = true),
+            R(driving, log, face = com.nativeauto.ui.speed.SpeedFace.SPEED),
+        )
+        rule.setContent {
+            NativeAutoTheme {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.nativeauto.ui.components.LocalPortrait provides true,
+                    com.nativeauto.ui.components.LocalStatusCorner provides com.nativeauto.ui.components.StatusCorner(
+                        "12:45", com.nativeauto.device.BatteryStatus(91, false), onOpenLayouts = {}, onOpenSettings = {},
+                    ),
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        Modifier.background(Color.Black).padding(4.dp),
+                        androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+                    ) {
+                        rows.forEach { r ->
+                            val layout = androidx.compose.runtime.remember {
+                                DashboardLayoutState(com.nativeauto.ui.dashboard.LayoutPreset.STACK4, portrait = true).apply {
+                                    val first = view.panes.first()
+                                    if (r.top && first != com.nativeauto.ui.dashboard.Pane.SPEED) assign(first, com.nativeauto.ui.dashboard.Pane.SPEED)
+                                    toggleMaximized(view.panes.first { it != com.nativeauto.ui.dashboard.Pane.SPEED })
+                                }
+                            }
+                            Box(Modifier.size(384.dp, 136.dp)) { SpeedCardContent(CardMode.Mini, layout, r.ui, r.log, face = r.face) }
+                        }
+                    }
+                }
+            }
+        }
+        shot("slim_speed_rows")
+    }
+
     /** 4.6.4: the portrait turn card in its small shapes, worst case (two-line road, long arrival line). */
     @Test fun portraitNavigation() {
         rule.runOnUiThread { rule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT }

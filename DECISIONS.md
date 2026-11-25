@@ -1230,3 +1230,17 @@ run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
 - **Release:** the exact APK installed over 4.7.1 (bike, odometer, fuel and range kept), then the smoke test on it, 2 of 2. The smoke test fails at
   `settings_open` when the app was *updated* before it: cleared data on an updated install opens What's new. Uninstall first. Likely 4.7's unexplained first run too.
   `.dev/apk/NativeAuto-4.7.2-472-release.apk`. No way back to 4.7.1 without losing the data (database v10): back up first.
+
+## 4.7.3: slim log face (2026-11-26, versionCode 39, rider: "total km today is half showing on the portrait mode")
+
+- **Cause (no screenshot; found by measuring at the Redmi's 393 x 873 dp):** beside a maximized portrait card the log face stacked 98 dp of content in
+  110 dp, over the page dots; on top, under the status buttons, it has 94 dp. Every other portrait shape measured fine, also with a service line,
+  all figures and text at 115 %.
+- **Fix:** in the slim row the figures stand beside the 54 dp controls (distance, time, total). A due service takes the place of time and total and may wrap.
+- **Design review:** `DesignCardShotsTest.slimSpeedRows` (long trip, service, on top, summary, speed face). Pass. Not changed: the trip summary in a slim row has no
+  room for a service line or the "too short" note (older than this).
+- **Tests:** `PortraitCardsTest` (new: the last line is whole in nine portrait shapes; it failed on the old slim row), `PortraitDashboardTest`, 538 unit.
+  Exact APK: installs over 4.7.2, then the release smoke test on a fresh install, 2 of 2. `.dev/apk/NativeAuto-4.7.3-473-release.apk`.
+- **The rider's 4.7.2 ride as GPX** (processed locally): times, speeds and courses complete at 1 Hz; distance by position and by speed within 0.6 %; one 316 s gap
+  starting at a standstill. No altitude, as 4.7.2 left it out of GPX, so altitude is **still unverified on the phone**; it needs the backup.
+  15 of 2025 steps change speed by 4 to 7 m/s in one second (the GPS lagging, then catching up); 4.8's signed change of speed must not read them as bursts.

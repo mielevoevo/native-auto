@@ -500,14 +500,14 @@ fun LowFuelIcon(size: Dp = 28.dp, modifier: Modifier = Modifier) {
 
 /** The service reminder as a small pill: amber when due soon, red when overdue. */
 @Composable
-fun ServiceBadge(due: ServiceDue, modifier: Modifier = Modifier) {
+fun ServiceBadge(due: ServiceDue, modifier: Modifier = Modifier, maxLines: Int = 1) {
     val color = if (due.level == DueLevel.OVERDUE) AppTheme.colors.red else AppTheme.colors.amber
     Text(
         reminderText(due),
         style = MaterialTheme.typography.bodyMedium,
         color = color,
-        maxLines = 1,
-        softWrap = false,
+        maxLines = maxLines,
+        softWrap = maxLines > 1,
         modifier = modifier.testTag("service_reminder"),
     )
 }

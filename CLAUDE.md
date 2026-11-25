@@ -949,3 +949,5 @@ repeated fix with a speed counts as riding) and `settings put global hide_error_
   `MIGRATION_9_10`; 4.8 is v11), recorded only, not in GPX. Backup: `fuelMarks`, `dashKmPerL` (format 2). `decideReading(otherPhone)` /
   `enterReading(otherPhone)`: UNTRACKED, teaches no factor (`garage_odo_other_phone`). `TwoPhoneMergeTest`. `ReleaseSmokeTest` needs a fresh install
   (uninstall first; What's new covers the dashboard on an updated one).
+- **4.7.3 (versionCode 39):** the slim log face puts its figures beside the controls (`LogCompact`); `PortraitCardsTest.theLogFacesLastLine...` measures every portrait shape.
+  Check portrait cards at `wm density 440` (the Redmi is 393 x 873 dp; the emulator default is larger), `wm density reset` after.
