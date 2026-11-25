@@ -989,8 +989,9 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
 | 4.6.4 (done) | Ride feedback on 4.6.3, below |
 | 4.7 (done) | Traffic recording (range not changed yet), universal bikes, gauge per bike, Fine-tuning |
 | 4.8 | Fill-up review, range caution, service sets, custom fuels |
-| 4.9 | Tablet preview (bike mode), below |
-| 5.0 | Car mode (parked until the rider calls for it) |
+| 4.9 | Tablet preview: large-screen foundation for car mode, below |
+| 4.10 | Google Maps SDK (plan only, billing not settled), below |
+| 5.0 | Car mode (parked until the rider calls for it); public keyless release (WIP), below |
 | 5.1 | App tutorial: how to use the app, on first install or after Reset app (rider; WIP) |
 
 Speed or log face (4.6.1, rider): opened while stationary shows the log face (Start); while moving shows speed.
@@ -1022,7 +1023,7 @@ The rider's points are first; how to do each is (proposed).
 - Tests affected: `DashboardScreenTest` (settings rows, route colour), `PortraitDashboardTest` (orientation row), `PortraitCardsTest`,
   `GreetingSheetTest`; portrait design shots in both themes; release smoke test.
 
-### 4.9 · Tablet preview (bike mode)
+### 4.9 · Tablet preview (foundation for car mode)
 Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 2021 Wi-Fi assumed); Indonesian unit, not the China HarmonyOS 2 version, so Google apps still work (rider, 2026-11-24).
 - **Detection, no mode switch:** window's smaller side >= 600 dp. Split screen falls back to the phone layout. Layouts saved
   separately from the phone's. One setting, **only on large screens**: Layout > "Large-screen view" Auto / Phone view.
@@ -1031,4 +1032,48 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
   over a 2 x 2 grid. Phone layouts that still work stay. Settings, Garage and history adapted to large screens.
 - **GPS without Google services:** `FusedSpeedSampleSource` is the only reader and needs Play services; fall back to Android's
   LocationManager. No GPS: say so plainly. Keep MapLibre as the fallback when Google's map / Navigation SDK arrives.
+- The rider also has the app on a Galaxy Tab S8 (2026-11-25): **a preview device for the look only; its GPS test is skipped for now (rider).**
+  The MatePad may look similar; check it there too. GPS box: separate idea, car mode only, `.dev/GPS-Receiver.md`.
+- **Feedback, v4.7 on the Tab S8 (rider, 2026-11-25; installs and works). NOT started:**
+  - Portrait / Auto don't turn the screen; only turning the tablet does. Likely cause: the app targets SDK 37, and Android 16+ ignores an
+    app's orientation request on large screens (no opt-out from Android 17). (proposed) On large screens follow the system's rotation, lay
+    out from the window's shape and say so in the Orientation row. Tablet: One UI 8 (rider, exact version unknown), i.e. Android 16, which fits. Workaround to try: Android's
+    aspect ratio setting for the app. Landscape can't be forced either.
+  - The UI is still phone-sized: adjust for large screens (layouts and role sizes below).
+  - No GPS fix, Wi-Fi model (rider wrote XM-7000; probably SM-X700, to confirm). Sources disagree on whether it has satellite GPS.
+    Tested indoors only (rider), so not a verdict yet. Test outdoors, precise location on, for some minutes, beside another GPS app. (proposed) Say "no GPS on this device" when there is
+    none, and consider a phone or external receiver as the location source.
+  - **Wi-Fi only tablets (rider):** e.g. the rider's iPad Air 4: maps and position work but lag far behind. (proposed) Tell coarse Wi-Fi
+    positions from satellite fixes: show the map position as approximate, no speed, trip, auto-start or guidance from it, and a plain
+    "needs GPS" message with the phone / receiver option. Applies to the iOS port too.
+  - **Tablets suit car mode (rider): reconsider the UI elements with that in mind.** Car mode (5.0) itself stays parked; 4.9's bike
+    preview and 5.0's car UI should share one large-screen scale. **Decided (rider): 4.9 is the
+    foundation for car mode, an early preview;** car routing, car Garage and the rest of car mode stay in 5.0, parked.
+- **Decided (rider, 2026-11-25): 4.9 is the prototype for larger screens; the iPad follows the Android tablet layout.** The iPad preview
+  mockups (car mode, companion, portrait, split screen) are mostly good; tweaks come at 4.9.
+- WIP for the iOS port: try Spotify's iOS SDK (media control there; possible five-user limit). Later idea: a phone sends its GPS to the tablet.
 - Rider's check beforehand: does v4.6 open on the MatePad, does the map draw, does the speed move (outdoors)?
+
+### 4.10 · Google Maps SDK (rider, 2026-11-25; PLAN ONLY)
+- Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
+  with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
+- (proposed) Restrict the key to the package, signing certificate and the Maps SDK, with a quota and budget alert. A shipped key stays readable,
+  so decide whether v5.0's keyless public build leaves it out too. Places and the Navigation SDK are separate products, not included.
+
+### 4.9 / 5.0 · GPS and companion mode (rider, 2026-11-25; NOT started)
+- **Decided (rider):** a tablet without GPS defaults to companion mode (media, clock, small map); **tablets only**. Phones keep today's
+  behavior ("Searching for GPS"). Tablets with GPS, e.g. a cellular iPad, get the full car mode.
+- (proposed) Companion: map north up with an accuracy circle, search and route preview; no speed, trips, auto-start or guidance; Garage by hand.
+- (proposed) GPS is judged by fixes (speed, 25 m or better), not by model. Companion only if no good fix was ever seen, after about 3 min
+  with the app open; keeps listening. Once GPS, never downgraded (tunnel = "GPS signal lost"). Layout changes only when parked or accepted.
+- (proposed) Tablet or phone: Android: the display's smaller side >= 600 dp (maximum window metrics); iOS: the iPad idiom. Layout: the app's
+  own window, so split screen gets the phone layout. 4.9: detection and location states; 5.0: car layouts, external receiver.
+
+### 5.0 · Public keyless release (WIP, rider, 2026-11-25; NOT started)
+- **Repo releases start at v5.0 (rider),** the first version with the API key fix. Until then testers get builds privately.
+- Keyless: a build option that leaves out the TomTom key (a key in an APK can be extracted). Replace the old key at v5.0. Map, routing
+  and voice need no key; place search, name-only links and addresses use Photon, which finds fewer places.
+- Check before release: search, map and routing on the keyless build; README version; debug keystore backed up.
+- (proposed) A settings field for a user's own TomTom key. Fair-use limits of the free routing, search and map servers.
+- `.dev/release.ps1` (local, untested) uploads the APK and notes with GitHub CLI. Before using it: dry run, and add a check that
+  stops a keyed APK.
