@@ -1133,6 +1133,13 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
   Replaces "idle joins after about 6 spans". The gate is the error on entries left out, plus two measured tanks. Dash only moved 34.1 to 37.0, so expect a few km of range.
 - Dash average in the 9 to 21 Nov tank 35.6, the pump says 37.0 (one tank). The app's estimate today is about 34.7, all of it from the dash.
 
+**Decided (rider, 2026-11-26): the proposed 4.8 is good** (the ten-point list in "simple words": fill-up editing and review, km/L entry, caution, 2 km steps, service
+parts, own fuels, backups, speed-shaded map, GPX altitude, small fixes, key scrubbing; new range gate). Still waits for "start".
+**4.9 (rider): universal for tablets;** the Tab S8 and the MatePad are only devices to check on. (proposed) Decide by window size and features (GPS,
+Google services), never by model; check about 600, 800 and 1000+ dp, split screen, no GPS, no Google services.
+**When to start 5.0 (rider asked; proposed):** by conditions, not a date: 4.8 ridden two tanks, 4.9 used a week on a tablet, no open serious bug, car mode
+agreed. One feedback version before it: 4.10 = feedback, and Google moves to 5.2 (billing; the public 5.0 is keyless anyway). Bug fixes stay 4.x.1.
+
 ### 4.10 · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
   with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
