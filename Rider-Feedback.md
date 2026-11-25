@@ -1119,7 +1119,19 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
 - Measured on 58 rides: work per km varies about 27 % between rides of 5 km or more. GPS speed jumps change it by under 2 %, so no special handling.
 - **Idea (rider): speed shades on the history route map.** (proposed) Trip detail only, accent shades in fixed speed steps, smoothed over about 100 m, small
   legend; brighter = faster on the dark map, darker = faster on the light one. Uses saved points (since 9c); older trips keep the plain line. New cache name.
-- Also open: "Disconnect" in `HANG_UP_WORDS`, odometer prefill in Correct, altitude on the Redmi (backup needed), the 316 s gap in the test ride.
+- Also open: "Disconnect" in `HANG_UP_WORDS`, odometer prefill in Correct.
+
+**Findings from the 2026-11-26 backup (4.7.2 on the Redmi, processed locally; math still proposed):**
+- The test ride's 316 s gap was a pause (33.8 min of trip time over 39.0 min); nothing was lost.
+- **Altitude works on the Redmi:** all 2,026 points; up 207, down 209 m; start and end (170 m apart) differ by 1.0 m; about 1 m noise or less while standing (one 3.6 m).
+  **But it is held for about 90 s at the start and after stops** (identical value, reported accuracy under 2 m and growing), then catches up in one step, up to
+  47 m: 10.6 of 26.7 km. Totals are right, slope at the moment is not. 4.8 must read altitude only when it changes and spread the change over the distance since.
+- **Dash km/L (56 entries, all matched to a ride) averages over roughly the last 20 to 50 km and carries over.** Standing and crawling lower it (correlation
+  -0.59 on rides of 3 km or more), harder riding alone doesn't (+0.16). The hard 26.5 km ride moved it from 34.8 to 34.9.
+  Effort and slow time together predict it on rides left out (33 % less error, 26 % when trained on the first half); either alone doesn't or barely.
+- **So (proposed):** standing / crawling time is part of the math from the start, learned from the dash entries through a ~40 km memory and scaled to the tanks.
+  Replaces "idle joins after about 6 spans". The gate is the error on entries left out, plus two measured tanks. Dash only moved 34.1 to 37.0, so expect a few km of range.
+- Dash average in the 9 to 21 Nov tank 35.6, the pump says 37.0 (one tank). The app's estimate today is about 34.7, all of it from the dash.
 
 ### 4.10 · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
