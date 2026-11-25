@@ -1142,6 +1142,11 @@ Google services), never by model; check about 600, 800 and 1000+ dp, split scree
 layout checked now, real car testing when the rider is back. Order: 4.8, 4.9, 4.10 feedback, 5.0, 5.1 tutorial, 5.2 Google. Bug fixes stay x.y.1.
 (proposed) 5.0 may be built once 4.8 has been ridden about a week with one fill-up and no serious bug, the 4.9 look is OK and car mode is agreed; published after one real drive.
 
+**4.9 mockups (2026-11-26):** https://claude.ai/artifact/WTVcYUbQPWSW2s1wjV775n (layouts A to E; 8, 11 and 13 inch; no GPS; split screen; settings; history with speed
+shades). The rider decides later whether they need polishing. (proposed) Large screen = smaller side >= 600 **and** larger side >= 840 dp: half of an 11-inch
+screen is about 635 x 800 and would otherwise count as a tablet.
+**4.8 testing (rider):** what riding 4.8 turns up can be fixed in 4.10.
+
 ### 5.2 (was 4.10) · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
   with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
