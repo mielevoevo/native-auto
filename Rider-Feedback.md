@@ -1109,8 +1109,11 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
 **Discussion 2026-11-26 (rider; 4.8 still waits for "start"):**
 - **Decided (rider):** 4.8 stays one version. Caution Normal (today's range), -10 %, -20 %. Altitude in GPX exports (raw GPS height, labeled, not `<ele>`).
   Refills are always to the top, the 9 Nov one (4.665 L) too: marked full it gives the first usable tank, 206 km on 5.56 L = 37.0 km/L, 92 % recorded.
-- **Dash km/L per ride dropped as a learning source:** the rider never resets the dash. Its figure falls while standing with the engine on (36 to 34), which
-  fits an idle cost but measures no single ride.
+- **Dash km/L after rides stays (rider: core).** The rider never resets the dash; it falls from 36 to 34 while standing with the engine on, so it may average
+  over a short distance (to check in the entries). Today each entry moves the estimate 15 % with no limit: 20 entries between fill-ups leave 4 % of the tanks.
+  - (proposed) Corrected by the bike's own fill-ups (tank km/L over that tank's dash average), and all entries of one tank together weigh less than the tank.
+  - (proposed) Used for riding behavior only if the app sees the entries follow the effort of the last 5, 10 or 20 km; then they also help the gate.
+  - (proposed) Dialog prefilled with the last value, 0.1 steps; entries listed in the Garage, editable and deletable (today neither).
 - (proposed) Gate: four tanks that differ enough in work per km, and beating the plain range; four alike tanks teach nothing. One tank took 12 days.
 - (proposed) Tanks rebuilt from old points count without slope; slope joins after four tanks with altitude.
 - Measured on 58 rides: work per km varies about 27 % between rides of 5 km or more. GPS speed jumps change it by under 2 %, so no special handling.
