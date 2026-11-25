@@ -1059,17 +1059,21 @@ Test device: the rider's Huawei MatePad 11 (exact model and year to confirm; 202
   follow the motorcycle type. Custom fuels are shared by all bikes. The range should follow riding behavior (below), kept light.
 - (proposed) Caution: Normal, Cautious (-10 %), Very cautious (-20 %). Custom fuels: own name and price, old fill-ups keep theirs.
 - (proposed) Service: only `SCOOTER_CVT` exists, so add geared (chain), underbone (chain) and Other. Lists of parts per type, no numbers.
-- (proposed, asked about) Fill-up review: before saving, ask only when an entry looks wrong: Fix, Save anyway, Don't learn from this; past fill-ups editable.
+- **Decided (rider: yes):** fill-up review for abnormal entries: before saving, ask only when an entry looks wrong: Fix, Save anyway, Don't learn from this; past fill-ups editable.
 - Key scrubbing (see 5.0).
 - **Range and riding behavior (rider's list; math to discuss):** uphill, short bursts in traffic, uphill speeding, downhill normal and fast,
   traffic lugging. (proposed) One demand figure instead of a rule per case:
   - Per 5 s window: max(0, rolling + air drag + slope, signed + change of speed, signed) + a low-speed and idling cost per second. Today climbing
     counts but descending is never credited, and crawling and standing are recorded but unused.
   - Slope from smoothed altitude over 100 m or more; phone altitude is noisy, so no slope without enough distance.
-  - Idling: per bike "stops its engine at lights" switch, as GPS can't tell; starting cost to discuss. Never counted while auto-paused.
+  - **Idling (rider): no start-stop logic; while a trip runs, the engine runs.** (proposed) Paused time costs nothing; starting cost 0.25 L/h,
+    a guess to check against fill-ups.
+  - **Passenger / cargo load: not counted (rider).**
   - Light: cheap sums per accepted fix (already done at 1 Hz, nothing extra from the GPS); range recalculated once a minute, earlier only when the
     last 1 km differs by 25 % or more from the figure in use for 30 s, at most every 15 s; no work without a trip. The fit runs at fill-ups.
-  - Skipping fixes instead would miss the bursts. Range drops sooner than it rises, within -20 / +10 %.
+  - Skipping fixes instead would miss the bursts. Range drops sooner than it rises, **within -20 / +10 % (rider: good).**
+  - **Range shown in 2 km steps (rider, if light).** (proposed) Rounded down; 5 km until the estimate is learned; falls at once, rises only by 4 km or
+    more, a fill-up resets it. One rounding rule for every range on screen.
   - Same gate as 4.3d: four usable tanks, must beat the plain figure. 4.8 computes it beside the plain range and compares at each fill-up; the
     range shown follows it only after that. Trips saved before 4.8 lack the new sums, unless rebuilt from their track (no altitude there).
 
