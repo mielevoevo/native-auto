@@ -25,12 +25,17 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +47,17 @@ import com.nativeauto.garage.AmountMode
 import com.nativeauto.garage.BikeRecord
 import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.FuelState
+import com.nativeauto.garage.Fuel
+import com.nativeauto.garage.CustomFuel
+import com.nativeauto.garage.DashKmPerL
+import com.nativeauto.garage.DEFAULT_KM_PER_L
+import com.nativeauto.garage.MIN_MODEL_STEPS
+import com.nativeauto.garage.MIN_MODEL_TANKS
+import com.nativeauto.garage.PRICE_RANGE
+import com.nativeauto.garage.RefuelIssue
+import com.nativeauto.garage.fuelChoices
+import com.nativeauto.garage.fuelOf
+import com.nativeauto.garage.reviewRefuel
 import com.nativeauto.garage.FuelType
 import com.nativeauto.garage.RefuelDraft
 import com.nativeauto.garage.RefuelRecord
@@ -59,10 +75,7 @@ import com.nativeauto.garage.priceOf
 import com.nativeauto.garage.refuelAmounts
 import com.nativeauto.garage.refuelLitresFit
 import com.nativeauto.ui.components.DialogTwoColumns
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.Switch
 import androidx.compose.ui.semantics.Role
-import com.nativeauto.ui.theme.appSwitchColors
 import com.nativeauto.garage.spend
 import com.nativeauto.ui.components.AppIcons
 import com.nativeauto.ui.components.rememberHaptics
@@ -84,7 +97,13 @@ internal fun FuelSection(
     onDeleteRefuel: (Long) -> Unit,
     onSetLevel: () -> Unit = {},
     prices: List<FuelPrice> = emptyList(),
-    onEditPrice: (FuelType) -> Unit = {},
+    fuels: List<CustomFuel> = emptyList(),
+    onEditPrice: (Fuel) -> Unit = {},
+    onAddFuel: () -> Unit = {},
+    onEditRefuel: (RefuelRecord) -> Unit = {},
+    dashArmed: Long? = null,
+    onEditDash: (DashKmPerL) -> Unit = {},
+    onDeleteDash: (Long) -> Unit = {},
 ) {
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
@@ -116,7 +135,7 @@ internal fun FuelSection(
         }
     }
     fuel?.let { f ->
-        // 4.3d: only when the riding lately moves the range by 5 % or more.
+        // 4.8: only when the riding lately moves the range by 5 % or more.
         f.load.note?.let { LoadNote(it) }
         Text(fuelLine(f), style = MaterialTheme.typography.bodyMedium, color = colors.textDim, modifier = Modifier.testTag("garage_fuel_line"))
         f.level.sinceRefuelKm?.let {
@@ -126,6 +145,9 @@ internal fun FuelSection(
                 color = colors.textDim,
                 modifier = Modifier.testTag("garage_since_refuel"),
             )
+        }
+        rangeModeLine(f)?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = colors.textDim, modifier = Modifier.testTag("garage_range_mode"))
         }
     }
     Spacer(Modifier.height(8.dp))
@@ -140,15 +162,112 @@ internal fun FuelSection(
         ) { Text(if (showCost) "Hide costs" else "Calculate refill") }
     }
     if (showCost && fuel != null) CostPanel(fuel)
-    FuelPrices(prices, onEditPrice)
+    FuelPrices(prices, fuels, onEditPrice, onAddFuel)
     if (fuel != null && fuel.refuels.isNotEmpty()) {
         Spacer(Modifier.height(12.dp))
         Text("Refuel log", style = MaterialTheme.typography.titleMedium)
+        Text("Tap one to correct it.", style = MaterialTheme.typography.bodyMedium, color = colors.textDim)
         Spacer(Modifier.height(4.dp))
         val measures = fuel.consumption.measures.associateBy { it.endRefuelId }
-        fuel.refuels.forEach { r ->
-            RefuelRow(r, measures[r.id]?.let { m -> m.kmPerL to m.used }, armed = refuelArmed == r.id) { onDeleteRefuel(r.id) }
+        LogRows(fuel.refuels, "garage_refuel_all", keep = { it.id == refuelArmed }) { r ->
+            val measure = measures[r.id]?.let { m -> formatKmPerL(m.kmPerL) + if (m.used) "" else " (not used)" }
+            LogRow(
+                title = formatOdometer(r.odometerKm),
+                detail = listOfNotNull(readingDate(r.timeMs), "${if (r.full) "Full" else "Partial"} ${formatLitres(r.litres)}", fuelOf(r.fuelType, fuels).label, measure)
+                    .joinToString(" · "),
+                tag = "garage_refuel_row",
+                deleteTag = "garage_refuel_delete",
+                deleteLabel = "Delete fill-up",
+                armed = refuelArmed == r.id,
+                onClick = { haptics.tap(); onEditRefuel(r) },
+                onDelete = { onDeleteRefuel(r.id) },
+            )
         }
+    }
+    if (fuel != null && fuel.dash.isNotEmpty()) {
+        Spacer(Modifier.height(12.dp))
+        Text("Dash km/L", style = MaterialTheme.typography.titleMedium)
+        Text(dashLine(fuel.consumption), style = MaterialTheme.typography.bodyMedium, color = colors.textDim, modifier = Modifier.testTag("garage_dash_line"))
+        Spacer(Modifier.height(4.dp))
+        LogRows(fuel.dash, "garage_dash_all", keep = { it.id == dashArmed }) { d ->
+            LogRow(
+                title = formatKmPerL(d.kmPerL),
+                detail = "${readingDate(d.timeMs)} · after ${trimNumber(d.tripKm)} km",
+                tag = "garage_dash_row",
+                deleteTag = "garage_dash_delete",
+                deleteLabel = "Delete km/L entry",
+                armed = dashArmed == d.id,
+                onClick = { haptics.tap(); onEditDash(d) },
+                onDelete = { onDeleteDash(d.id) },
+            )
+        }
+    }
+}
+
+/** 4.8: where the dash figures stand against the bike's own tanks. */
+private fun dashLine(c: Consumption): String {
+    val off = (c.dashRatio - 1) * 100
+    return if (kotlin.math.abs(off) < 0.5) {
+        "What you entered after rides. Full tanks will show how exact the dash is."
+    } else {
+        "By your tanks the dash reads ${String.format(Locale.US, "%.0f", kotlin.math.abs(off))}% ${if (off > 0) "low" else "high"}; the estimate allows for it."
+    }
+}
+
+/** 4.8: whether the range follows the riding, or how far that is. Nothing before the first dash figure. */
+private fun rangeModeLine(f: FuelState): String? {
+    val l = f.learning
+    return when {
+        f.load.on -> "Range follows your riding"
+        f.dash.isEmpty() -> null
+        l.steps < MIN_MODEL_STEPS || l.tanks < MIN_MODEL_TANKS ->
+            "Learning your riding: ${minOf(l.steps, MIN_MODEL_STEPS)} of $MIN_MODEL_STEPS rides, ${minOf(l.tanks, MIN_MODEL_TANKS)} of $MIN_MODEL_TANKS full tanks"
+        else -> "Learning your riding: not more exact than the usual range yet"
+    }
+}
+
+/** The first [LOG_ROWS] entries, the rest behind "Show all". [keep]: always shown (a delete that waits for its second tap). */
+@Composable
+private fun <T> LogRows(entries: List<T>, tag: String, keep: (T) -> Boolean, row: @Composable (T) -> Unit) {
+    var all by rememberSaveable(tag) { mutableStateOf(false) }
+    val shown = if (all) entries else entries.filterIndexed { i, e -> i < LOG_ROWS || keep(e) }
+    shown.forEach { row(it) }
+    if (entries.size > LOG_ROWS) {
+        TextButton(onClick = { all = !all }, modifier = Modifier.heightIn(min = 56.dp).testTag(tag)) {
+            Text(if (all) "Show less" else "Show all ${entries.size}")
+        }
+    }
+}
+
+private const val LOG_ROWS = 5
+
+/** One entry of a log: a figure and its details; a tap edits it, the bin deletes it (two taps). */
+@Composable
+private fun LogRow(
+    title: String,
+    detail: String,
+    tag: String,
+    deleteTag: String,
+    deleteLabel: String,
+    armed: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    HorizontalDivider(color = colors.outline)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onClick).testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(detail, style = MaterialTheme.typography.bodyMedium, color = colors.textDim)
+        }
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier.size(56.dp).testTag(deleteTag),
+            colors = if (armed) IconButtonDefaults.iconButtonColors(contentColor = colors.red) else IconButtonDefaults.iconButtonColors(),
+        ) { Icon(AppIcons.Delete, contentDescription = if (armed) "Tap again to delete" else deleteLabel) }
     }
 }
 
@@ -174,13 +293,13 @@ internal fun kmplSource(c: Consumption): String {
     return "from " + parts.joinToString(" + ")
 }
 
-/** 12b: " · range at 34.0 km/L" when recent tanks are below the long run (the range uses those). */
 /** 4.3d: "Riding hard: −12%" under the range. textDim like the fuel line: it explains the number, it's no warning. */
 @Composable
 internal fun LoadNote(note: String) {
     Text(note, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim, modifier = Modifier.testTag("garage_load_note"))
 }
 
+/** 12b: " · range at 34.0 km/L" when recent tanks are below the long run (the range uses those). */
 internal fun cautiousNote(f: FuelState): String =
     if (f.consumption.cautiousKmPerL < f.consumption.kmPerL - 0.05) " · range at ${formatKmPerL(f.consumption.cautiousKmPerL)}" else ""
 
@@ -270,17 +389,32 @@ private fun BarPicker(of: Int, bars: Int?, onPick: (Int) -> Unit) {
 
 private const val BARS_PER_ROW_PORTRAIT = 5
 
-/** 12b: the bike's own average for the ride just ended (its dash), optional. */
+/**
+ * 12b: the bike's own average on its dash, after a ride or (4.8) corrected later ([title]). Opens with [initial], the last
+ * one given: the dash carries its average over rides, so it is often the same or a step away.
+ */
 @Composable
-fun DashKmPerLDialog(bikeName: String, onSave: (Double) -> Unit, onDismiss: () -> Unit) {
-    var value by rememberSaveable { mutableStateOf("") }
+fun DashKmPerLDialog(
+    title: String,
+    initial: Double?,
+    onSave: (Double) -> Unit,
+    onDismiss: () -> Unit,
+    skipLabel: String = "Skip",
+    startAt: Double = DEFAULT_KM_PER_L,
+) {
+    val haptics = rememberHaptics()
+    var value by rememberSaveable { mutableStateOf(initial?.let(::tenths) ?: "") }
     val kmpl = parseNumber(value)?.takeIf { it in KMPL_PLAUSIBLE }
+    val step = { by: Double ->
+        haptics.tick()
+        value = tenths(((kmpl ?: startAt) + by).coerceIn(KMPL_PLAUSIBLE.start, KMPL_PLAUSIBLE.endInclusive))
+    }
     GarageDialog(
         tag = "kmpl_dialog",
-        title = "$bikeName's km/L",
+        title = title,
         onDismiss = onDismiss,
         action = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp).testTag("kmpl_skip")) { Text("Skip") }
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp).testTag("kmpl_skip")) { Text(skipLabel) }
             Spacer(Modifier.width(8.dp))
             FilledTonalButton(
                 onClick = { onSave(kmpl!!) },
@@ -290,13 +424,20 @@ fun DashKmPerLDialog(bikeName: String, onSave: (Double) -> Unit, onDismiss: () -
         },
     ) {
         Text(
-            "What average did the dash show for this ride? Optional: it helps the range estimate.",
+            "The average on the bike's dash. Optional: it helps the range.",
             style = MaterialTheme.typography.bodyLarge,
             color = AppTheme.colors.textDim,
         )
-        NumberField(value, { value = it }, "km/L", value.isNotBlank() && kmpl == null, "kmpl_value", Modifier.fillMaxWidth(), onDone = { kmpl?.let(onSave) })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StepButton("−", "Lower: km/L", "kmpl_minus", enabled = kmpl == null || kmpl > KMPL_PLAUSIBLE.start) { step(-0.1) }
+            NumberField(value, { value = it }, "km/L", value.isNotBlank() && kmpl == null, "kmpl_value", Modifier.weight(1f), onDone = { kmpl?.let(onSave) })
+            StepButton("+", "Raise: km/L", "kmpl_plus", enabled = kmpl == null || kmpl < KMPL_PLAUSIBLE.endInclusive) { step(0.1) }
+        }
     }
 }
+
+/** 35.64 → "35.6" (the dash's own steps). */
+private fun tenths(v: Double): String = String.format(Locale.US, "%.1f", v)
 
 @Composable
 private fun CostPanel(fuel: FuelState) {
@@ -325,36 +466,11 @@ private fun CostPanel(fuel: FuelState) {
     }
 }
 
-@Composable
-private fun RefuelRow(r: RefuelRecord, measure: Pair<Double, Boolean>?, armed: Boolean, onDelete: () -> Unit) {
-    val colors = AppTheme.colors
-    HorizontalDivider(color = colors.outline)
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("garage_refuel_row"), verticalAlignment = Alignment.CenterVertically) {
-        Text(readingDate(r.timeMs), style = MaterialTheme.typography.bodyMedium, color = colors.textDim, modifier = Modifier.width(110.dp))
-        Text(formatOdometer(r.odometerKm), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-        Text(
-            "${if (r.full) "Full" else "Partial"} ${formatLitres(r.litres)}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.width(110.dp),
-        )
-        Text(
-            measure?.let { (kmpl, used) -> formatKmPerL(kmpl) + if (used) "" else " (skipped)" } ?: "",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.textDim,
-            modifier = Modifier.width(150.dp),
-        )
-        IconButton(
-            onClick = onDelete,
-            modifier = Modifier.size(56.dp).testTag("garage_refuel_delete"),
-            colors = if (armed) IconButtonDefaults.iconButtonColors(contentColor = colors.red) else IconButtonDefaults.iconButtonColors(),
-        ) { Icon(AppIcons.Delete, contentDescription = if (armed) "Tap again to delete" else "Delete fill-up") }
-    }
-}
-
 /**
  * The pump, a few taps: full (the default) or partial; what was paid in Rp or litres, the other
  * worked out from the price per litre (prefilled with the fuel's last price, correctable); and
  * the odometer, prefilled with the estimate (the real reading is the truth).
+ * 4.8: [existing] corrects one logged before; an entry that looks wrong is asked about before it is saved ([reviewRefuel]).
  */
 @Composable
 internal fun RefuelDialog(
@@ -363,56 +479,104 @@ internal fun RefuelDialog(
     prices: List<FuelPrice>,
     onSave: (RefuelDraft) -> Unit,
     onDismiss: () -> Unit,
+    fuels: List<CustomFuel> = emptyList(),
+    state: FuelState? = null,
+    existing: RefuelRecord? = null,
 ) {
     val haptics = rememberHaptics()
-    var full by rememberSaveable { mutableStateOf(true) }
-    var fuel by rememberSaveable { mutableStateOf(bike.fuel) }
-    var mode by rememberSaveable { mutableStateOf(AmountMode.RUPIAH) }
-    var amount by rememberSaveable { mutableStateOf("") }
-    var price by rememberSaveable { mutableStateOf(wholeNumber(priceOf(bike.fuel, prices))) }
-    var odometer by rememberSaveable { mutableStateOf(estimateKm?.roundToLong()?.toString() ?: "") }
+    var full by rememberSaveable { mutableStateOf(existing?.full ?: true) }
+    var learn by rememberSaveable { mutableStateOf(existing?.learn ?: true) }
+    var fuelKey by rememberSaveable { mutableStateOf(existing?.fuelType ?: bike.fuelType) }
+    val fuel = fuelOf(fuelKey, fuels)
+    var mode by rememberSaveable { mutableStateOf(if (existing == null) AmountMode.RUPIAH else AmountMode.LITRES) }
+    val firstAmount = existing?.let { exact(it.litres) } ?: ""
+    var amount by rememberSaveable { mutableStateOf(firstAmount) }
+    val firstPrice = existing?.let { wholeNumber(it.pricePerL) } ?: priceText(priceOf(fuel, prices))
+    var price by rememberSaveable { mutableStateOf(firstPrice) }
+    val firstOdometer = (existing?.odometerKm ?: estimateKm)?.let(::wholeNumber) ?: ""
+    var odometer by rememberSaveable { mutableStateOf(firstOdometer) }
+    /** What looks wrong about the entry; null = the form. */
+    var review by remember { mutableStateOf<List<RefuelIssue>?>(null) }
 
     val amountValue = if (mode == AmountMode.RUPIAH) parseNumber(amount, thousands = true) else parseNumber(amount)
-    val priceValue = parseNumber(price, thousands = true)?.takeIf { it in 1_000.0..100_000.0 }
-    val amounts = refuelAmounts(mode, amountValue, priceValue)?.takeIf { (litres, _) -> refuelLitresFit(litres, bike.tankLitres) }
-    val odoKm = parseNumber(odometer, thousands = true)
-    val valid = amounts != null && odoKm != null
+    val priceValue = parseNumber(price, thousands = true)?.takeIf { it in PRICE_RANGE }
+    // What wasn't touched stays exactly what it was (the fields show it rounded).
+    val untouched = existing != null && mode == AmountMode.LITRES && amount == firstAmount && price == firstPrice
+    val amounts = (if (untouched) existing!!.litres to existing.totalRp else refuelAmounts(mode, amountValue, priceValue))
+        ?.takeIf { (litres, _) -> untouched || refuelLitresFit(litres, bike.tankLitres) }
+    val odoKm = if (existing != null && odometer == firstOdometer) existing.odometerKm else parseNumber(odometer, thousands = true)
+    val valid = amounts != null && odoKm != null && priceValue != null
+
+    fun draft(learns: Boolean) = RefuelDraft(
+        full, amounts!!.first, if (untouched) existing!!.pricePerL else priceValue!!, amounts.second, fuel, odoKm!!, learns,
+    )
+    fun save() {
+        val d = draft(learn)
+        val issues = if (state == null || !d.learn) {
+            emptyList()
+        } else {
+            reviewRefuel(
+                entry = RefuelRecord(
+                    existing?.id ?: 0, bike.id, existing?.timeMs ?: System.currentTimeMillis(), d.odometerKm, d.litres, d.pricePerL, d.totalRp, d.full, fuel.key,
+                ),
+                refuels = state.refuels,
+                startKmPerL = bike.startKmPerL,
+                awayTimesMs = state.awayTimesMs,
+                dash = state.dash,
+                tankLitres = bike.tankLitres,
+                roomL = state.level.toFillLitres.takeIf { existing == null },
+                estimateKm = estimateKm.takeIf { existing == null },
+                knownPrice = if (existing != null && price == firstPrice) 0.0 else priceOf(fuel, prices),
+            )
+        }
+        if (issues.isEmpty()) onSave(d) else review = issues
+    }
 
     GarageDialog(
         tag = "garage_refuel_dialog",
-        title = "Refuel · ${bike.name}",
+        title = when {
+            review != null -> "Check this fill-up"
+            existing != null -> "Fill-up · ${readingDate(existing.timeMs)}"
+            else -> "Refuel · ${bike.name}"
+        },
         onDismiss = onDismiss,
         action = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp)) { Text("Cancel") }
-            Spacer(Modifier.width(8.dp))
-            FilledTonalButton(
-                onClick = {
-                    val (litres, rp) = amounts!!
-                    onSave(RefuelDraft(full, litres, priceValue!!, rp, fuel, odoKm!!))
-                },
-                enabled = valid,
-                modifier = Modifier.heightIn(min = 56.dp).testTag("garage_refuel_save"),
-            ) { Text("Save") }
+            if (review == null) {
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp)) { Text("Cancel") }
+                Spacer(Modifier.width(8.dp))
+                FilledTonalButton(onClick = { save() }, enabled = valid, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_refuel_save")) { Text("Save") }
+            } else {
+                FilledTonalButton(
+                    onClick = { haptics.tap(); review = null },
+                    modifier = Modifier.heightIn(min = 56.dp).testTag("garage_review_fix"),
+                ) { Text("Fix") }
+            }
         },
     ) {
+        review?.let { issues ->
+            issues.forEach { Text(it.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("garage_review_issue")) }
+            OutlinedButton(
+                onClick = { onSave(draft(learn)) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("garage_review_save"),
+            ) { Text("It's right: save it", color = AppTheme.colors.text) }
+            if (issues.any { it.learning }) {
+                OutlinedButton(
+                    onClick = { onSave(draft(false)) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("garage_review_no_learn"),
+                ) { Text("Save, but don't learn km/L from it", color = AppTheme.colors.text) }
+            }
+            return@GarageDialog
+        }
         DialogTwoColumns {
             Column(column, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 13a: one switch instead of Full tank / Partial. On by default: most fill-ups go to the top.
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .toggleable(value = full, role = Role.Switch) { haptics.toggle(it); full = it }
-                        .testTag("garage_refuel_full"),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Full refill", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Switch(checked = full, onCheckedChange = null, colors = appSwitchColors())
-                }
-                Segments(FuelType.entries, fuel, { it.label }, { "garage_refuel_fuel_${it.name}" }, label = { FuelLabel(it) }) {
+                FormSwitch("Full refill", full, "garage_refuel_full") { haptics.toggle(it); full = it }
+                if (existing != null) FormSwitch("Learn km/L from it", learn, "garage_refuel_learn") { haptics.toggle(it); learn = it }
+                FuelPicker(fuelChoices(fuels, fuel), fuel, "garage_refuel_fuel") {
                     haptics.tick()
-                    fuel = it
-                    price = wholeNumber(priceOf(it, prices))
+                    fuelKey = it.key
+                    // A fuel's own price; a correction keeps the one that was paid.
+                    if (existing == null) price = priceText(priceOf(it, prices))
                 }
                 Segments(AmountMode.entries, mode, { if (it == AmountMode.RUPIAH) "Paid (Rp)" else "Liters" }, { "garage_refuel_mode_${it.name}" }) {
                     haptics.tick(); mode = it; amount = ""
@@ -442,6 +606,12 @@ internal fun RefuelDialog(
         }
     }
 }
+
+/** 4.665 → "4.665", 5.0 → "5". */
+private fun exact(v: Double): String = String.format(Locale.US, "%.3f", v).trimEnd('0').trimEnd('.')
+
+/** A price for its field; blank while there is none. */
+private fun priceText(v: Double): String = if (v > 0) wholeNumber(v) else ""
 
 /** "Add untracked km": the rider rode without the app. */
 @Composable
@@ -487,27 +657,27 @@ private fun wholeNumber(v: Double): String = String.format(Locale.US, "%d", v.ro
 
 /**
  * 12c: the price per litre of each fuel (shared by every bike), editable when the rate changes.
- * A fill-up at a new price updates it too; past fill-ups keep the price they were logged at.
+ * A fill-up at a new price updates it too; past fill-ups keep the price they were logged at. 4.8: the rider's own too.
  */
 @Composable
-private fun FuelPrices(prices: List<FuelPrice>, onEdit: (FuelType) -> Unit) {
+private fun FuelPrices(prices: List<FuelPrice>, fuels: List<CustomFuel>, onEdit: (Fuel) -> Unit, onAdd: () -> Unit) {
     val colors = AppTheme.colors
     Spacer(Modifier.height(12.dp))
     Text("Fuel prices", style = MaterialTheme.typography.titleMedium)
     Text("Tap one when the rate changes.", style = MaterialTheme.typography.bodyMedium, color = colors.textDim)
     Spacer(Modifier.height(4.dp))
-    FuelType.entries.forEach { type ->
-        val own = prices.firstOrNull { it.fuelType == type.name }
+    fuelChoices(fuels).forEach { fuel ->
+        val own = prices.firstOrNull { it.fuelType == fuel.key }
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onEdit(type) }.testTag("garage_price_${type.name}"),
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onEdit(fuel) }.testTag("garage_price_${fuelTag(fuel)}"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(type.label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text(fuel.label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "${formatRupiah(priceOf(type, prices))} / L",
+                    "${formatRupiah(priceOf(fuel, prices))} / L",
                     style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
-                    modifier = Modifier.testTag("garage_price_value_${type.name}"),
+                    modifier = Modifier.testTag("garage_price_value_${fuelTag(fuel)}"),
                 )
                 Text(
                     own?.let { "updated ${formatDay(it.updatedAtMs)}" } ?: "default",
@@ -517,13 +687,80 @@ private fun FuelPrices(prices: List<FuelPrice>, onEdit: (FuelType) -> Unit) {
             }
         }
     }
+    TextButton(onClick = onAdd, modifier = Modifier.heightIn(min = 56.dp).testTag("garage_fuel_add")) { Text("+ Add a fuel") }
+}
+
+/** A pump fuel's tag is its name, the rider's own by its label. */
+internal fun fuelTag(fuel: Fuel): String = if (fuel is FuelType) fuel.name else fuel.label
+
+/**
+ * 4.8: adds a fuel of the rider's own ([fuel] null), or changes one's name and price. [taken]: names that are there already.
+ */
+@Composable
+internal fun CustomFuelDialog(
+    fuel: CustomFuel?,
+    current: Double,
+    taken: List<String>,
+    onSave: (name: String, pricePerL: Double) -> Unit,
+    onDelete: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val haptics = rememberHaptics()
+    var name by rememberSaveable { mutableStateOf(fuel?.name ?: "") }
+    var value by rememberSaveable { mutableStateOf(priceText(current)) }
+    var armed by rememberSaveable { mutableStateOf(false) }
+    val price = parseNumber(value, thousands = true)?.takeIf { it in PRICE_RANGE }
+    val known = taken.any { it.equals(name.trim(), ignoreCase = true) }
+    val ok = name.isNotBlank() && !known && price != null
+    GarageDialog(
+        tag = "garage_fuel_dialog",
+        title = fuel?.let { "Edit ${it.name}" } ?: "Add a fuel",
+        onDismiss = onDismiss,
+        action = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp)) { Text("Cancel") }
+            Spacer(Modifier.width(8.dp))
+            FilledTonalButton(
+                onClick = { onSave(name.trim(), price!!) },
+                enabled = ok,
+                modifier = Modifier.heightIn(min = 56.dp).testTag("garage_fuel_save"),
+            ) { Text("Save") }
+        },
+    ) {
+        Text("For every bike. Past fill-ups keep the price they were made at.", style = MaterialTheme.typography.bodyLarge, color = AppTheme.colors.textDim)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(20) },
+                label = { Text(if (known) "Already there" else "Name") },
+                isError = known,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f).testTag("garage_fuel_name"),
+            )
+            NumberField(value, { value = it }, "Rp / L", value.isNotBlank() && price == null, "garage_fuel_price", Modifier.weight(1f), whole = true)
+        }
+        if (onDelete != null) {
+            FilledTonalButton(
+                onClick = { if (armed) onDelete() else { haptics.tap(); armed = true } },
+                modifier = Modifier.heightIn(min = 56.dp).testTag("garage_fuel_delete"),
+                colors = if (armed) {
+                    ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                } else {
+                    ButtonDefaults.filledTonalButtonColors()
+                },
+            ) { Text(if (armed) "Tap again to delete" else "Delete fuel") }
+        }
+    }
 }
 
 /** 12c: one fuel's price per litre. */
 @Composable
-internal fun FuelPriceDialog(fuel: FuelType, current: Double, onSave: (Double) -> Unit, onDismiss: () -> Unit) {
+internal fun FuelPriceDialog(fuel: Fuel, current: Double, onSave: (Double) -> Unit, onDismiss: () -> Unit) {
     var value by rememberSaveable { mutableStateOf(wholeNumber(current)) }
-    val price = parseNumber(value, thousands = true)?.takeIf { it in 1_000.0..100_000.0 }
+    val price = parseNumber(value, thousands = true)?.takeIf { it in PRICE_RANGE }
     GarageDialog(
         tag = "garage_price_dialog",
         title = "${fuel.label} price",

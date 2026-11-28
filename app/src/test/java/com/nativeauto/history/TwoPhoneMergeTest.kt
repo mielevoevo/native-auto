@@ -12,9 +12,7 @@ import com.nativeauto.garage.ReadingKind
 import com.nativeauto.garage.RefuelRecord
 import com.nativeauto.garage.ServiceItem
 import com.nativeauto.garage.ServiceRecord
-import com.nativeauto.garage.TripLoad
 import com.nativeauto.garage.learnConsumption
-import com.nativeauto.garage.spanLoads
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -44,6 +42,12 @@ class TwoPhoneMergeTest {
         override suspend fun missingAddresses() = emptyList<TripRecord>()
         override suspend fun deleteTrip(id: Long) { trips.value = trips.value.filterNot { it.id == id } }
         override suspend fun deletePoints(tripId: Long) { track.removeAll { it.tripId == tripId } }
+        override suspend fun tripsWithoutEffort() = trips.value.filter { t -> t.effortM == null && track.any { it.tripId == t.id } }.map { it.id }
+        override suspend fun setEffort(id: Long, distanceM: Double, flatJ: Double, slopeJ: Double, slopeM: Double, slowS: Double) {
+            trips.value = trips.value.map {
+                if (it.id == id) it.copy(effortM = distanceM, effortFlatJ = flatJ, effortSlopeJ = slopeJ, effortSlopeM = slopeM, effortSlowS = slowS) else it
+            }
+        }
     }
 
     private class Phone {
@@ -145,9 +149,9 @@ class TwoPhoneMergeTest {
         val tank = c.measures.single()
         assertTrue(tank.used)
         assertEquals(40.0, tank.kmPerL, 1e-9)
-        val loads = main.trips.trips.value.filter { it.bikeId == "krt" }
-            .map { TripLoad(it.endedAtMs, it.loadDistanceM!!, it.loadAero!!, it.loadAccel!!, it.loadClimbM!!, it.loadStops!!) }
-        assertEquals("both phones' trips cover the tank", 1, spanLoads(c.measures, loads).size)
+        // 4.8: the rides that came in get their effort from their tracks, like the ones from here.
+        main.trips.fillMissingEffort()
+        assertTrue(main.trips.trips.value.filter { it.bikeId == "krt" }.let { l -> l.size >= 6 && l.all { it.effortM != null } })
         // The odometer is the last reading by time, whichever phone it was entered on.
         assertEquals(5_205.0, main.garage.lastReading("krt")!!.km, 0.0)
     }

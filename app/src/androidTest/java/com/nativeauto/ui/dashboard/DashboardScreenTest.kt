@@ -491,6 +491,17 @@ class DashboardScreenTest {
             rule.onNodeWithText("Today", useUnmergedTree = true).assertIsDisplayed()
             tag("history_backup").assertIsEnabled()
             tag("history_import").assertIsEnabled()
+            // 4.8: what goes in the backup, and a password of 6 characters or more.
+            click("history_backup")
+            rule.waitUntil(5_000) { count("backup_dialog").fetchSemanticsNodes().isNotEmpty() }
+            click("backup_scope_GARAGE")
+            tag("backup_save").assertIsEnabled()
+            click("backup_protect")
+            tag("backup_save").assertIsNotEnabled()
+            tag("backup_password").performTextReplacement("12345")
+            tag("backup_save").assertIsNotEnabled()
+            tag("backup_password").performTextReplacement("123456")
+            tag("backup_save").assertIsEnabled()
         } finally {
             runBlocking { dao.delete(id) }
         }

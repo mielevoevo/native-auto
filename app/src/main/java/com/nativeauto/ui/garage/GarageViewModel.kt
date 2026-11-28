@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.nativeauto.garage.BikeDraft
 import com.nativeauto.garage.BikeRecord
 import com.nativeauto.garage.FuelPrice
-import com.nativeauto.garage.FuelType
+import com.nativeauto.garage.CustomFuel
+import com.nativeauto.garage.Fuel
 import com.nativeauto.garage.FuelState
 import com.nativeauto.garage.RefuelDraft
 import com.nativeauto.garage.ServiceDraft
@@ -64,7 +65,42 @@ class GarageViewModel @Inject constructor(private val garage: GarageRepository) 
 
     fun addUntrackedKm(bikeId: String, km: Double) = viewModelScope.launch { garage.addUntrackedKm(bikeId, km) }
 
-    fun setPrice(fuel: FuelType, pricePerL: Double) = viewModelScope.launch { garage.setPrice(fuel, pricePerL) }
+    // ---- 4.8 ----
+
+    /** The rider's own fuels, deleted ones included. */
+    val fuels: StateFlow<List<CustomFuel>> = garage.customFuels().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun saveFuel(key: String?, name: String, pricePerL: Double) = viewModelScope.launch { garage.saveCustomFuel(key, name, pricePerL) }
+
+    fun deleteFuel(key: String) = viewModelScope.launch { garage.deleteCustomFuel(key) }
+
+    fun updateRefuel(id: Long, draft: RefuelDraft) = viewModelScope.launch { garage.updateRefuel(id, draft) }
+
+    fun updateDash(id: Long, kmPerL: Double) = viewModelScope.launch { garage.updateDashKmPerL(id, kmPerL) }
+
+    private val _dashArmed = MutableStateFlow<Long?>(null)
+
+    /** The dash figure whose delete was tapped once (3 s to confirm). */
+    val dashArmed: StateFlow<Long?> = _dashArmed.asStateFlow()
+    private var dashDisarm: Job? = null
+
+    /** Two taps within 3 s. Returns true when it deleted. */
+    fun onDeleteDashTapped(id: Long): Boolean {
+        dashDisarm?.cancel()
+        if (_dashArmed.value == id) {
+            _dashArmed.value = null
+            viewModelScope.launch { garage.deleteDashKmPerL(id) }
+            return true
+        }
+        _dashArmed.value = id
+        dashDisarm = viewModelScope.launch {
+            delay(3_000)
+            _dashArmed.value = null
+        }
+        return false
+    }
+
+    fun setPrice(fuel: Fuel, pricePerL: Double) = viewModelScope.launch { garage.setPrice(fuel, pricePerL) }
 
     fun setFuelLevel(bikeId: String, bars: Int, ofBars: Int, odometerKm: Double) =
         viewModelScope.launch { garage.setFuelLevel(bikeId, bars, ofBars, odometerKm) }

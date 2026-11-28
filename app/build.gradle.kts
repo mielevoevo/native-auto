@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -10,6 +11,12 @@ plugins {
 }
 
 /**
+ * 4.8: `-PpublicBuild` builds without any key (for a release everyone can download): neither the TomTom nor the Maps
+ * key goes into the APK, search runs on Photon and the map on OpenFreeMap. Check the result with `checkPublicApk`.
+ */
+val publicBuild: Boolean = providers.gradleProperty("publicBuild").isPresent
+
+/**
  * True once a real Google Maps key is in local.properties. Without one the map pane uses
  * MapLibre + OpenFreeMap (free, no key), so the app has a working map either way.
  */
@@ -17,7 +24,7 @@ val hasGoogleMapsKey: Boolean = run {
     val props = Properties()
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { props.load(it) }
     val key = props.getProperty("MAPS_API_KEY", "").trim()
-    key.isNotEmpty() && key != "DEFAULT_API_KEY"
+    !publicBuild && key.isNotEmpty() && key != "DEFAULT_API_KEY"
 }
 
 /** 10a: true once a real TomTom key is in local.properties (WIP: the user adds it later). */
@@ -25,7 +32,7 @@ val hasTomTomKey: Boolean = run {
     val props = Properties()
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { props.load(it) }
     val key = props.getProperty("TOMTOM_API_KEY", "").trim()
-    key.isNotEmpty() && key != "DEFAULT_TOMTOM_KEY"
+    !publicBuild && key.isNotEmpty() && key != "DEFAULT_TOMTOM_KEY"
 }
 
 android {
@@ -39,8 +46,8 @@ android {
         // 26 is the floor for Location.speedAccuracyMetersPerSecond.
         minSdk = 26
         targetSdk = 37
-        versionCode = 39
-        versionName = "4.7.3"
+        versionCode = 40
+        versionName = "4.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_GOOGLE_MAPS_KEY", hasGoogleMapsKey.toString())
@@ -77,8 +84,53 @@ android {
 secrets {
     // Real key lives in local.properties (never committed). The defaults file keeps
     // fresh checkouts and CI building with a placeholder key.
-    propertiesFileName = "local.properties"
+    propertiesFileName = if (publicBuild) "local.defaults.properties" else "local.properties"
     defaultPropertiesFileName = "local.defaults.properties"
+}
+
+/**
+ * 4.8: fails when an APK holds a real key from local.properties (its name is printed, never its value). Run it on every
+ * APK that leaves this computer: `./gradlew :app:assembleRelease :app:checkPublicApk -PpublicBuild`, or with
+ * `-PcheckApk=<path>` on any APK.
+ */
+abstract class CheckPublicApk : DefaultTask() {
+    @get:InputFile abstract val apk: RegularFileProperty
+
+    /** Secrets stay out of Gradle's state: only the file's place is an input, its values are read while running. */
+    @get:Internal abstract val keys: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val file = keys.get().asFile
+        val props = Properties()
+        if (file.exists()) file.inputStream().use { props.load(it) }
+        val secrets = props.stringPropertyNames()
+            .filter { it.endsWith("_KEY") }
+            .associateWith { props.getProperty(it).trim() }
+            .filterValues { it.length >= 8 && !it.startsWith("DEFAULT_") }
+        val found = sortedSetOf<String>()
+        ZipFile(apk.get().asFile).use { zip ->
+            zip.entries().asSequence().filter { !it.isDirectory }.forEach { e ->
+                // As Latin-1 a byte is a character, so a plain search finds UTF-8 (dex) and UTF-16 (manifest) text.
+                val text = String(zip.getInputStream(e).use { it.readBytes() }, Charsets.ISO_8859_1)
+                secrets.forEach { (name, value) ->
+                    val wide = String(value.toByteArray(Charsets.UTF_16LE), Charsets.ISO_8859_1)
+                    if (value in text || wide in text) found += "$name in ${e.name}"
+                }
+            }
+        }
+        if (found.isNotEmpty()) throw GradleException("This APK holds a key and must not be published: $found")
+        logger.lifecycle("${apk.get().asFile.name}: none of the ${secrets.size} real key(s) found.")
+    }
+}
+
+tasks.register<CheckPublicApk>("checkPublicApk") {
+    group = "verification"
+    description = "Fails if the APK holds a real API key."
+    apk = providers.gradleProperty("checkApk").map { layout.projectDirectory.file(rootProject.file(it).path) }
+        .orElse(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
+    keys = rootProject.layout.projectDirectory.file("local.properties")
+    mustRunAfter("assembleRelease")
 }
 
 dependencies {
@@ -115,6 +167,8 @@ dependencies {
     // Ferrostar brings both; declared because the app calls them directly (search, routing client).
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
+    // 4.8: password-protected (AES-256) backups, which a PC's archive program can open too.
+    implementation(libs.zip4j)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)

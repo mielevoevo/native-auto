@@ -1,5 +1,6 @@
 package com.nativeauto.garage
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -34,16 +35,17 @@ data class RefuelRecord(
     val totalRp: Double,
     /** Filled to the brim (the default) or partial. */
     val full: Boolean,
-    /** [FuelType] name. */
+    /** [Fuel.key]. */
     val fuelType: String,
-) {
-    val fuel: FuelType get() = FuelType.entries.firstOrNull { it.name == fuelType } ?: FuelType.PERTAMAX
-}
+    /** 4.8: false = the rider said not to learn km/L from it ("Don't learn from this"). */
+    @ColumnInfo(defaultValue = "1")
+    val learn: Boolean = true,
+)
 
 /** The last price per litre seen at the pump, per fuel type (the refuel log updates it). */
 @Entity(tableName = "fuel_prices")
 data class FuelPrice(
-    /** [FuelType] name. */
+    /** [Fuel.key]. */
     @PrimaryKey val fuelType: String,
     val pricePerL: Double,
     val updatedAtMs: Long,
@@ -85,8 +87,11 @@ fun gaugeLitres(bars: Int, ofBars: Int, tankLitres: Double): Double =
     if (bars <= 0 || ofBars <= 0) 0.0 else ((bars - 0.5) / ofBars).coerceIn(0.0, 1.0) * tankLitres
 
 /** Rp per litre for [fuel]: the last one logged, else the built-in default. */
-fun priceOf(fuel: FuelType, prices: List<FuelPrice>): Double =
-    prices.firstOrNull { it.fuelType == fuel.name }?.pricePerL ?: fuel.defaultPricePerL
+fun priceOf(fuel: Fuel, prices: List<FuelPrice>): Double =
+    prices.firstOrNull { it.fuelType == fuel.key }?.pricePerL ?: fuel.defaultPricePerL
+
+/** What a litre may cost (Rp): outside it is a typo. */
+val PRICE_RANGE = 1_000.0..100_000.0
 
 // ---- Consumption learning -------------------------------------------------------------------
 
@@ -99,8 +104,18 @@ const val KMPL_FIRST_WEIGHT = 0.5
 /** Measures outside this are typos or a forgotten fill-up, whatever the estimate. */
 val KMPL_PLAUSIBLE = 10.0..100.0
 
-/** 12b: how far one dash figure moves the estimate. Smaller than a tank: dashes read optimistic. */
-const val DASH_WEIGHT = 0.15
+/**
+ * 4.8: how far the dash figures since the last full fill move the estimate, all of them together: less than a tank does
+ * ([KMPL_WEIGHT], [KMPL_FIRST_WEIGHT]), whatever their number. [DASH_FIRST_WEIGHT] while no tank has taught it yet (the
+ * starting value is a guess). A group of n counts for n / (n + [DASH_GROUP_HALF]) of it, so a single figure does little.
+ */
+const val DASH_WEIGHT = 0.2
+const val DASH_FIRST_WEIGHT = 0.4
+const val DASH_GROUP_HALF = 2.0
+
+/** 4.8: the bike's own tanks say how far its dash is off: tank km/L over the mean of the figures given during that tank. */
+const val DASH_RATIO_MIN_ENTRIES = 3
+val DASH_RATIO_RANGE = 0.85..1.15
 
 /** 12b: the cautious figure looks at this many recent tanks. */
 const val RECENT_TANKS = 3
@@ -128,6 +143,8 @@ data class Consumption(
     val measures: List<TankMeasure>,
     /** 12b: dash figures that taught the estimate. */
     val dashUsed: Int = 0,
+    /** 4.8: what the dash figures are multiplied by (1.0 until a tank has been measured against them). */
+    val dashRatio: Double = 1.0,
 ) {
     val learned: Boolean get() = measures.any { it.used } || dashUsed > 0
 
@@ -151,7 +168,12 @@ private fun chronological(refuels: List<RefuelRecord>) = refuels.sortedWith(comp
 /**
  * Walks the fill-ups oldest first. Between two full fills, km = odometer delta and litres =
  * everything added after the first, up to and including the second (partials too). Spans with
- * an away reading in them ([awayTimesMs]) are skipped: others rode it.
+ * an away reading in them ([awayTimesMs]) are skipped: others rode it; so are spans with a fill-up the rider said not
+ * to learn from (4.8), and the one that starts at it.
+ *
+ * Dash figures ([dash], 4.8) are grouped by the tank they were given in. Once that tank is measured it speaks for
+ * itself: its figures only teach [Consumption.dashRatio]. Figures of a tank that wasn't measured, and those since the
+ * last full fill, move the estimate together, corrected by that ratio.
  */
 fun learnConsumption(
     startKmPerL: Double,
@@ -164,33 +186,54 @@ fun learnConsumption(
     var litres = 0.0
     var accepted = 0
     var dashUsed = 0
+    var ratio = 1.0
+    var ratios = 0
+    var learn = true
     val measures = ArrayList<TankMeasure>()
-    // 12b: dash figures join in time order; they nudge the estimate and leave the tank spans alone.
-    val pending = dash.sortedWith(compareBy({ it.timeMs }, { it.id })).toMutableList()
+    val pending = dash.sortedWith(compareBy({ it.timeMs }, { it.id }))
+    var next = 0
+    val group = ArrayList<Double>()
     fun takeDash(untilMs: Long) {
-        while (pending.isNotEmpty() && pending.first().timeMs <= untilMs) {
-            val v = pending.removeAt(0).kmPerL
+        while (next < pending.size && pending[next].timeMs <= untilMs) {
+            val v = pending[next++].kmPerL
             val learning = accepted + dashUsed > 0
-            if (v in KMPL_PLAUSIBLE && (!learning || abs(v / estimate - 1) <= KMPL_OUTLIER)) {
-                estimate += DASH_WEIGHT * (v - estimate)
+            val reference = if (group.isEmpty()) estimate else group.average() * ratio
+            if (v in KMPL_PLAUSIBLE && (!learning || abs(v * ratio / reference - 1) <= KMPL_OUTLIER)) {
+                group += v
                 dashUsed++
             }
         }
     }
+    fun closeGroup() {
+        if (group.isNotEmpty()) {
+            val weight = (if (accepted == 0) DASH_FIRST_WEIGHT else DASH_WEIGHT) * group.size / (group.size + DASH_GROUP_HALF)
+            estimate += weight * (group.average() * ratio - estimate)
+        }
+        group.clear()
+    }
     for (r in chronological(refuels)) {
         takeDash(r.timeMs)
         if (lastFull == null) {
-            if (r.full) lastFull = r
+            if (r.full) {
+                closeGroup()
+                lastFull = r
+            }
             continue
         }
         litres += r.litres
+        learn = learn && r.learn
         if (!r.full) continue
         val km = r.odometerKm - lastFull.odometerKm
         val away = awayTimesMs.any { it > lastFull!!.timeMs && it <= r.timeMs }
-        if (km > 0 && litres > 0 && !away) {
+        if (km > 0 && litres > 0 && !away && learn) {
             val measured = km / litres
             val plausible = measured in KMPL_PLAUSIBLE && (accepted + dashUsed == 0 || abs(measured / estimate - 1) <= KMPL_OUTLIER)
             if (plausible) {
+                if (group.size >= DASH_RATIO_MIN_ENTRIES) {
+                    val seen = (measured / group.average()).coerceIn(DASH_RATIO_RANGE.start, DASH_RATIO_RANGE.endInclusive)
+                    ratio += (if (ratios++ == 0) KMPL_FIRST_WEIGHT else KMPL_WEIGHT) * (seen - ratio)
+                }
+                group.clear()
                 estimate += (if (accepted == 0) KMPL_FIRST_WEIGHT else KMPL_WEIGHT) * (measured - estimate)
                 accepted++
             }
@@ -198,11 +241,15 @@ fun learnConsumption(
         } else if (km > 0 && litres > 0) {
             measures += TankMeasure(r.id, r.timeMs, km, litres, used = false, startTimeMs = lastFull.timeMs)
         }
+        closeGroup()
         lastFull = r
         litres = 0.0
+        // A fill-up in doubt says as little about the tank it starts.
+        learn = r.learn
     }
     takeDash(Long.MAX_VALUE)
-    return Consumption(estimate, measures, dashUsed)
+    closeGroup()
+    return Consumption(estimate, measures, dashUsed, ratio)
 }
 
 // ---- Tank level and range ------------------------------------------------------------------
@@ -222,15 +269,24 @@ data class FuelLevel(
     val loadFactor: Double = 1.0,
     /** 4.6.1: the bike's low-fuel warning: at or below this many km on the range shown. */
     val lowFuelKm: Int = DEFAULT_LOW_FUEL_KM,
+    /** 4.8: the bike's own caution ([RangeCaution]), on the range only. */
+    val caution: Double = 1.0,
+    /** 4.8: [RANGE_STEP_KM] once km/L has been learned, [RANGE_GUESS_STEP_KM] before. */
+    val stepKm: Double = RANGE_GUESS_STEP_KM,
+    /** 4.8: what is shown now ([RangeHold]: no flicker); null = the figure as it is. */
+    val heldKm: Long? = null,
 ) {
     /** The one low-fuel rule (header pump, Garage card, bike detail, greeting). Unknown fuel is never low. */
     val low: Boolean get() = cautiousRangeKm?.let { it <= lowFuelKm } == true
 
-    /** 12b: the one number the rider sees: [rangeKm] rounded down to 5 km. */
-    val cautiousRangeKm: Long? get() = rangeKm?.let { (floor(it / RANGE_STEP_KM) * RANGE_STEP_KM).toLong() }
+    /** [rangeKm] rounded down to the step. */
+    val steppedRangeKm: Long? get() = rangeKm?.let { (floor(it / stepKm) * stepKm).toLong() }
+
+    /** 12b: the one number the rider sees, everywhere. */
+    val cautiousRangeKm: Long? get() = if (rangeKm == null) null else heldKm ?: steppedRangeKm
 
     /** Upper bound between readings: untracked km only show up at the next reading. */
-    val rangeKm: Double? get() = litres?.let { it * kmPerL * loadFactor }
+    val rangeKm: Double? get() = litres?.let { it * kmPerL * loadFactor * caution }
     val fraction: Double? get() = litres?.let { (it / tankLitres).coerceIn(0.0, 1.0) }
     /** Litres to fill up now. */
     val toFillLitres: Double? get() = litres?.let { (tankLitres - it).coerceAtLeast(0.0) }
@@ -245,8 +301,34 @@ val LOW_FUEL_CHOICES_KM = listOf(20, 30, 40, 50)
 /** What a custom warning may be; below 20 km the estimate isn't exact enough to rely on. */
 val LOW_FUEL_RANGE_KM = 20..150
 
-/** The range is rounded down to this. */
-const val RANGE_STEP_KM = 5.0
+/** The range is rounded down to this (4.8; before anything is learned, to [RANGE_GUESS_STEP_KM]). */
+const val RANGE_STEP_KM = 2.0
+const val RANGE_GUESS_STEP_KM = 5.0
+
+/** 4.8: the range shown rises only by this much or more, so it doesn't flicker between two steps. */
+const val RANGE_RISE_KM = 4L
+
+/**
+ * 4.8, the range as shown: it falls at once, rises only by [RANGE_RISE_KM] or more, and starts over when something was
+ * entered (a fill-up, a gauge reading, the bike's settings: the key). Kept in memory: a new start shows the plain figure.
+ */
+class RangeHold {
+    private class Shown(val key: Any, val km: Long)
+
+    private val shown = HashMap<String, Shown>()
+
+    @Synchronized
+    fun show(bikeId: String, key: Any, km: Long?): Long? {
+        if (km == null) {
+            shown.remove(bikeId)
+            return null
+        }
+        val before = shown[bikeId]
+        if (before != null && before.key == key && km >= before.km && km < before.km + RANGE_RISE_KM) return before.km
+        shown[bikeId] = Shown(key, km)
+        return km
+    }
+}
 
 /**
  * The tank now: full at the last full fill, minus odometer km ÷ [kmPerL] at each later step,
@@ -350,3 +432,75 @@ fun refuelLitresFit(litres: Double, tankLitres: Double): Boolean = litres > 0 &&
  */
 fun countsAsFull(filledToTop: Boolean, litres: Double, spaceLeftL: Double?): Boolean =
     filledToTop || (spaceLeftL != null && litres > spaceLeftL + OVERFLOW_TOLERANCE_L)
+
+// ---- Fill-up review (4.8) ------------------------------------------------------------------
+
+/** What looks wrong about a fill-up, before it is saved. [learning]: it would teach km/L something wrong. */
+data class RefuelIssue(val text: String, val learning: Boolean)
+
+/** A tank this far (±) from the usual km/L is asked about; past [KMPL_OUTLIER] it isn't learned from anyway. */
+const val REVIEW_KMPL_OFF = 0.25
+
+/** A price this far (±) from the fuel's last one. */
+const val REVIEW_PRICE_OFF = 0.3
+
+/** An odometer this far (km) from the estimate. */
+const val REVIEW_ODO_KM = 100.0
+
+/** A partial this close (L) to the room left looks like a full refill with the switch off. */
+const val REVIEW_LOOKS_FULL_L = 0.3
+
+/**
+ * 4.8: what is unusual about [entry] (a new fill-up with id 0, or an edited one among [refuels] by its id), in plain
+ * words; empty for a normal one, which is saved without a question. [roomL] and [estimateKm] (new entries): the
+ * estimated room in the tank and odometer. [knownPrice]: the fuel's price, 0 when there is none yet.
+ */
+fun reviewRefuel(
+    entry: RefuelRecord,
+    refuels: List<RefuelRecord>,
+    startKmPerL: Double,
+    awayTimesMs: List<Long>,
+    dash: List<DashKmPerL>,
+    tankLitres: Double,
+    roomL: Double?,
+    estimateKm: Double?,
+    knownPrice: Double,
+): List<RefuelIssue> {
+    val issues = ArrayList<RefuelIssue>()
+    val others = refuels.filterNot { it.id == entry.id }
+    val all = chronological(others + entry)
+    val at = all.indexOfFirst { it.id == entry.id }
+    val before = all.getOrNull(at - 1)
+    val after = all.getOrNull(at + 1)
+    when {
+        before != null && entry.odometerKm < before.odometerKm ->
+            issues += RefuelIssue("The odometer is below the fill-up before it (${formatOdometer(before.odometerKm)}).", true)
+        after != null && entry.odometerKm > after.odometerKm ->
+            issues += RefuelIssue("The odometer is above the next fill-up (${formatOdometer(after.odometerKm)}).", true)
+        estimateKm != null && abs(entry.odometerKm - estimateKm) > REVIEW_ODO_KM ->
+            issues += RefuelIssue("The odometer is ${formatOdometer(abs(entry.odometerKm - estimateKm))} from the estimate.", true)
+        else -> {
+            // Not learning from this entry: what the bike usually does. With it: the tank that ends here, and the one that starts here.
+            val usual = learnConsumption(startKmPerL, others + entry.copy(learn = false), awayTimesMs, dash)
+            val nextFull = all.drop(at + 1).firstOrNull { it.full }
+            learnConsumption(startKmPerL, all, awayTimesMs, dash).measures
+                .filter { it.endRefuelId == entry.id || (nextFull != null && nextFull.learn && it.endRefuelId == nextFull.id) }
+                .firstOrNull { it.kmPerL !in KMPL_PLAUSIBLE || (usual.learned && abs(it.kmPerL / usual.kmPerL - 1) > REVIEW_KMPL_OFF) }
+                ?.let { m ->
+                    val which = if (m.endRefuelId == entry.id) "This tank" else "The next tank"
+                    issues += RefuelIssue("$which comes to ${formatKmPerL(m.kmPerL)}; usually ${formatKmPerL(usual.kmPerL)}.", true)
+                }
+            if (issues.isEmpty() && roomL != null) {
+                if (entry.litres > roomL + maxOf(1.0, 0.15 * tankLitres)) {
+                    issues += RefuelIssue("More than the estimated room in the tank (${formatLitres(roomL)}).", true)
+                } else if (!entry.full && entry.litres >= roomL - REVIEW_LOOKS_FULL_L) {
+                    issues += RefuelIssue("Enough to fill the tank, but Full refill is off.", false)
+                }
+            }
+        }
+    }
+    if (knownPrice > 0 && abs(entry.pricePerL / knownPrice - 1) > REVIEW_PRICE_OFF) {
+        issues += RefuelIssue("${formatRupiah(entry.pricePerL)} per liter; last time ${formatRupiah(knownPrice)}.", false)
+    }
+    return issues
+}

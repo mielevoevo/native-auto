@@ -58,6 +58,16 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nativeauto.R
 import com.nativeauto.garage.BikeDraft
+import com.nativeauto.garage.BikeType
+import com.nativeauto.garage.CustomFuel
+import com.nativeauto.garage.Fuel
+import com.nativeauto.garage.RangeCaution
+import com.nativeauto.garage.fuelChoices
+import com.nativeauto.garage.fuelOf
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
+import androidx.compose.ui.semantics.Role
+import com.nativeauto.ui.theme.appSwitchColors
 import com.nativeauto.garage.DEFAULT_LOW_FUEL_KM
 import com.nativeauto.garage.LOW_FUEL_CHOICES_KM
 import com.nativeauto.garage.LOW_FUEL_RANGE_KM
@@ -115,11 +125,15 @@ internal fun BikeEditor(
     onDelete: (() -> Unit)?,
     onDismiss: () -> Unit,
     learnedKmPerL: String? = null,
+    fuels: List<CustomFuel> = emptyList(),
 ) {
     val haptics = rememberHaptics()
     var name by rememberSaveable { mutableStateOf(bike?.name ?: "") }
     var model by rememberSaveable { mutableStateOf(bike?.bikeModel ?: newModel) }
-    var fuel by rememberSaveable { mutableStateOf(bike?.fuel ?: FuelType.PERTAMAX) }
+    var fuelKey by rememberSaveable { mutableStateOf(bike?.fuelType ?: FuelType.PERTAMAX.key) }
+    val fuel = fuelOf(fuelKey, fuels)
+    var type by rememberSaveable { mutableStateOf(bike?.bikeType ?: BikeType.SCOOTER_CVT) }
+    var caution by rememberSaveable { mutableStateOf(bike?.caution ?: RangeCaution.NORMAL) }
     var tank by rememberSaveable { mutableStateOf(trimNumber(bike?.tankLitres ?: model.tankLitres)) }
     var reserve by rememberSaveable { mutableStateOf(trimNumber(bike?.reserveLitres ?: model.reserveLitres)) }
     var kmPerL by rememberSaveable { mutableStateOf(trimNumber(bike?.startKmPerL ?: DEFAULT_KM_PER_L)) }
@@ -150,7 +164,7 @@ internal fun BikeEditor(
             Spacer(Modifier.width(8.dp))
             FilledTonalButton(
                 onClick = {
-                    onSave(BikeDraft(name.trim(), model, tankL!!, reserveL!!, fuel, kmL!!, lowKm!!, bars, factorTenths?.let { 1.0 + it / 1000.0 }), odoKm)
+                    onSave(BikeDraft(name.trim(), model, tankL!!, reserveL!!, fuel, kmL!!, lowKm!!, bars, factorTenths?.let { 1.0 + it / 1000.0 }, type, caution), odoKm)
                 },
                 enabled = valid,
                 modifier = Modifier.heightIn(min = 56.dp).testTag("garage_save"),
@@ -175,10 +189,18 @@ internal fun BikeEditor(
                         tank = trimNumber(it.tankLitres)
                         reserve = trimNumber(it.reserveLitres)
                         bars = it.gaugeBars
+                        // The presets are all scooters.
+                        type = BikeType.SCOOTER_CVT
                     }
                 }
-                Text("Fuel", style = MaterialTheme.typography.titleMedium)
-                Segments(FuelType.entries, fuel, { it.label }, { "garage_fuel_${it.name}" }, label = { FuelLabel(it) }) { haptics.tick(); fuel = it }
+                // 4.8: which service parts it has. A preset says so itself.
+                if (model == BikeModel.OTHER) {
+                    Segments(BikeType.entries, type, { it.label }, { "garage_type_${it.name}" }) { haptics.tick(); type = it }
+                }
+                val choices = fuelChoices(fuels, fuel)
+                // The row that opens tiles says it itself.
+                if (choices.size <= FuelType.entries.size) Text("Fuel", style = MaterialTheme.typography.titleMedium)
+                FuelPicker(choices, fuel, "garage_fuel") { haptics.tick(); fuelKey = it.key }
                 Stepper(
                     title = "Fuel gauge bars",
                     hint = "Count them on the dash",
@@ -203,6 +225,9 @@ internal fun BikeEditor(
                         "garage_low_input", Modifier.fillMaxWidth(), whole = true,
                     )
                 }
+                // 4.8: lower than the estimate, for a rider who wants a margin.
+                Text("Range shown", style = MaterialTheme.typography.titleMedium)
+                Segments(RangeCaution.entries, caution, { it.label }, { "garage_caution_${it.name}" }) { haptics.tick(); caution = it }
                 if (bike == null) {
                     NumberField(
                         odometer, { odometer = it }, "Odometer now (km, optional)", odometer.isNotBlank() && odoKm == null,
@@ -275,7 +300,7 @@ private fun percentOf(tenths: Int): String = String.format(java.util.Locale.US, 
 
 /** A row of the form that opens something: a title, what it stands at now, an arrow. */
 @Composable
-private fun FormRow(title: String, value: String, tag: String, onClick: () -> Unit) {
+internal fun FormRow(title: String, value: String, tag: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
@@ -293,30 +318,54 @@ private fun FormRow(title: String, value: String, tag: String, onClick: () -> Un
 
 /** 4.7: ten presets don't fit a segmented row: the model is a row that opens them as big tiles, all in view. */
 @Composable
-private fun ModelPicker(model: BikeModel, onPick: (BikeModel) -> Unit) {
+private fun ModelPicker(model: BikeModel, onPick: (BikeModel) -> Unit) =
+    TilePicker("Model", BikeModel.entries, model, { it.label }, "garage_model", "garage_models", { "garage_model_${it.name}" }, onPick)
+
+/** 4.8: the four pump fuels as a segmented row; with fuels of the rider's own, a row that opens them all as tiles. */
+@Composable
+internal fun FuelPicker(fuels: List<Fuel>, fuel: Fuel, tag: String, onPick: (Fuel) -> Unit) {
+    if (fuels.size <= FuelType.entries.size) {
+        Segments(fuels, fuel, { it.label }, { "${tag}_${fuelTag(it)}" }, label = { FuelLabel(it) }, onSelect = onPick)
+    } else {
+        TilePicker("Fuel", fuels, fuel, { it.label }, "${tag}_row", "${tag}_tiles", { "${tag}_${fuelTag(it)}" }, onPick)
+    }
+}
+
+/** A form row that opens its choices as big tiles. */
+@Composable
+private fun <T> TilePicker(
+    title: String,
+    options: List<T>,
+    selected: T,
+    text: (T) -> String,
+    rowTag: String,
+    dialogTag: String,
+    tag: (T) -> String,
+    onPick: (T) -> Unit,
+) {
     var open by rememberSaveable { mutableStateOf(false) }
-    FormRow("Model", "${model.label}  ▾", "garage_model") { open = true }
+    FormRow(title, "${text(selected)}  ▾", rowTag) { open = true }
     if (!open) return
-    AppDialogSurface("garage_models", onDismiss = { open = false }, maxWidth = 900.dp, spacing = 12.dp) {
+    AppDialogSurface(dialogTag, onDismiss = { open = false }, maxWidth = 900.dp, spacing = 12.dp) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Model", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             TextButton(onClick = { open = false }, modifier = Modifier.heightIn(min = 56.dp)) { Text("Cancel") }
         }
         val columns = if (LocalPortrait.current) 2 else 3
-        BikeModel.entries.chunked(columns).forEach { row ->
+        options.chunked(columns).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { m ->
-                    val on = m == model
+                    val on = m == selected
                     Surface(
                         onClick = { open = false; if (!on) onPick(m) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (on) AppTheme.colors.navy else AppTheme.colors.surface,
                         contentColor = if (on) AppTheme.colors.onNavy else AppTheme.colors.text,
                         border = BorderStroke(1.dp, AppTheme.colors.outline),
-                        modifier = Modifier.weight(1f).testTag("garage_model_${m.name}"),
+                        modifier = Modifier.weight(1f).testTag(tag(m)),
                     ) {
                         Box(Modifier.heightIn(min = 56.dp), contentAlignment = Alignment.Center) {
-                            Text(m.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                            Text(text(m), style = MaterialTheme.typography.titleMedium, maxLines = 1)
                         }
                     }
                 }
@@ -343,11 +392,7 @@ private fun Stepper(
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(hint, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textDim)
         }
-        FilledTonalIconButton(
-            onClick = onLower,
-            enabled = canLower,
-            modifier = Modifier.size(56.dp).testTag("${tag}_minus").semantics { contentDescription = "Lower: $title" },
-        ) { Text("−", style = MaterialTheme.typography.headlineSmall) }
+        StepButton("−", "Lower: $title", "${tag}_minus", canLower, onLower)
         Text(
             value,
             style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
@@ -356,11 +401,32 @@ private fun Stepper(
             softWrap = false,
             modifier = Modifier.width(84.dp).testTag("${tag}_value"),
         )
-        FilledTonalIconButton(
-            onClick = onRaise,
-            enabled = canRaise,
-            modifier = Modifier.size(56.dp).testTag("${tag}_plus").semantics { contentDescription = "Raise: $title" },
-        ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
+        StepButton("+", "Raise: $title", "${tag}_plus", canRaise, onRaise)
+    }
+}
+
+@Composable
+internal fun StepButton(sign: String, description: String, tag: String, enabled: Boolean, onClick: () -> Unit) {
+    FilledTonalIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(56.dp).testTag(tag).semantics { contentDescription = description },
+    ) { Text(sign, style = MaterialTheme.typography.headlineSmall) }
+}
+
+/** A switch as a whole row of the form. */
+@Composable
+internal fun FormSwitch(title: String, checked: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = null, colors = appSwitchColors())
     }
 }
 
@@ -504,7 +570,7 @@ fun GaragePrompts(viewModel: GarageViewModel = hiltViewModel()) {
 
 /** 12c: the fuel's button label: brand small on top, grade below ("Pertamax" / "Turbo"); Pertalite on one line. */
 @Composable
-internal fun FuelLabel(fuel: FuelType) {
+internal fun FuelLabel(fuel: Fuel) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         fuel.brand?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) }
         Text(fuel.grade, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)

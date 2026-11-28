@@ -65,7 +65,12 @@ class GpxBackupTest {
         // A point without altitude is written as before: six values.
         assertTrue(json.contains("[1762650001000,-7.79991,110.37008,11.0,null,5.0]"))
         // The height is above the ellipsoid, which GPX's <ele> isn't.
-        assertFalse(buildGpx(trip, high).contains("<ele>"))
+        val gpx = buildGpx(trip, high)
+        assertFalse(gpx.contains("<ele>"))
+        // 4.8: it goes along labeled as raw, with its accuracy where there is one.
+        assertTrue(gpx.contains("<rawaltitude>123.40</rawaltitude><rawaltitudeaccuracy>2.50</rawaltitudeaccuracy></extensions>"))
+        assertTrue(gpx.contains("<rawaltitude>-3.10</rawaltitude></extensions>"))
+        assertEquals(2, Regex("<rawaltitude>").findAll(gpx).count())
     }
 
     @Test fun `the riding load travels in the backup, and a trip without it reads back without it`() {
@@ -101,6 +106,12 @@ class GpxBackupTest {
             override suspend fun missingAddresses() = emptyList<TripRecord>()
             override suspend fun deleteTrip(id: Long) = Unit
             override suspend fun deletePoints(tripId: Long) = Unit
+            override suspend fun tripsWithoutEffort() = trips.value.filter { t -> t.effortM == null && track.any { it.tripId == t.id } }.map { it.id }
+            override suspend fun setEffort(id: Long, distanceM: Double, flatJ: Double, slopeJ: Double, slopeM: Double, slowS: Double) {
+                trips.value = trips.value.map {
+                    if (it.id == id) it.copy(effortM = distanceM, effortFlatJ = flatJ, effortSlopeJ = slopeJ, effortSlopeM = slopeM, effortSlowS = slowS) else it
+                }
+            }
         }
         val backup = listOf(
             Backup.TripWithTrack(trip, points),
@@ -110,5 +121,64 @@ class GpxBackupTest {
         assertEquals(2, dao.points(1).size)
         assertEquals(0, Backup.restore(dao, backup))
         assertEquals(2, dao.trips.value.size)
+        // 4.8: the effort of what came in is worked out from its track; a trip without one stays without.
+        dao.fillMissingEffort()
+        assertEquals(13.3, dao.trips.value[0].effortM!!, 0.5)
+        assertNull(dao.trips.value[1].effortM)
+    }
+
+    // ---- 4.8: the password ----
+
+    private fun protectedFile(scope: BackupScope = BackupScope.EVERYTHING, password: String = "gas pol 2026"): ByteArray {
+        val out = ByteArrayOutputStream()
+        val trips = if (scope == BackupScope.EVERYTHING) listOf(Backup.TripWithTrack(trip, points)) else emptyList()
+        Backup.write(trips, out, null, password.toCharArray(), scope)
+        return out.toByteArray()
+    }
+
+    @Test fun `a protected backup reads back with its password and names no trip outside it`() {
+        val file = protectedFile()
+        assertTrue(Backup.isProtected(file))
+        val back = Backup.readAll(file, "gas pol 2026".toCharArray()).trips.single()
+        assertEquals(trip.copy(id = 0), back.trip)
+        assertEquals(points.map { it.copy(id = 0, tripId = 0) }, back.points)
+        val text = file.toString(Charsets.ISO_8859_1)
+        assertFalse(text.contains(gpxFileName(trip)))
+        assertFalse(text.contains("Malioboro"))
+        assertTrue(text.contains("gpx.zip"))
+    }
+
+    @Test fun `without the password, or with another one, nothing is read`() {
+        val file = protectedFile()
+        val none = runCatching { Backup.readAll(file, null) }.exceptionOrNull()
+        assertTrue(none is Backup.PasswordException && !none.wrong)
+        listOf("gas pol 2025", "x", "GAS POL 2026").forEach {
+            val wrong = runCatching { Backup.readAll(file, it.toCharArray()) }.exceptionOrNull()
+            assertTrue("$it: $wrong", wrong is Backup.PasswordException && wrong.wrong)
+        }
+    }
+
+    @Test fun `a changed protected file isn't imported`() {
+        val file = protectedFile()
+        file[file.size / 3] = (file[file.size / 3] + 1).toByte()
+        assertTrue(runCatching { Backup.readAll(file, "gas pol 2026".toCharArray()) }.isFailure)
+    }
+
+    @Test fun `an unprotected backup needs no password and ignores one`() {
+        val out = ByteArrayOutputStream()
+        Backup.write(listOf(Backup.TripWithTrack(trip, points)), out)
+        assertFalse(Backup.isProtected(out.toByteArray()))
+        assertEquals(1, Backup.readAll(out.toByteArray(), null).trips.size)
+        assertEquals(1, Backup.readAll(out.toByteArray(), "any".toCharArray()).trips.size)
+    }
+
+    @Test fun `a garage only backup holds no trips and says so`() {
+        val json = Backup.encode(emptyList(), null, BackupScope.GARAGE)
+        assertTrue(json.contains("\"scope\":\"garage\""))
+        assertTrue(Backup.decode(json).isEmpty())
+        assertFalse(Backup.encode(emptyList()).contains("scope"))
+        val file = protectedFile(BackupScope.GARAGE)
+        assertFalse(file.toString(Charsets.ISO_8859_1).contains("gpx"))
+        assertTrue(Backup.readAll(file, "gas pol 2026".toCharArray()).trips.isEmpty())
     }
 }

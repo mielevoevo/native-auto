@@ -988,9 +988,9 @@ Found on the phone with v4.6. Proposals the rider has not explicitly confirmed a
 | 4.6.3 (done) | Portrait sizes as one shared scale (4.9 reuses it), smaller faint icon on the card edge |
 | 4.6.4 (done) | Ride feedback on 4.6.3, below |
 | 4.7 (done) | Traffic recording (range not changed yet), universal bikes, gauge per bike, Fine-tuning |
-| 4.8 | Fill-up review, range caution, service sets, custom fuels; API key scrubbing (4.8 or 4.9, rider) |
+| 4.8 (done) | Fill-up editing and review, range caution and 2 km steps, range that follows the riding (gated), dash km/L list, own fuels, service parts, backup choices and password, speed-shaded route, key scrubbing |
 | 4.9 | Tablet preview: large-screen foundation for car mode, below |
-| 4.10 | Feedback on 4.8 and 4.9 (probably, rider) |
+| 4.10 | Feedback on 4.8 and 4.9, plus a full bug check of the whole app (rider, 2026-11-26) |
 | 5.0 | Car mode (parked until the rider calls for it); public keyless release (WIP), below |
 | 5.1 | App tutorial: how to use the app, on first install or after Reset app (rider; WIP) |
 | 5.2 | Google map, navigation and search (was 4.10; plan only, billing not settled), below |
@@ -1152,6 +1152,9 @@ screen is about 635 x 800 and would otherwise count as a tablet.
 right, by the driver. LHD: A and B mirrored, D's strip reversed (speed by the driver), E's columns swapped, map buttons on the left edge. Never mirrored: text,
 turn arrows, previous / next, the history. Uses the existing side swap (`bigOnLeft`). Routing is not affected.
 
+**4.8 built 2026-11-26** (DECISIONS "4.8"). To see on the bike: the 9 Nov fill-up corrected to full (tap it in the refuel log), the range in 2 km steps, the dialog
+after a ride with one tap, and at the next full tank "2 of 2". For 4.10: the portrait history card's "max" label wraps (older).
+
 ### 5.2 (was 4.10) · Google map, navigation and search (rider, 2026-11-25; PLAN ONLY)
 - Own version, if possible; waits until Google billing works. The map engine and its traffic button are already in the app and turn on
   with a key (`MapEngine`); to do: a restricted key, a test on phone and tablet, and which engine each build uses. MapLibre stays the fallback.
@@ -1188,3 +1191,10 @@ turn arrows, previous / next, the history. Uses the existing side swap (`bigOnLe
 - Call card bug and caller name: built, see DECISIONS.md "4.7.1". To check on the phone: a SIM call's name on the card, a swap during a call.
 - S8 screenshots (v4.7, 2560x1600), for 4.9: phone-sized content in large cards (Rows, Quad and Duo are mostly empty), small controls and text,
   the map at world view with no fix; the two-column bike editor fits.
+
+### 4.10 · Full bug check (rider, 2026-11-26; NOT started)
+Besides the ride feedback, 4.10 checks the whole app, not only what changed: every screen and dialog in landscape, portrait
+(at the Redmi's density) and light; every card in every layout and mode; setup, trip life cycle, auto start / pause / resume / end,
+recovery after the app is killed, navigation, search, calls, media, Garage (bikes, fill-ups, gauge, services, range), history, GPX,
+backup and import (old formats, password, Garage only), settings, Reset app, rotation, theme and font-size changes, no GPS / no
+network / no permissions. All device tests run, not a subset. Bugs found are fixed in 4.10 or listed with a reason.

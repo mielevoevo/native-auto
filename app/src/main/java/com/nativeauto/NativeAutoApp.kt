@@ -2,10 +2,16 @@ package com.nativeauto
 
 import android.app.Application
 import com.nativeauto.garage.GarageRepository
+import com.nativeauto.di.ApplicationScope
+import com.nativeauto.history.TripDao
 import com.nativeauto.history.TripRecorder
+import com.nativeauto.history.fillMissingEffort
 import com.nativeauto.trip.AutoTrip
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -20,6 +26,8 @@ class NativeAutoApp : Application() {
     @Inject lateinit var garage: GarageRepository
     @Inject lateinit var settings: com.nativeauto.settings.SettingsRepository
     @Inject lateinit var setup: com.nativeauto.setup.SetupState
+    @Inject lateinit var trips: TripDao
+    @Inject @ApplicationScope lateinit var scope: CoroutineScope
 
     override fun onCreate() {
         super.onCreate()
@@ -30,7 +38,16 @@ class NativeAutoApp : Application() {
         runBlocking { settings.initialiseDefaults(fresh) }
         recorder.start()
         autoTrip.start()
+        // 4.8: once after an update: the effort of the trips so far, from their saved tracks. Not while the app is starting.
+        scope.launch {
+            delay(EFFORT_FILL_DELAY_MS)
+            runCatching { trips.fillMissingEffort() }
+        }
         // 11a: "which bike?" after a big change of location, debug builds only (§6 privacy note).
         if (BuildConfig.DEBUG) garage.startWhichBikeCheck()
+    }
+
+    private companion object {
+        const val EFFORT_FILL_DELAY_MS = 15_000L
     }
 }

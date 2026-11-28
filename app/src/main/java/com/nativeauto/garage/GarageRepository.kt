@@ -41,7 +41,7 @@ data class BikeDraft(
     val model: BikeModel,
     val tankLitres: Double,
     val reserveLitres: Double,
-    val fuel: FuelType,
+    val fuel: Fuel,
     val startKmPerL: Double,
     /** 4.6.1: warn at this many km of range left. */
     val lowFuelKm: Int = DEFAULT_LOW_FUEL_KM,
@@ -49,10 +49,11 @@ data class BikeDraft(
     val gaugeBars: Int = model.gaugeBars,
     /** 4.7: the rider's own odometer correction (bike km per GPS km); null = the learned one. */
     val odoFactorManual: Double? = null,
+    /** 4.8: which service parts the bike has. */
+    val type: BikeType = BikeType.SCOOTER_CVT,
+    /** 4.8: how cautious its range is. */
+    val caution: RangeCaution = RangeCaution.NORMAL,
 )
-
-/** 4.6.1: the riding load is recorded but doesn't move the range. 4.7 records crawling too; whether and how the range uses it is the rider's decision. */
-const val RANGE_FOLLOWS_RIDING = false
 
 /** A question the dashboard shows as a dialog (never while a pane is being used for riding info). */
 sealed interface GaragePrompt {
@@ -79,9 +80,11 @@ data class RefuelDraft(
     val litres: Double,
     val pricePerL: Double,
     val totalRp: Double,
-    val fuel: FuelType,
+    val fuel: Fuel,
     /** The bike's real odometer, prefilled with the estimate. */
     val odometerKm: Double,
+    /** 4.8: false = don't learn km/L from it. */
+    val learn: Boolean = true,
 )
 
 /** A bike's fuel as the Garage shows it (11b). */
@@ -92,8 +95,14 @@ data class FuelState(
     val refuels: List<RefuelRecord>,
     /** Rp per litre of the bike's fuel: the last price logged, else the default. */
     val pricePerL: Double,
-    /** 4.3d: the riding-load adjustment already in [level]'s range (factor 1.0 until learned). */
+    /** 4.8: how the riding lately moves [level]'s range (factor 1.0 until the bike's model is good enough). */
     val load: RangeLoad = RangeLoad(),
+    /** 4.8: how far that model is. */
+    val learning: RangeLearning = RangeLearning(),
+    /** 4.8: the dash figures, newest first. */
+    val dash: List<DashKmPerL> = emptyList(),
+    /** When km by others were logged: tanks with one in them aren't measured. */
+    val awayTimesMs: List<Long> = emptyList(),
 )
 
 /** What the rider types when adding or editing a service item (11c). */
@@ -141,8 +150,8 @@ class GarageRepository @Inject constructor(
     val bikes: Flow<List<BikeRecord>> = dao.observeBikes()
     val active: Flow<BikeRecord?> = dao.observeActive()
 
-    /** 4.6.1: whether the riding load moves the range ([RANGE_FOLLOWS_RIDING]); the unit tests turn it on. */
-    internal var rangeFollowsRiding: Boolean = RANGE_FOLLOWS_RIDING
+    /** 4.8: the ranges as shown, so they don't flicker. */
+    private val rangeHold = RangeHold()
 
     private val _prompt = MutableStateFlow<GaragePrompt?>(null)
     val prompt: StateFlow<GaragePrompt?> = _prompt.asStateFlow()
@@ -199,8 +208,42 @@ class GarageRepository @Inject constructor(
     fun prices(): Flow<List<FuelPrice>> = dao.observePrices()
 
     /** 12c: the rider's price for [fuel] (a rate change), kept until changed again. Past refuels keep theirs. */
-    suspend fun setPrice(fuel: FuelType, pricePerL: Double) = lock.withLock {
-        dao.upsertPrice(FuelPrice(fuel.name, pricePerL, wall.nowMs()))
+    suspend fun setPrice(fuel: Fuel, pricePerL: Double) = lock.withLock {
+        dao.upsertPrice(FuelPrice(fuel.key, pricePerL, wall.nowMs()))
+    }
+
+    /** 4.8: the rider's own fuels, deleted ones included (old fill-ups still name them). */
+    fun customFuels(): Flow<List<CustomFuel>> = dao.observeCustomFuels()
+
+    /**
+     * 4.8: adds a fuel ([key] null) or changes one's name and price. A name that is already there (a pump fuel's, or
+     * another of the rider's) is refused: false. Adding one that was deleted brings it back.
+     */
+    suspend fun saveCustomFuel(key: String?, name: String, pricePerL: Double): Boolean = lock.withLock {
+        val clean = name.trim()
+        if (clean.isEmpty()) return@withLock false
+        val all = dao.allCustomFuels()
+        val taken = FuelType.entries.any { it.label.equals(clean, ignoreCase = true) } ||
+            all.any { !it.retired && it.key != key && it.name.equals(clean, ignoreCase = true) }
+        if (taken) return@withLock false
+        val now = wall.nowMs()
+        val fuel = if (key == null) {
+            val k = customFuelKey(clean)
+            // Its key may belong to a fuel that was renamed since: that one keeps it.
+            val free = if (all.any { it.key == k && !it.retired }) "$k#$now" else k
+            all.firstOrNull { it.key == free }?.copy(name = clean, retired = false) ?: CustomFuel(free, clean, now)
+        } else {
+            all.firstOrNull { it.key == key }?.copy(name = clean) ?: return@withLock false
+        }
+        dao.upsertCustomFuel(fuel)
+        dao.upsertPrice(FuelPrice(fuel.key, pricePerL, now))
+        true
+    }
+
+    /** 4.8: the fuel can't be picked any more; its fill-ups (and a bike set to it) keep it. */
+    suspend fun deleteCustomFuel(key: String) = lock.withLock {
+        dao.allCustomFuels().firstOrNull { it.key == key }?.let { dao.upsertCustomFuel(it.copy(retired = true)) }
+        Unit
     }
 
     /**
@@ -209,43 +252,74 @@ class GarageRepository @Inject constructor(
      */
     fun fuel(bikeId: String): Flow<FuelState> =
         combine(
-            dao.observeBikes().map { list -> list.firstOrNull { it.id == bikeId } },
-            dao.observeRefuels(bikeId),
+            dao.observeBikes().map { list -> list.firstOrNull { it.id == bikeId } }.distinctUntilChanged(),
+            learned(bikeId),
             dao.observeReadings(bikeId).map { rs -> rs.filter { it.readingKind == ReadingKind.AWAY }.map { it.timeMs } }.distinctUntilChanged(),
-            odometer(bikeId).map { it.estimateKm },
+            odometer(bikeId).map { it.estimateKm }.distinctUntilChanged(),
             combine(
                 dao.observePrices(),
+                dao.observeCustomFuels(),
                 dao.observeFuelMarks(bikeId),
-                dao.observeDashKmPerL(bikeId),
-                dao.observeTripLoads(bikeId),
                 dao.observeActive().map { it?.id == bikeId }.distinctUntilChanged()
-                    .flatMapLatest { isActive -> if (isActive) liveLoad.sums else flowOf(null) },
+                    .flatMapLatest { isActive -> if (isActive) liveLoad.live else flowOf(null) },
                 ::FuelExtras,
             ),
-        ) { bike, refuels, away, odo, x ->
+        ) { bike, learned, away, odo, x ->
             val tank = bike?.tankLitres ?: BikeModel.OTHER.tankLitres
-            val consumption = learnConsumption(bike?.startKmPerL ?: DEFAULT_KM_PER_L, refuels, away, x.dash)
-            // 4.3d: the range follows how the bike is ridden lately, once the fill-ups have shown how that matters.
-            // 4.6.1: off (it ignores stops and idling, so a traffic jam reads as easy riding).
-            val load = if (!rangeFollowsRiding) RangeLoad() else rangeLoad(fitLoad(spanLoads(consumption.measures, x.loads.reversed())), recentLoad(x.loads, x.live))
+            val consumption = learned.consumption
+            // 4.8: the range follows how the bike is ridden lately, once its own figures have shown that this is better.
+            val load = rangeLoad(learned.range.model, learned.rides, x.live)
+            // 12b: the level burns at the cautious figure, so litres left and range lean low together.
+            val level = fuelLevel(tank, consumption.cautiousKmPerL, learned.refuels, away, odo, x.marks).copy(
+                loadFactor = load.factor,
+                lowFuelKm = bike?.lowFuelKm ?: DEFAULT_LOW_FUEL_KM,
+                caution = bike?.caution?.factor ?: 1.0,
+                stepKm = if (consumption.learned) RANGE_STEP_KM else RANGE_GUESS_STEP_KM,
+            )
+            val entered = listOf(learned.refuels, x.marks, away, tank, level.caution, level.stepKm, bike?.startKmPerL, load.on)
             FuelState(
-                // 12b: the level burns at the cautious figure, so litres left and range lean low together.
-                level = fuelLevel(tank, consumption.cautiousKmPerL, refuels, away, odo, x.marks).copy(loadFactor = load.factor, lowFuelKm = bike?.lowFuelKm ?: DEFAULT_LOW_FUEL_KM),
+                level = level.copy(heldKm = rangeHold.show(bikeId, entered, level.steppedRangeKm)),
                 consumption = consumption,
-                refuels = refuels,
-                pricePerL = priceOf(bike?.fuel ?: FuelType.PERTAMAX, x.prices),
+                refuels = learned.refuels,
+                pricePerL = bike?.let { priceOf(fuelOf(it.fuelType, x.custom), x.prices) } ?: FuelType.PERTAMAX.defaultPricePerL,
                 load = load,
+                learning = learned.range,
+                dash = learned.dash,
+                awayTimesMs = away,
             )
         }.distinctUntilChanged()
 
     private data class FuelExtras(
         val prices: List<FuelPrice>,
+        val custom: List<CustomFuel>,
         val marks: List<FuelMark>,
+        val live: LiveEffort?,
+    )
+
+    /** What the entries teach: worked out when one changes, not at every metre ridden. */
+    private data class Learned(
+        val consumption: Consumption,
+        val range: RangeLearning,
+        val refuels: List<RefuelRecord>,
         val dash: List<DashKmPerL>,
         /** Newest first. */
-        val loads: List<TripLoad>,
-        val live: LoadSums?,
+        val rides: List<RideEffort>,
     )
+
+    private fun learned(bikeId: String): Flow<Learned> =
+        combine(
+            dao.observeBikes().map { list -> list.firstOrNull { it.id == bikeId }?.startKmPerL ?: DEFAULT_KM_PER_L }.distinctUntilChanged(),
+            dao.observeRefuels(bikeId).distinctUntilChanged(),
+            dao.observeReadings(bikeId).distinctUntilChanged(),
+            dao.observeDashKmPerL(bikeId).distinctUntilChanged(),
+            dao.observeRideEfforts(bikeId).distinctUntilChanged(),
+        ) { start, refuels, readings, dash, rides ->
+            val away = readings.filter { it.readingKind == ReadingKind.AWAY }.map { it.timeMs }
+            // Km the app didn't see: others', or the rider's without it (an estimate kept has 0 km).
+            val gaps = readings.filter { it.readingKind == ReadingKind.AWAY || (it.readingKind == ReadingKind.UNTRACKED && it.awayKm > 0) }.map { it.timeMs }
+            val consumption = learnConsumption(start, refuels, away, dash)
+            Learned(consumption, learnRangeModel(dash, rides, gaps, consumption.measures), refuels, dash, rides)
+        }
 
     /**
      * Logs a fill-up. The odometer typed at the pump is the truth: if it differs from the
@@ -269,11 +343,27 @@ class GarageRepository @Inject constructor(
             dao.insertRefuel(
                 RefuelRecord(
                     bikeId = bikeId, timeMs = now, odometerKm = odo, litres = draft.litres, pricePerL = draft.pricePerL,
-                    totalRp = draft.totalRp, full = full, fuelType = draft.fuel.name,
+                    totalRp = draft.totalRp, full = full, fuelType = draft.fuel.key, learn = draft.learn,
                 ),
             )
-            dao.upsertPrice(FuelPrice(draft.fuel.name, draft.pricePerL, now))
+            dao.upsertPrice(FuelPrice(draft.fuel.key, draft.pricePerL, now))
         }
+    }
+
+    /**
+     * 4.8: a fill-up corrected later. Its day stays; what is typed is the truth (the switch too), and no odometer reading
+     * is stored for it. Its price becomes the fuel's again only where it already was the last one.
+     */
+    suspend fun updateRefuel(id: Long, draft: RefuelDraft) = lock.withLock {
+        val old = dao.refuel(id) ?: return@withLock
+        dao.updateRefuel(
+            old.copy(
+                odometerKm = draft.odometerKm, litres = draft.litres, pricePerL = draft.pricePerL, totalRp = draft.totalRp,
+                full = draft.full, fuelType = draft.fuel.key, learn = draft.learn,
+            ),
+        )
+        val price = dao.allPrices().firstOrNull { it.fuelType == old.fuelType }
+        if (price != null && old.fuelType == draft.fuel.key && price.updatedAtMs == old.timeMs) dao.upsertPrice(price.copy(pricePerL = draft.pricePerL))
     }
 
     suspend fun deleteRefuel(id: Long) = lock.withLock { dao.deleteRefuel(id) }
@@ -304,6 +394,15 @@ class GarageRepository @Inject constructor(
         dao.insertDashKmPerL(DashKmPerL(bikeId = bikeId, timeMs = wall.nowMs(), kmPerL = kmPerL, tripKm = tripKm))
         true
     }
+
+    /** 4.8: a dash figure corrected. False if implausible. */
+    suspend fun updateDashKmPerL(id: Long, kmPerL: Double): Boolean = lock.withLock {
+        if (kmPerL !in KMPL_PLAUSIBLE) return@withLock false
+        dao.setDashKmPerL(id, kmPerL)
+        true
+    }
+
+    suspend fun deleteDashKmPerL(id: Long) = lock.withLock { dao.deleteDashEntry(id) }
 
     /**
      * The rider's own ride without the app ("Add untracked km"): re-anchors the odometer at the
@@ -409,6 +508,18 @@ class GarageRepository @Inject constructor(
         }
     }
 
+    /**
+     * 4.8, for a Garage-only backup (no trips in it): the odometer as it stands now, per bike with one, as a reading that
+     * teaches nothing. Not stored here: where it is imported, the estimate carries on from it.
+     */
+    suspend fun odometerAnchors(): List<OdometerReading> = dao.allBikes().mapNotNull { bike ->
+        val km = estimateNow(bike.id) ?: return@mapNotNull null
+        OdometerReading(
+            bikeId = bike.id, timeMs = wall.nowMs(), km = km, kind = ReadingKind.UNTRACKED.name,
+            tripOffsetM = if (bike.active) liveNow()?.distanceM ?: 0.0 else 0.0,
+        )
+    }
+
     /** The estimate right now (one-shot). */
     suspend fun estimateNow(bikeId: String): Double? {
         val reading = dao.lastReading(bikeId) ?: return null
@@ -431,14 +542,16 @@ class GarageRepository @Inject constructor(
             BikeRecord(
                 id = id,
                 name = draft.name.trim(),
+                type = draft.type.name,
                 model = draft.model.name,
                 tankLitres = draft.tankLitres,
                 reserveLitres = draft.reserveLitres,
-                fuelType = draft.fuel.name,
+                fuelType = draft.fuel.key,
                 startKmPerL = draft.startKmPerL,
                 lowFuelKm = draft.lowFuelKm,
                 gaugeBars = draft.gaugeBars,
                 odoFactorManual = draft.odoFactorManual,
+                cautionPct = draft.caution.percent,
                 active = first,
                 lastUsedAtMs = now,
                 createdAtMs = now,
@@ -460,14 +573,16 @@ class GarageRepository @Inject constructor(
         dao.updateBike(
             bike.copy(
                 name = draft.name.trim(),
+                type = draft.type.name,
                 model = draft.model.name,
                 tankLitres = draft.tankLitres,
                 reserveLitres = draft.reserveLitres,
-                fuelType = draft.fuel.name,
+                fuelType = draft.fuel.key,
                 startKmPerL = draft.startKmPerL,
                 lowFuelKm = draft.lowFuelKm,
                 gaugeBars = draft.gaugeBars,
                 odoFactorManual = draft.odoFactorManual,
+                cautionPct = draft.caution.percent,
             ),
         )
     }

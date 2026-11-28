@@ -50,6 +50,8 @@ class TripLogViewModelTest {
         override suspend fun points(tripId: Long) = emptyList<com.nativeauto.history.TrackPointRecord>()
         override suspend fun deleteTrip(id: Long) = Unit
         override suspend fun deletePoints(tripId: Long) = Unit
+        override suspend fun tripsWithoutEffort() = emptyList<Long>()
+        override suspend fun setEffort(id: Long, distanceM: Double, flatJ: Double, slopeJ: Double, slopeM: Double, slowS: Double) = Unit
     }
 
     private val main = StandardTestDispatcher()

@@ -58,10 +58,16 @@ data class ServiceRecord(
     val note: String? = null,
 )
 
-/** Names offered when adding an item: the rider sets the intervals. */
-val SERVICE_NAMES = listOf(
-    "Engine oil", "Gear oil", "CVT belt", "CVT rollers", "Tire pressure", "Front tire", "Rear tire",
-    "Brake pads", "Brake fluid", "Air filter", "Spark plug", "Coolant",
+/** Names offered when adding an item, by the kind of bike (4.8): the rider sets the intervals. */
+fun serviceNames(type: BikeType): List<String> = when (type) {
+    BikeType.SCOOTER_CVT -> listOf("Engine oil", "Gear oil", "CVT belt", "CVT rollers") + COMMON_PARTS
+    BikeType.UNDERBONE -> listOf("Engine oil", "Chain lube", "Chain and sprockets", "Clutch plates") + COMMON_PARTS
+    BikeType.GEARED -> listOf("Engine oil", "Oil filter", "Chain lube", "Chain and sprockets", "Clutch plates", "Clutch cable", "Fork oil") + COMMON_PARTS
+    BikeType.OTHER -> listOf("Engine oil") + COMMON_PARTS
+}
+
+private val COMMON_PARTS = listOf(
+    "Tire pressure", "Front tire", "Rear tire", "Brake pads", "Brake fluid", "Air filter", "Spark plug", "Coolant", "Battery",
 )
 
 /** Date-only reminders, each with its usual interval in months. */

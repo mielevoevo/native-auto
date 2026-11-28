@@ -69,4 +69,24 @@ class TripFilesTest {
         assertEquals(113.4f, dao.points(back.id).single().altitudeM)
         assertEquals(2.5f, dao.points(back.id).single().altitudeAccuracyM)
     }
+
+    /** 4.8: a protected backup, on the device's own crypto, through the FileProvider. */
+    @Test fun aProtectedBackupImportsOnlyWithItsPassword() = runBlocking {
+        val point = TrackPointRecord(tripId = 0, timeMs = start, latitude = -7.8, longitude = 110.37, speedMps = 15f, bearingDeg = 0f, accuracyM = 4f)
+        dao.insertWithTrack(trip, listOf(point, point.copy(timeMs = start + 1_000, latitude = -7.7999)))
+        val uri = files.backupShareIntent(BackupScope.EVERYTHING, "gas pol".toCharArray()).sharedUri()
+        dao.observeAll().first().filter { it.startedAtMs == start }.forEach { dao.delete(it.id) }
+        listOf(null to false, "gas poll".toCharArray() to true).forEach { (password, wrong) ->
+            val e = runCatching { files.import(uri, password) }.exceptionOrNull()
+            assertTrue("$e", e is Backup.PasswordException && e.wrong == wrong)
+            assertTrue(dao.observeAll().first().none { it.startedAtMs == start })
+        }
+        assertEquals(1, files.import(uri, "gas pol".toCharArray()).trips)
+        // Its effort is worked out at once.
+        assertEquals(11.1, dao.observeAll().first().single { it.startedAtMs == start }.effortM!!, 1.0)
+        // The Garage only: no trips in it.
+        val garage = files.backupShareIntent(BackupScope.GARAGE).sharedUri()
+        dao.observeAll().first().filter { it.startedAtMs == start }.forEach { dao.delete(it.id) }
+        assertEquals(0, files.import(garage).trips)
+    }
 }

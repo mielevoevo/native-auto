@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -373,6 +374,122 @@ class DesignShotsTest {
             dialogs("g472_light")
         } finally {
             runBlocking { entry.garageDao().clear() }
+        }
+    }
+
+    /** 4.8: fill-up correction and review, own fuels, dash figures, the backup dialog, the shaded route. Landscape, portrait, light. */
+    @Test fun garage48() {
+        val entry = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
+            com.nativeauto.di.SettingsEntryPoint::class.java,
+        )
+        fun scrollClick(t: String) { rule.onNodeWithTag(t, useUnmergedTree = true).performScrollTo(); click(t) }
+        fun first(t: String) = rule.onAllNodesWithTag(t, useUnmergedTree = true)[0]
+        fun gone(t: String) = rule.waitUntil(5_000) { count(t) == 0 }
+        /** Back, also past the keyboard. */
+        fun back(t: String) = repeat(3) {
+            if (count(t) > 0) {
+                InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+                runCatching { rule.waitUntil(2_500) { count(t) == 0 } }
+            }
+        }
+        fun there(t: String) = rule.waitUntil(5_000) { count(t) > 0 }
+        val now = System.currentTimeMillis()
+        val trip = runBlocking {
+            entry.garageDao().clear()
+            entry.garage().saveCustomFuel(null, "Shell V-Power", 16_500.0)
+            val id = entry.garage().addBike(
+                com.nativeauto.garage.BikeDraft("Gen 1", com.nativeauto.garage.BikeModel.NMAX_GEN1, 6.6, 1.3, com.nativeauto.garage.FuelType.PERTAMAX, com.nativeauto.garage.DEFAULT_KM_PER_L),
+                12_300.0,
+            )
+            listOf(12_000.0 to 4.665, 12_206.0 to 5.56).forEachIndexed { i, (km, l) ->
+                entry.garageDao().insertRefuel(
+                    com.nativeauto.garage.RefuelRecord(
+                        bikeId = id, timeMs = now - (3 - i) * 86_400_000L, odometerKm = km, litres = l, pricePerL = 15_950.0, totalRp = l * 15_950,
+                        full = true, fuelType = com.nativeauto.garage.FuelType.PERTAMAX.key,
+                    ),
+                )
+            }
+            repeat(7) { entry.garageDao().insertDashKmPerL(com.nativeauto.garage.DashKmPerL(bikeId = id, timeMs = now - 40_000_000L + it, kmPerL = 36.4 + it / 10.0, tripKm = 8.2)) }
+            // A made-up loop in the middle of town at 10 to 110 km/h.
+            var along = 0.0
+            val points = List(500) { i ->
+                val v = 18 + 13 * kotlin.math.sin(i / 60.0)
+                along += v
+                val a = along / 1_400
+                com.nativeauto.history.TrackPointRecord(
+                    tripId = 0, timeMs = now - 600_000 + i * 1_000L, latitude = -7.79 + 0.012 * kotlin.math.sin(a), longitude = 110.37 + 0.02 * (1 - kotlin.math.cos(a)) * (1 - i / 900.0),
+                    speedMps = v.toFloat(), bearingDeg = 0f, accuracyM = 4f,
+                )
+            }
+            entry.tripDao().insertWithTrack(
+                com.nativeauto.history.TripRecord(
+                    startedAtMs = now - 600_000, endedAtMs = now, durationMs = 600_000, movingMs = 560_000, stoppedMs = 40_000, distanceM = along, maxSpeedMps = 31f,
+                    startLat = -7.79, startLon = 110.37, endLat = -7.78, endLon = 110.38, startAddress = "Jalan Example 1, Yogyakarta", endAddress = "Jalan Example 2, Yogyakarta",
+                    track = com.nativeauto.history.Polyline.encode(points.filterIndexed { i, _ -> i % 5 == 0 }.map { com.nativeauto.nav.GeoPoint(it.latitude, it.longitude) }), bikeId = id,
+                ),
+                points,
+            )
+        }
+        fun openTripPage(row: String) {
+            click("settings_open")
+            there("settings_sheet")
+            click("settings_cat_TRIP_GARAGE")
+            rule.onNodeWithTag(row, useUnmergedTree = true).performScrollTo()
+            click(row)
+        }
+        fun pages(p: String) {
+            openTripPage("settings_garage")
+            there("garage_dash_row")
+            shot("${p}_top")
+            rule.onNodeWithTag("garage_fuel_add", useUnmergedTree = true).performScrollTo()
+            shot("${p}_prices")
+            rule.onNodeWithTag("garage_dash_all", useUnmergedTree = true).performScrollTo()
+            shot("${p}_dash")
+            first("garage_dash_row").performScrollTo().performClick()
+            there("kmpl_dialog"); shot("${p}_kmpl"); click("kmpl_skip"); gone("kmpl_dialog")
+            first("garage_refuel_row").performScrollTo().performClick()
+            there("garage_refuel_dialog"); shot("${p}_refuel_edit")
+            rule.onNodeWithTag("garage_refuel_fuel_row", useUnmergedTree = true).performScrollTo()
+            click("garage_refuel_fuel_row"); there("garage_refuel_fuel_tiles"); shot("${p}_fuels")
+            click("garage_refuel_fuel_PERTAMAX"); gone("garage_refuel_fuel_tiles")
+            rule.onNodeWithTag("garage_refuel_amount", useUnmergedTree = true).performScrollTo().performTextReplacement("2.1")
+            click("garage_refuel_save")
+            there("garage_review_issue"); shot("${p}_review")
+            click("garage_review_fix")
+            back("garage_refuel_dialog")
+            scrollClick("garage_fuel_add"); there("garage_fuel_dialog"); shot("${p}_fuel_add")
+            back("garage_fuel_dialog")
+            scrollClick("garage_edit"); there("garage_editor")
+            rule.onNodeWithTag("garage_caution_NORMAL", useUnmergedTree = true).performScrollTo()
+            shot("${p}_editor")
+            back("garage_editor")
+            click("garage_back"); gone("garage_screen")
+            openTripPage("settings_history")
+            there("history_backup")
+            click("history_backup"); there("backup_dialog"); shot("${p}_backup")
+            click("backup_protect"); there("backup_password")
+            rule.onNodeWithTag("backup_password", useUnmergedTree = true).performTextReplacement("gas pol 2026")
+            shot("${p}_backup_password")
+            back("backup_dialog")
+            first("history_trip").performClick()
+            there("history_export")
+            runCatching { rule.waitUntil(30_000) { count("history_speed_legend") > 0 } }
+            shot("${p}_route")
+            click("history_back"); click("history_back")
+            gone("history_screen")
+        }
+        try {
+            pages("g48_land")
+            runBlocking { resetSettings.settings.setOrientationMode(OrientationMode.PORTRAIT) }
+            rule.waitUntil(20_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
+            Thread.sleep(1_500)
+            pages("g48_port")
+            runBlocking { resetSettings.settings.setThemeMode(com.nativeauto.settings.ThemeMode.LIGHT) }
+            Thread.sleep(800)
+            pages("g48_light")
+        } finally {
+            runBlocking { entry.tripDao().delete(trip); entry.garageDao().clear() }
         }
     }
 

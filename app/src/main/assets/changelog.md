@@ -1,5 +1,17 @@
 # What's new in Native Auto
 
+## 4.8 (40) · 2026-11-26
+- Back up before you install this one: the database changes, so you can't go back to 4.7.3 without losing the app's data. Your bikes, trips and fill-ups carry over.
+- Fill-ups: tap one in the refuel log to correct it (full or partial, liters, price, odometer, fuel). A new one that looks wrong is asked about before it is saved: fix it, save it anyway, or save it without learning from it.
+- Dash km/L: the dialog opens with your last figure and has − and + buttons. The figures are listed in the Garage, where you can correct or delete them.
+- Your own fuels: add one with its name and price under Fuel prices.
+- Range: 2 km steps once the app knows your bike, and a margin per bike (Normal, −10%, −20%). It drops at once and rises only by 4 km or more, so it no longer flickers.
+- Range that follows your riding: it learns from your dash figures, full tanks, speed, stops and altitude. It turns on by itself, per bike, only when it has proved more exact on your own entries. The Garage shows how far it is.
+- Backup: everything or the Garage only, with a password if you want one.
+- Trip history: a trip's map shows how fast you rode, in shades of your accent color.
+- Service: the parts offered match the kind of bike.
+- Correct odometer opens with the current estimate. GPX files carry the raw altitude. Calls in apps that say "Disconnect" can be ended from the call card.
+
 ## 4.7.3 (39) · 2026-11-26
 - Portrait: in the slim speed card beside a maximized card, today's distance is no longer cut off. The figures now sit beside the buttons.
 

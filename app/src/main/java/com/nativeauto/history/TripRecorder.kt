@@ -80,16 +80,22 @@ class TripRecorder @Inject constructor(
         var checkpointedPaused = false
         /** 4.3d: the riding load's running sums (O(1) per fix). */
         val load = com.nativeauto.garage.LoadAccumulator()
+        /** 4.8: what the ride asks of the engine, for the range. */
+        val effort = com.nativeauto.garage.EffortAccumulator()
+        val trail = com.nativeauto.garage.EffortTrail()
 
-        fun add(sample: SpeedSample) {
+        /** True about every 5 s (a window of [effort] closed). */
+        fun add(sample: SpeedSample): Boolean {
             lastSample = sample
             fixes += sample
             load.add(sample)
+            val closed = effort.add(sample)
             val p = GeoPoint(sample.latitude, sample.longitude)
             val prev = points.lastOrNull()
             if (prev == null || haversineMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) >= MIN_STEP_M) {
                 points += p
             }
+            return closed
         }
     }
 
@@ -119,7 +125,11 @@ class TripRecorder @Inject constructor(
                 }
                 r.stats = stats
                 val sample = stats.lastSample
-                if (sample != null && sample !== r.lastSample) r.add(sample)
+                if (sample != null && sample !== r.lastSample && r.add(sample)) {
+                    val now = clock.nowNanos()
+                    val total = r.effort.sums
+                    if (r.trail.due(total, now)) publishEffort(r, total, now)
+                }
                 if (state == TripState.Ended && !r.saved) {
                     r.saved = true
                     liveLoad.publish(null)
@@ -136,10 +146,14 @@ class TripRecorder @Inject constructor(
         }
     }
 
+    private fun publishEffort(r: Recording, total: com.nativeauto.garage.EffortSums, nowNanos: Long) {
+        r.trail.onPublished(total, nowNanos)
+        liveLoad.publish(r.trail.live(total))
+    }
+
     /** Writes the figures and the new fixes in the background: the collector never waits on disk. */
     private fun checkpoint(r: Recording, stats: TripStats, paused: Boolean, nowNanos: Long) {
         r.checkpointAtNanos = nowNanos
-        liveLoad.publish(r.load.sums)
         r.checkpointedPaused = paused
         val from = r.checkpointed
         val newFixes = r.fixes.subList(from, r.fixes.size).toList()
@@ -240,7 +254,7 @@ class TripRecorder @Inject constructor(
                 stoppedMs = (s.elapsedNanos(endNanos) - s.movingNanos).coerceAtLeast(0) / 1_000_000,
                 // 11a: the bike selected last (a switch mid-trip moves the whole trip to it).
                 bikeId = bike.id(),
-            ).withLoad(r.load.sums)
+            ).withLoad(r.load.sums).withEffort(r.effort.sums)
         val full = r.fixes.map {
             TrackPointRecord(
                 tripId = 0,
@@ -315,3 +329,23 @@ internal fun TripRecord.withLoad(l: com.nativeauto.garage.LoadSums) = copy(
     loadCrawlM = l.crawlM,
     loadCrawlClimbM = l.crawlClimbM,
 )
+
+/** 4.8: the effort's sums on a trip record. */
+internal fun TripRecord.withEffort(e: com.nativeauto.garage.EffortSums) = copy(
+    effortM = e.distanceM,
+    effortFlatJ = e.flatJ,
+    effortSlopeJ = e.slopeJ,
+    effortSlopeM = e.slopeM,
+    effortSlowS = e.slowS,
+)
+
+/**
+ * 4.8: works out the effort of trips saved before it was recorded (and of imported ones) from their tracks, a trip at a
+ * time. Called at the app's start and after an import; does nothing when there are none.
+ */
+suspend fun TripDao.fillMissingEffort() {
+    tripsWithoutEffort().forEach { id ->
+        val e = com.nativeauto.garage.effortOf(points(id))
+        setEffort(id, e.distanceM, e.flatJ, e.slopeJ, e.slopeM, e.slowS)
+    }
+}

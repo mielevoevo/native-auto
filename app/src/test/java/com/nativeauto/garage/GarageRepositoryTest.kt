@@ -323,42 +323,160 @@ class GarageRepositoryTest {
         assertEquals(12_500.0, f.pricePerL, 0.0)
     }
 
-    @Test fun `riding harder than usual lowers the range once four spans have taught it`() = runTest {
-        val rig = Rig(this)
-        rig.garage.rangeFollowsRiding = true // off in the app until 4.7
-        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 0.0)
-        val t0 = rig.now()
-        val day = 86_400_000L
-        // Five full fills 200 km apart; between each pair a 200 km trip ridden at a different load.
-        // km/L follows the load: 48 - 0.015 * (J/kg/km).
-        val v2s = listOf(100.0, 200.0, 300.0, 400.0)
-        fun energy(v2: Double) = LoadSums(1000.0, v2 * 1000).energyPerKm!!
-        fun loadTrip(id: Long, end: Long, km: Double, v2: Double) = TripRecord(
-            id = id, startedAtMs = end - 3_600_000, endedAtMs = end, durationMs = 3_600_000, movingMs = 3_600_000,
-            distanceM = km * 1000, maxSpeedMps = 20f, startLat = 0.0, startLon = 0.0, endLat = 0.0, endLon = 0.0, track = "",
-            bikeId = gen1, loadIndex = energy(v2), loadDistanceM = km * 1000, loadAero = v2 * km * 1000, loadAccel = 0.0,
-            loadClimbM = 0.0, loadStops = 0,
+    /** 4.8: a bike with two measured tanks and [n] rides, each with its dash figure after it. */
+    private suspend fun Rig.rides(bikeId: String, n: Int, tanks: Int = 2): Double {
+        val t0 = now()
+        var dashL = 1 / 40.0
+        var odo = 0.0
+        fun fill(i: Int, km: Double, litres: Double) = RefuelRecord(
+            id = 100L + i, bikeId = bikeId, timeMs = t0 + i * 10L, odometerKm = km, litres = litres,
+            pricePerL = 12_500.0, totalRp = litres * 12_500, full = true, fuelType = FuelType.PERTAMAX.key,
         )
-        fun fill(i: Int, litres: Double) = RefuelRecord(
-            id = i + 1L, bikeId = gen1, timeMs = t0 + i * day, odometerKm = i * 200.0, litres = litres,
-            pricePerL = 12_500.0, totalRp = litres * 12_500, full = true, fuelType = FuelType.PERTAMAX.name,
-        )
-        rig.dao.refuels.value = listOf(fill(0, 5.0))
-        v2s.forEachIndexed { i, v2 ->
-            rig.dao.trips.value += loadTrip(i + 1L, t0 + i * day + day / 2, 200.0, v2)
-            if (i < 3) rig.dao.refuels.value += fill(i + 1, 200.0 / (48 - 0.015 * energy(v2)))
+        dao.refuels.value = (0..tanks).map { fill(it, it * 200.0, 5.0) }
+        dao.dash.value = listOf(DashKmPerL(1, bikeId, t0 + 1_000, 40.0, 5.0))
+        repeat(n) { i ->
+            val km = 6.0 + i % 5
+            val effort = 3.0 + (i * 7 % 5) * 0.8
+            val slow = (i * 3 % 4) * 0.5
+            val used = 0.018 + 0.0012 * effort + 0.002 * slow
+            dashL += km / (km + DASH_MEMORY_KM) * (used - dashL)
+            odo += km
+            val end = t0 + 2_000 + i * 1_000L
+            dao.trips.value += ride(bikeId, 1_000L + i, end - 500, km, effort, slow)
+            dao.dash.value += DashKmPerL(2L + i, bikeId, end, Math.round(10 / dashL) / 10.0, km)
         }
-        // Three spans: nothing learned yet, the range is the plain one.
+        return odo
+    }
+
+    private fun ride(bikeId: String, id: Long, endMs: Long, km: Double, effort: Double, slow: Double) = TripRecord(
+        id = id, startedAtMs = endMs - 100, endedAtMs = endMs, durationMs = 100, movingMs = 100, distanceM = km * 1000, maxSpeedMps = 20f,
+        startLat = 0.0, startLon = 0.0, endLat = 0.0, endLon = 0.0, track = "", bikeId = bikeId,
+        effortM = km * 1000, effortFlatJ = effort * 100 * km, effortSlopeJ = effort * 100 * km, effortSlopeM = 0.0, effortSlowS = slow * 60 * km,
+    )
+
+    @Test fun `riding harder than usual lowers the range once the bike's own figures have shown it helps`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 0.0)
+        rig.rides(gen1, 30, tanks = 1)
+        // One measured tank: the plain range.
         var f = rig.garage.fuel(gen1).first()
         assertEquals(1.0, f.load.factor, 0.0)
-        assertNull(f.load.note)
-        rig.dao.refuels.value += fill(4, 200.0 / (48 - 0.015 * energy(400.0)))
-        // The last 20 km ridden hard (like the hardest span): the range drops below the plain figure.
-        rig.dao.trips.value += loadTrip(9, t0 + 4 * day + 1_000, 20.0, 400.0)
+        assertFalse(f.load.on)
+        assertEquals(1, f.learning.tanks)
+        assertEquals(30, f.learning.steps)
+        rig.rides(gen1, 30, tanks = 2)
         f = rig.garage.fuel(gen1).first()
-        assertTrue("factor ${f.load.factor}", f.load.factor < 0.95)
+        assertTrue("learning ${f.learning}", f.load.on)
+        // 25 km of hard riding in heavy traffic.
+        rig.dao.trips.value += ride(gen1, 5_000, rig.now() + 900_000, 25.0, 7.5, 2.5)
+        f = rig.garage.fuel(gen1).first()
+        assertTrue("factor ${f.load.factor}", f.load.factor < 0.95 && f.load.factor >= 0.8)
         assertEquals(f.level.litres!! * f.level.kmPerL * f.load.factor, f.level.rangeKm!!, 1e-9)
         assertTrue(f.load.note!!.startsWith("Riding hard"))
+        // And easy riding raises it, by 10 % at most.
+        rig.dao.trips.value += ride(gen1, 5_001, rig.now() + 950_000, 25.0, 2.5, 0.0)
+        f = rig.garage.fuel(gen1).first()
+        assertTrue("factor ${f.load.factor}", f.load.factor > 1.0 && f.load.factor <= 1.1)
+    }
+
+    @Test fun `the range is stepped, held and cautious`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax.copy(caution = RangeCaution.CAUTIOUS), odometerKm = 1_000.0)
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 5.0, odometerKm = 1_000.0))
+        // 6.6 × 36 × 0.9 = 213.8: a guess, in 5 km steps.
+        assertEquals(210L, rig.garage.fuel(gen1).first().level.cautiousRangeKm)
+        advanceTimeBy(60_000)
+        rig.garage.addDashKmPerL(gen1, 36.0, 10.0)
+        assertEquals(212L, rig.garage.fuel(gen1).first().level.cautiousRangeKm)
+        rig.garage.updateBike(gen1, rig.nmax)
+        assertEquals(236L, rig.garage.fuel(gen1).first().level.cautiousRangeKm)
+    }
+
+    // ---- 4.8: entries corrected later ----
+
+    @Test fun `a fill-up corrected later changes what it taught, not the odometer`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        rig.garage.logRefuel(gen1, refuel(full = false, litres = 4.6, odometerKm = 1_000.0))
+        advanceTimeBy(60_000)
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 5.0, odometerKm = 1_190.0, price = 13_000.0))
+        assertTrue(rig.garage.fuel(gen1).first().consumption.measures.isEmpty())
+        val readings = rig.dao.readings.value
+        val first = rig.dao.refuels.value.first()
+        rig.garage.updateRefuel(first.id, refuel(full = true, litres = 4.6, odometerKm = 1_000.0, price = 12_000.0))
+        val f = rig.garage.fuel(gen1).first()
+        assertEquals(38.0, f.consumption.measures.single().kmPerL, 1e-9)
+        assertEquals(first.timeMs, f.refuels.last().timeMs)
+        assertEquals(readings, rig.dao.readings.value)
+        // The last price stays the later fill-up's.
+        assertEquals(13_000.0, f.pricePerL, 0.0)
+        val last = rig.dao.refuels.value.last()
+        rig.garage.updateRefuel(last.id, refuel(full = true, litres = 5.0, odometerKm = 1_190.0, price = 13_500.0).copy(learn = false))
+        assertEquals(13_500.0, rig.garage.fuel(gen1).first().pricePerL, 0.0)
+        assertFalse(rig.garage.fuel(gen1).first().consumption.measures.single().used)
+        // One that is gone by now.
+        rig.garage.updateRefuel(99, refuel(full = true, litres = 1.0, odometerKm = 1.0))
+        assertEquals(2, rig.dao.refuels.value.size)
+    }
+
+    @Test fun `dash figures can be corrected and deleted`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        rig.garage.addDashKmPerL(gen1, 38.0, 10.0)
+        advanceTimeBy(1_000)
+        rig.garage.addDashKmPerL(gen1, 83.5, 10.0)
+        val typo = rig.garage.fuel(gen1).first().dash.first()
+        assertTrue(rig.garage.updateDashKmPerL(typo.id, 38.5))
+        assertFalse(rig.garage.updateDashKmPerL(typo.id, 385.0))
+        assertEquals(listOf(38.5, 38.0), rig.garage.fuel(gen1).first().dash.map { it.kmPerL })
+        rig.garage.deleteDashKmPerL(typo.id)
+        assertEquals(listOf(38.0), rig.garage.fuel(gen1).first().dash.map { it.kmPerL })
+    }
+
+    @Test fun `own fuels have a name and price, and fill-ups keep a deleted one`() = runTest {
+        val rig = Rig(this)
+        assertTrue(rig.garage.saveCustomFuel(null, " Shell V-Power ", 16_500.0))
+        assertFalse("twice", rig.garage.saveCustomFuel(null, "shell v-power", 17_000.0))
+        assertFalse("a pump fuel", rig.garage.saveCustomFuel(null, "Pertamax", 17_000.0))
+        assertFalse(rig.garage.saveCustomFuel(null, "  ", 17_000.0))
+        val shell = rig.dao.customFuels.value.single()
+        assertEquals("Shell V-Power", shell.label)
+        val gen1 = rig.garage.addBike(rig.nmax.copy(fuel = shell), odometerKm = 1_000.0)
+        assertEquals(16_500.0, rig.garage.fuel(gen1).first().pricePerL, 0.0)
+        rig.garage.logRefuel(gen1, refuel(full = true, litres = 5.0, odometerKm = 1_000.0, price = 16_800.0).copy(fuel = shell))
+        assertEquals(16_800.0, rig.garage.fuel(gen1).first().pricePerL, 0.0)
+        rig.garage.deleteCustomFuel(shell.key)
+        val custom = rig.dao.customFuels.value
+        assertEquals("Shell V-Power", fuelOf(rig.dao.refuels.value.single().fuelType, custom).label)
+        assertFalse(fuelChoices(custom).any { it.key == shell.key })
+        // Still offered where it is in use.
+        assertTrue(fuelChoices(custom, fuelOf(shell.key, custom)).any { it.key == shell.key })
+        // Added again: the same fuel comes back.
+        assertTrue(rig.garage.saveCustomFuel(null, "Shell V-Power", 17_000.0))
+        assertEquals(listOf(false), rig.dao.customFuels.value.map { it.retired })
+        assertEquals(shell.key, rig.dao.customFuels.value.single().key)
+        // Renamed; a key nobody knows reads as the default fuel.
+        assertTrue(rig.garage.saveCustomFuel(shell.key, "V-Power 95", 17_500.0))
+        assertEquals("V-Power 95", rig.dao.customFuels.value.single().name)
+    }
+
+    @Test fun `a garage only backup carries the odometer as it stands`() = runTest {
+        val rig = Rig(this)
+        val gen1 = rig.garage.addBike(rig.nmax, odometerKm = 1_000.0)
+        advanceTimeBy(3_600_000)
+        rig.savedTrip(gen1, 25.0, startedAgoMs = 3_000_000)
+        advanceTimeBy(60_000)
+        val anchor = rig.garage.odometerAnchors().single()
+        assertEquals(1_025.0, anchor.km, 1e-9)
+        assertEquals(ReadingKind.UNTRACKED, anchor.readingKind)
+        assertEquals(0.0, anchor.awayKm, 0.0)
+        // Another phone, without the trips.
+        val other = Rig(this)
+        GarageBackup.restore(other.dao, GarageBackup.collect(rig.dao).let { it.copy(readings = it.readings + anchor) })
+        assertEquals(1_025.0, other.garage.estimateNow(gen1)!!, 1e-9)
+        // Imported back here it changes nothing.
+        GarageBackup.restore(rig.dao, GarageBackup.collect(rig.dao).let { it.copy(readings = it.readings + anchor) })
+        assertEquals(1_025.0, rig.garage.estimateNow(gen1)!!, 1e-9)
     }
 
     @Test fun `away km make the fuel unknown until the next full fill`() = runTest {

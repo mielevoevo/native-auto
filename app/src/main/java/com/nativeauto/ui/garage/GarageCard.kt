@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.nativeauto.garage.BikeRecord
 import com.nativeauto.garage.DueLevel
+import com.nativeauto.garage.CustomFuel
 import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.GarageCardState
 import com.nativeauto.garage.GarageRepository
@@ -111,6 +112,8 @@ class GarageCardViewModel @Inject constructor(
     val bikes: StateFlow<List<BikeRecord>> = garage.bikes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val prices: StateFlow<List<FuelPrice>> = garage.prices().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val fuels: StateFlow<List<CustomFuel>> = garage.customFuels().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setValue(value: GarageValue) = viewModelScope.launch { settings.setGarageValue(value) }
 
@@ -252,11 +255,14 @@ fun GarageCard(
     }
     if (refuelling && s != null) {
         val prices by viewModel.prices.collectAsStateWithLifecycle()
+        val fuels by viewModel.fuels.collectAsStateWithLifecycle()
         val haptics = rememberHaptics()
         RefuelDialog(
             bike = s.bike,
             estimateKm = s.odometer.estimateKm,
             prices = prices,
+            fuels = fuels,
+            state = s.fuel,
             onSave = { draft -> haptics.confirm(); viewModel.logRefuel(s.bike.id, draft); refuelling = false },
             onDismiss = { refuelling = false },
         )

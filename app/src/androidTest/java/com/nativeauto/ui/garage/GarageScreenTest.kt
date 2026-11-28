@@ -5,6 +5,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.getBoundsInRoot
@@ -222,34 +223,169 @@ class GarageScreenTest {
         rule.waitUntil(5_000) { tag("garage_range").fetchText() == "—" }
     }
 
-    /** 4.6.1: the riding load is recorded but leaves the range alone (and says nothing) until 4.7. */
-    @Test fun hardRidingLeavesTheRangeAloneForNow() {
-        val day = 86_400_000L
-        val t0 = System.currentTimeMillis() - 10 * day
-        runBlocking {
-            val id = entry.garage().addBike(nmax, odometerKm = 0.0)
-            fun energy(v2: Double) = com.nativeauto.garage.LoadSums(1000.0, v2 * 1000).energyPerKm!!
-            fun trip(end: Long, km: Double, v2: Double) = TripRecord(
-                startedAtMs = end - 3_600_000, endedAtMs = end, durationMs = 3_600_000, movingMs = 3_600_000, distanceM = km * 1000,
-                maxSpeedMps = 20f, startLat = 0.0, startLon = 0.0, endLat = 0.0, endLon = 0.0, track = "", bikeId = id,
-                loadIndex = energy(v2), loadDistanceM = km * 1000, loadAero = v2 * km * 1000, loadAccel = 0.0,
+    // ---- 4.8 ----
+
+    /** The rider's own case: a fill-up logged as partial, corrected to full, gives the first measured tank. */
+    @Test fun aPastFillUpIsCorrectedAndMeasuresItsTank() {
+        val gen1 = runBlocking {
+            val id = entry.garage().addBike(nmax, odometerKm = 12_000.0)
+            fun fill(odo: Double, litres: Double, full: Boolean, ago: Long) = com.nativeauto.garage.RefuelRecord(
+                bikeId = id, timeMs = System.currentTimeMillis() - ago, odometerKm = odo, litres = litres, pricePerL = 15_950.0,
+                totalRp = litres * 15_950, full = full, fuelType = FuelType.PERTAMAX.key,
             )
-            fun fill(i: Int, litres: Double) = com.nativeauto.garage.RefuelRecord(
-                bikeId = id, timeMs = t0 + i * day, odometerKm = i * 200.0, litres = litres, pricePerL = 12_500.0,
-                totalRp = litres * 12_500, full = true, fuelType = FuelType.PERTAMAX.name,
-            )
-            val dao = entry.garageDao()
-            dao.insertRefuel(fill(0, 5.0))
-            listOf(100.0, 200.0, 300.0, 400.0).forEachIndexed { i, v2 ->
-                seededTrips += entry.tripDao().insert(trip(t0 + i * day + day / 2, 200.0, v2))
-                dao.insertRefuel(fill(i + 1, 200.0 / (48 - 0.015 * energy(v2))))
-            }
-            seededTrips += entry.tripDao().insert(trip(t0 + 4 * day + 60_000, 20.0, 400.0))
+            entry.garageDao().insertRefuel(fill(12_000.0, 4.665, false, 10 * 86_400_000L))
+            entry.garageDao().insertRefuel(fill(12_206.0, 5.56, true, 86_400_000L))
+            id
         }
         openGarage()
         await("garage_bike_Gen 1")
-        await("garage_range")
+        await("garage_refuel_row")
+        count("garage_refuel_row")[1].performScrollTo().performClick()
+        await("garage_refuel_dialog")
+        assertEquals("4.665", tag("garage_refuel_amount").fieldText())
+        assertEquals("12000", tag("garage_refuel_odo").fieldText())
+        tag("garage_refuel_full").assertIsOff()
+        click("garage_refuel_full")
+        click("garage_refuel_save")
+        awaitGone("garage_refuel_dialog")
+        val fills = runBlocking { entry.garageDao().observeRefuels(gen1).first() }
+        assertTrue(fills.all { it.full })
+        assertEquals("untouched figures stay exact", 4.665, fills.last().litres, 0.0)
+        awaitText("37.1 km/L")
+    }
+
+    @Test fun anOddFillUpIsAskedAboutAndFixedOrNotLearnedFrom() {
+        val gen1 = runBlocking {
+            val id = entry.garage().addBike(nmax, odometerKm = 12_000.0)
+            entry.garage().logRefuel(id, com.nativeauto.garage.RefuelDraft(true, 5.0, 15_950.0, 79_750.0, FuelType.PERTAMAX, 12_000.0))
+            id
+        }
+        openGarage()
+        await("garage_bike_Gen 1")
+        click("garage_refuel")
+        await("garage_refuel_dialog")
+        click("garage_refuel_mode_LITRES")
+        tag("garage_refuel_amount").performTextReplacement("5")
+        click("garage_refuel_save")
+        // The tank was just filled: 5 L more can't be right.
+        await("garage_review_issue")
+        click("garage_review_fix")
+        awaitGone("garage_review_issue")
+        assertEquals("5", tag("garage_refuel_amount").fieldText())
+        click("garage_refuel_save")
+        await("garage_review_no_learn")
+        click("garage_review_no_learn")
+        awaitGone("garage_refuel_dialog")
+        val last = runBlocking { entry.garageDao().observeRefuels(gen1).first() }.first()
+        assertEquals(5.0, last.litres, 0.0)
+        assertTrue(!last.learn)
+    }
+
+    @Test fun anOwnFuelIsAddedPickedAndDeleted() {
+        runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        openGarage()
+        await("garage_bike_Gen 1")
+        scrollClick("garage_fuel_add")
+        await("garage_fuel_dialog")
+        tag("garage_fuel_name").performTextReplacement("Pertamax")
+        tag("garage_fuel_price").performTextReplacement("16.500")
+        tag("garage_fuel_save").assertIsNotEnabled()
+        tag("garage_fuel_name").performTextReplacement("Shell V-Power")
+        click("garage_fuel_save")
+        awaitGone("garage_fuel_dialog")
+        rule.waitUntil(5_000) { count("garage_price_value_Shell V-Power").fetchSemanticsNodes().isNotEmpty() }
+        // Five fuels: a row that opens tiles.
+        scrollClick("garage_refuel")
+        await("garage_refuel_dialog")
+        click("garage_refuel_fuel_row")
+        await("garage_refuel_fuel_tiles")
+        click("garage_refuel_fuel_Shell V-Power")
+        awaitGone("garage_refuel_fuel_tiles")
+        assertEquals("16500", tag("garage_refuel_price").fieldText())
+        tag("garage_refuel_amount").performTextReplacement("66.000")
+        click("garage_refuel_save")
+        awaitGone("garage_refuel_dialog")
+        awaitText("Shell V-Power")
+        scrollClick("garage_price_Shell V-Power")
+        await("garage_fuel_dialog")
+        tag("garage_fuel_delete").performScrollTo()
+        click("garage_fuel_delete")
+        click("garage_fuel_delete")
+        awaitGone("garage_fuel_dialog")
+        rule.waitUntil(5_000) { count("garage_price_Shell V-Power").fetchSemanticsNodes().isEmpty() }
+        // The fill-up keeps its name.
+        assertEquals(1, rule.onAllNodesWithText("Shell V-Power", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test fun dashFiguresAreListedCorrectedAndDeleted() {
+        val gen1 = runBlocking {
+            val id = entry.garage().addBike(nmax, odometerKm = 12_000.0)
+            repeat(7) { entry.garageDao().insertDashKmPerL(com.nativeauto.garage.DashKmPerL(bikeId = id, timeMs = 1_000_000L + it, kmPerL = 36.0 + it / 10.0, tripKm = 8.0)) }
+            id
+        }
+        fun figures() = runBlocking { entry.garageDao().observeDashKmPerL(gen1).first() }.map { it.kmPerL }
+        openGarage()
+        await("garage_bike_Gen 1")
+        await("garage_dash_row")
+        count("garage_dash_row").assertCountEquals(5)
+        scrollClick("garage_dash_all")
+        count("garage_dash_row").assertCountEquals(7)
+        count("garage_dash_row")[0].performScrollTo().performClick()
+        await("kmpl_dialog")
+        assertEquals("36.6", tag("kmpl_value").fieldText())
+        click("kmpl_plus")
+        click("kmpl_plus")
+        click("kmpl_minus")
+        assertEquals("36.7", tag("kmpl_value").fieldText())
+        click("kmpl_save")
+        awaitGone("kmpl_dialog")
+        rule.waitUntil(5_000) { figures().first() == 36.7 }
+        count("garage_dash_delete")[0].performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(7, figures().size)
+        count("garage_dash_delete")[0].performScrollTo().performClick()
+        rule.waitUntil(5_000) { figures().size == 6 }
+        // And how far the riding-based range is.
+        await("garage_range_mode")
+        assertTrue(tag("garage_range_mode").fetchText().contains("of 2 full tanks"))
         assertTrue(count("garage_load_note").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test fun theCautionAndTheKindOfBikeAreTheBikesOwn() {
+        val gen1 = runBlocking {
+            val id = entry.garage().addBike(nmax, odometerKm = 12_000.0)
+            entry.garage().logRefuel(id, com.nativeauto.garage.RefuelDraft(true, 5.0, 15_950.0, 79_750.0, FuelType.PERTAMAX, 12_000.0))
+            id
+        }
+        openGarage()
+        await("garage_bike_Gen 1")
+        rule.waitUntil(5_000) { tag("garage_range").fetchText() == "235 km" }
+        click("garage_edit")
+        await("garage_editor")
+        scrollClick("garage_model")
+        await("garage_models")
+        click("garage_model_OTHER")
+        awaitGone("garage_models")
+        scrollClick("garage_type_GEARED")
+        scrollClick("garage_caution_VERY_CAUTIOUS")
+        click("garage_save")
+        awaitGone("garage_editor")
+        // 6.6 × 36 × 0.8 = 190.08
+        rule.waitUntil(5_000) { tag("garage_range").fetchText() == "190 km" }
+        assertEquals(com.nativeauto.garage.BikeType.GEARED, runBlocking { entry.garageDao().bike(gen1)!! }.bikeType)
+        scrollClick("garage_service_add")
+        await("garage_service_editor")
+        awaitText("Chain lube")
+        assertTrue(rule.onAllNodesWithText("CVT belt", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test fun theCorrectionOpensWithTheEstimate() {
+        runBlocking { entry.garage().addBike(nmax, odometerKm = 12_000.0) }
+        openGarage()
+        await("garage_bike_Gen 1")
+        click("garage_correct")
+        await("garage_odometer_dialog")
+        assertEquals("12000", tag("garage_odo_input").fieldText())
     }
 
     @Test fun aPriceEditedInTheGarageIsTheNextRefuelsPrice() {
@@ -549,6 +685,9 @@ class GarageScreenTest {
         click("garage_refuel_mode_LITRES")
         tag("garage_refuel_amount").performTextReplacement("5")
         click("garage_refuel_save")
+        // 4.8: asked about first.
+        await("garage_review_save")
+        click("garage_review_save")
         awaitGone("garage_refuel_dialog")
         // It still counts as a full anchor: the level is capped, the range stays that of a full tank.
         rule.waitUntil(5_000) { count("garage_refuel_row").fetchSemanticsNodes().size == 2 }

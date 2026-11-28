@@ -11,14 +11,61 @@ import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
 import com.nativeauto.history.TripRecord
+import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 
 /**
- * The kind of bike. v1 builds scooters (CVT) only; manual-chain, sport and others are WIP for
- * later (each will bring its own service template in 11c's model). Stored by name.
+ * The kind of bike. 4.8: each kind offers its own service parts ([serviceNames]); nothing else depends on it.
+ * Stored by name; one this version doesn't know reads as [OTHER].
  */
 enum class BikeType(val label: String) {
-    SCOOTER_CVT("Scooter (CVT)"),
+    SCOOTER_CVT("Scooter"),
+    UNDERBONE("Underbone"),
+    GEARED("Geared"),
+    OTHER("Other"),
+}
+
+/** What goes in a tank: a pump fuel ([FuelType]) or one the rider added ([CustomFuel], 4.8). [key] is what is stored. */
+interface Fuel {
+    val key: String
+    val label: String
+    val brand: String?
+    val grade: String
+    /** Rp per litre until a price is known; 0 = none. */
+    val defaultPricePerL: Double
+}
+
+/**
+ * 4.8: a fuel the rider added, shared by every bike; its price is a [FuelPrice] like the others'. Deleting one only
+ * [retired]s it, so the fill-ups made with it keep its name. [key] comes from the first name ([customFuelKey]), so the
+ * same fuel added on two phones is one fuel after an import.
+ */
+@Entity(tableName = "custom_fuels")
+data class CustomFuel(
+    @PrimaryKey override val key: String,
+    val name: String,
+    val createdAtMs: Long,
+    @ColumnInfo(defaultValue = "0")
+    val retired: Boolean = false,
+) : Fuel {
+    override val label: String get() = name
+    override val brand: String? get() = null
+    override val grade: String get() = name
+    override val defaultPricePerL: Double get() = 0.0
+}
+
+fun customFuelKey(name: String): String = "CUSTOM:" + name.trim().lowercase(Locale.ROOT).split(' ').filter { it.isNotEmpty() }.joinToString(" ")
+
+/** The fuel stored as [key]. One that isn't known here (from a newer version, or a damaged backup) keeps its key. */
+fun fuelOf(key: String, custom: List<CustomFuel>): Fuel =
+    FuelType.entries.firstOrNull { it.name == key }
+        ?: custom.firstOrNull { it.key == key }
+        ?: CustomFuel(key, "Other fuel", 0, retired = true)
+
+/** What can be picked: the pump fuels, the rider's own, and [current] even when it was deleted since. */
+fun fuelChoices(custom: List<CustomFuel>, current: Fuel? = null): List<Fuel> {
+    val all = FuelType.entries + custom.filterNot { it.retired }.sortedBy { it.createdAtMs }
+    return if (current == null || all.any { it.key == current.key }) all else all + current
 }
 
 /**
@@ -26,11 +73,19 @@ enum class BikeType(val label: String) {
  * the price the rider sets in the Garage (12c) or pays at the pump is stored ([FuelPrice], keyed
  * by name) and used from then on. [brand] / [grade] are the two-line button label (12c).
  */
-enum class FuelType(val label: String, val brand: String?, val grade: String, val defaultPricePerL: Double) {
+enum class FuelType(
+    override val label: String,
+    override val brand: String?,
+    override val grade: String,
+    override val defaultPricePerL: Double,
+) : Fuel {
     PERTALITE("Pertalite", null, "Pertalite", 10_000.0),
     PERTAMAX("Pertamax", "Pertamax", "92", 15_950.0),
     PERTAMAX_GREEN("Pertamax Green", "Pertamax", "Green", 19_150.0),
     PERTAMAX_TURBO("Pertamax Turbo", "Pertamax", "Turbo", 19_600.0),
+    ;
+
+    override val key: String get() = name
 }
 
 /**
@@ -72,7 +127,7 @@ data class BikeRecord(
     val model: String,
     val tankLitres: Double,
     val reserveLitres: Double,
-    /** [FuelType] name. */
+    /** [Fuel.key]. */
     val fuelType: String,
     val startKmPerL: Double,
     /** Bike km per GPS km, learned from odometer corrections (1.0 until then). */
@@ -89,11 +144,25 @@ data class BikeRecord(
     val gaugeBars: Int = DEFAULT_GAUGE_BARS,
     /** 4.7: the rider's own bike km per GPS km; null = the learned [odoFactor] (which keeps learning either way). */
     val odoFactorManual: Double? = null,
+    /** 4.8: how much lower the range is shown, in percent ([RangeCaution]). */
+    @ColumnInfo(defaultValue = "0")
+    val cautionPct: Int = 0,
 ) {
     /** Bike km per GPS km, as used. */
     val factor: Double get() = odoFactorManual ?: odoFactor
     val bikeModel: BikeModel get() = BikeModel.entries.firstOrNull { it.name == model } ?: BikeModel.OTHER
-    val fuel: FuelType get() = FuelType.entries.firstOrNull { it.name == fuelType } ?: FuelType.PERTAMAX
+    val bikeType: BikeType get() = BikeType.entries.firstOrNull { it.name == type } ?: BikeType.OTHER
+    val caution: RangeCaution get() = RangeCaution.entries.firstOrNull { it.percent == cautionPct } ?: RangeCaution.NORMAL
+}
+
+/** 4.8: how cautious a bike's range is. Normal is the estimate as it is (itself on the low side, [Consumption.cautiousKmPerL]). */
+enum class RangeCaution(val label: String, val percent: Int) {
+    NORMAL("Normal", 0),
+    CAUTIOUS("−10%", 10),
+    VERY_CAUTIOUS("−20%", 20),
+    ;
+
+    val factor: Double get() = 1.0 - percent / 100.0
 }
 
 /** Why an odometer reading was entered. Stored by name. */
@@ -253,14 +322,13 @@ interface GarageDao {
     @Query("SELECT * FROM trips WHERE bikeId = :bikeId ORDER BY endedAtMs DESC LIMIT 1")
     suspend fun lastTrip(bikeId: String): TripRecord?
 
-    /** 4.3d: the bike's trips that carry riding-load sums, newest first. */
+    /** 4.8: the bike's trips with effort sums ([EffortSums]), newest first. */
     @Query(
-        "SELECT endedAtMs, loadDistanceM AS distanceM, loadAero AS aero, loadAccel AS accel, " +
-            "COALESCE(loadClimbM, 0) AS climbM, COALESCE(loadStops, 0) AS stops FROM trips " +
-            "WHERE bikeId = :bikeId AND loadDistanceM IS NOT NULL AND loadAero IS NOT NULL AND loadAccel IS NOT NULL " +
-            "ORDER BY endedAtMs DESC",
+        "SELECT endedAtMs, effortM AS distanceM, effortFlatJ AS flatJ, effortSlopeJ AS slopeJ, effortSlopeM AS slopeM, effortSlowS AS slowS " +
+            "FROM trips WHERE bikeId = :bikeId AND effortM IS NOT NULL AND effortFlatJ IS NOT NULL AND effortSlopeJ IS NOT NULL " +
+            "AND effortSlopeM IS NOT NULL AND effortSlowS IS NOT NULL ORDER BY endedAtMs DESC",
     )
-    fun observeTripLoads(bikeId: String): Flow<List<TripLoad>>
+    fun observeRideEfforts(bikeId: String): Flow<List<RideEffort>>
 
     // ---- 11b: fuel ----
 
@@ -270,8 +338,28 @@ interface GarageDao {
     @Insert
     suspend fun insertRefuel(refuel: RefuelRecord): Long
 
+    @Query("SELECT * FROM refuels WHERE id = :id")
+    suspend fun refuel(id: Long): RefuelRecord?
+
+    @Update
+    suspend fun updateRefuel(refuel: RefuelRecord)
+
     @Query("DELETE FROM refuels WHERE id = :id")
     suspend fun deleteRefuel(id: Long)
+
+    // ---- 4.8: fuels the rider added ----
+
+    @Query("SELECT * FROM custom_fuels ORDER BY createdAtMs")
+    fun observeCustomFuels(): Flow<List<CustomFuel>>
+
+    @Query("SELECT * FROM custom_fuels ORDER BY createdAtMs")
+    suspend fun allCustomFuels(): List<CustomFuel>
+
+    @Upsert
+    suspend fun upsertCustomFuel(fuel: CustomFuel)
+
+    @Query("DELETE FROM custom_fuels")
+    suspend fun deleteAllCustomFuels()
 
     @Query("SELECT * FROM fuel_prices")
     fun observePrices(): Flow<List<FuelPrice>>
@@ -292,6 +380,12 @@ interface GarageDao {
 
     @Insert
     suspend fun insertDashKmPerL(entry: DashKmPerL): Long
+
+    @Query("UPDATE dash_kmpl SET kmPerL = :kmPerL WHERE id = :id")
+    suspend fun setDashKmPerL(id: Long, kmPerL: Double)
+
+    @Query("DELETE FROM dash_kmpl WHERE id = :id")
+    suspend fun deleteDashEntry(id: Long)
 
     @Query("DELETE FROM fuel_marks")
     suspend fun deleteAllFuelMarks()
@@ -382,6 +476,7 @@ interface GarageDao {
         deleteAllServices()
         deleteAllRefuels()
         deleteAllPrices()
+        deleteAllCustomFuels()
         deleteAllReadings()
         deleteAllBikes()
     }

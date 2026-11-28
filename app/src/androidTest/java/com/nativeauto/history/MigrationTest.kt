@@ -56,7 +56,7 @@ class MigrationTest {
             db.version = 1
         }
 
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7, com.nativeauto.history.MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, com.nativeauto.history.MIGRATION_6_7, com.nativeauto.history.MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build()
         try {
             val dao = room.trips()
             val old = dao.observeAll().first().single()
@@ -140,25 +140,90 @@ class MigrationTest {
             assertEquals(1, live.points().size)
             live.clear()
             assertNull(live.trip())
-            // v7 (4.3d): the old trip has no riding load; a new one carries it, and the bike's load query reads it.
+            // v7 (4.3d): the old trip has no riding load; a new one carries it.
             assertNull(dao.observe(old.id).first()?.loadIndex)
             val loaded = dao.insertWithTrack(
                 old.copy(id = 0, bikeId = "b3", endedAtMs = 99, loadIndex = 400.0, loadDistanceM = 5_000.0, loadAero = 500_000.0, loadAccel = 30.0),
                 emptyList(),
             )
             assertEquals(400.0, dao.observe(loaded).first()!!.loadIndex!!, 0.0)
-            val loads = garage.observeTripLoads("b3").first()
-            assertEquals(1, loads.size)
-            assertEquals(0.0, loads.single().climbM, 0.0) // null climb reads as 0
-            assertEquals(5_000.0, loads.single().distanceM, 0.0)
+            // v11 (4.8): no effort until it is worked out; then the bike's query reads it.
+            assertTrue(garage.observeRideEfforts("b3").first().isEmpty())
+            dao.setEffort(loaded, 5_000.0, 1_600.0, 1_500.0, 4_000.0, 90.0)
+            val effort = garage.observeRideEfforts("b3").first().single()
+            assertEquals(99L, effort.endedAtMs)
+            assertEquals(com.nativeauto.garage.EffortSums(5_000.0, 1_600.0, 1_500.0, 4_000.0, 90.0), effort.sums)
             assertNull(dao.observe(old.id).first()!!.loadCrawlS)
         } finally {
             room.close()
         }
     }
 
-    /** The columns v10 (4.7.2) adds, taken away again. */
+    /** What v11 (4.8) adds, taken away again. */
+    private fun dropV11(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE bikes DROP COLUMN cautionPct")
+        db.execSQL("ALTER TABLE refuels DROP COLUMN learn")
+        db.execSQL("DROP TABLE custom_fuels")
+        listOf("effortM", "effortFlatJ", "effortSlopeJ", "effortSlopeM", "effortSlowS").forEach { db.execSQL("ALTER TABLE trips DROP COLUMN $it") }
+    }
+
+    /** 4.8: a v10 garage and history as 4.7.3 leaves them, and what 4.8 does with them. */
+    @Test fun v10FillUpsAndTripsSurviveAndLearn() = runBlocking {
+        val v10 = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        v10.openHelper.writableDatabase.let { db ->
+            dropV11(db)
+            db.execSQL(
+                "INSERT INTO bikes (id, name, type, model, tankLitres, reserveLitres, fuelType, startKmPerL, odoFactor, active, lastUsedAtMs, createdAtMs, lowFuelKm, gaugeBars) " +
+                    "VALUES ('g1', 'Gen 1', 'SCOOTER_CVT', 'NMAX_GEN1', 6.6, 1.3, 'PERTAMAX', 36.0, 1.0, 1, 5, 1, 30, 6)",
+            )
+            db.execSQL(
+                "INSERT INTO refuels (bikeId, timeMs, odometerKm, litres, pricePerL, totalRp, full, fuelType) VALUES ('g1', 2, 12000.0, 4.665, 15950.0, 74407.0, 0, 'PERTAMAX')",
+            )
+            db.execSQL(
+                "INSERT INTO trips (id, startedAtMs, endedAtMs, durationMs, movingMs, stoppedMs, distanceM, maxSpeedMps, startLat, startLon, endLat, endLon, track, bikeId) " +
+                    "VALUES (3, 1000, 61000, 60000, 60000, 0, 600.0, 12.0, 0, 0, 0, 0, '', 'g1'), (4, 100000, 160000, 60000, 60000, 0, 600.0, 12.0, 0, 0, 0, 0, '', 'g1')",
+            )
+            repeat(61) { i ->
+                db.execSQL(
+                    "INSERT INTO track_points (tripId, timeMs, latitude, longitude, speedMps, bearingDeg, accuracyM, altitudeM) " +
+                        "VALUES (3, ${1_000 + i * 1_000}, ${-7.8 + i * 0.00009}, 110.4, 10.0, 0.0, 4.0, ${100 + i * 0.3})",
+                )
+            }
+            db.execSQL("PRAGMA user_version = 10")
+        }
+        v10.close()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_10_11).build()
+        try {
+            val garage = room.garage()
+            assertEquals(com.nativeauto.garage.RangeCaution.NORMAL, garage.bike("g1")!!.caution)
+            val fill = garage.observeRefuels("g1").first().single()
+            assertTrue(fill.learn)
+            assertEquals(4.665, fill.litres, 0.0)
+            garage.updateRefuel(fill.copy(full = true, learn = false))
+            assertTrue(garage.refuel(fill.id)!!.let { it.full && !it.learn })
+            garage.upsertCustomFuel(com.nativeauto.garage.CustomFuel("c:shell", "Shell", 1))
+            garage.upsertCustomFuel(com.nativeauto.garage.CustomFuel("c:shell", "Shell V-Power", 1, retired = true))
+            assertEquals("Shell V-Power", garage.allCustomFuels().single().name)
+            // The trip with a track gets its effort, the one without stays without; a second pass finds nothing.
+            room.trips().fillMissingEffort()
+            assertTrue(room.trips().tripsWithoutEffort().isEmpty())
+            val e = garage.observeRideEfforts("g1").first().single().sums
+            assertEquals(600.0, e.distanceM, 5.0)
+            assertTrue("up 3 %: $e", e.slopeJ > e.flatJ * 1.5 && e.sloped)
+            assertNull(room.trips().observe(4).first()!!.effortM)
+            val id = garage.insertDashKmPerL(com.nativeauto.garage.DashKmPerL(bikeId = "g1", timeMs = 9, kmPerL = 83.5, tripKm = 6.0))
+            garage.setDashKmPerL(id, 38.5)
+            assertEquals(38.5, garage.observeDashKmPerL("g1").first().single().kmPerL, 0.0)
+            garage.deleteDashEntry(id)
+            assertTrue(garage.observeDashKmPerL("g1").first().isEmpty())
+        } finally {
+            room.close()
+        }
+    }
+
+    /** The columns v10 (4.7.2) adds, taken away again (and v11's). */
     private fun dropV10(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        dropV11(db)
         listOf("track_points", "live_points").forEach { t ->
             listOf("altitudeM", "altitudeAccuracyM").forEach { db.execSQL("ALTER TABLE $t DROP COLUMN $it") }
         }
@@ -174,7 +239,7 @@ class MigrationTest {
             db.execSQL("PRAGMA user_version = 9")
         }
         v9.close()
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_9_10).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_9_10, MIGRATION_10_11).build()
         try {
             val old = room.trips().points(3).single()
             assertEquals(9.5f, old.speedMps)
@@ -214,7 +279,7 @@ class MigrationTest {
             db.execSQL("PRAGMA user_version = 8")
         }
         v8.close()
-        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_8_9, MIGRATION_9_10).build()
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build()
         try {
             val garage = room.garage()
             assertEquals(listOf(6, 8, 8), listOf("g1", "g2", "o").map { garage.bike(it)!!.gaugeBars })

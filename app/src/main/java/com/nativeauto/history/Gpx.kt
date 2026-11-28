@@ -9,7 +9,8 @@ import java.util.Locale
  * GPX 1.1 for one trip (Rider-Feedback §5, 9d): read by Strava, Komoot, OsmAnd, Google Earth.
  * Trips recorded since 9c carry the full track: each point has its time, and speed (m/s) and
  * course (degrees) as `<extensions>`, which most readers pick up. Older trips only have the
- * simplified path, so their points have no time.
+ * simplified path, so their points have no time. 4.8: the height goes along as the phone gave it (`rawaltitude` and
+ * `rawaltitudeaccuracy` in metres, above the WGS84 ellipsoid), not as `<ele>`: readers take that for metres above the sea.
  */
 fun buildGpx(trip: TripRecord, points: List<TrackPointRecord>): String = buildString {
     append("""<?xml version="1.0" encoding="UTF-8"?>""").append('\n')
@@ -23,6 +24,8 @@ fun buildGpx(trip: TripRecord, points: List<TrackPointRecord>): String = buildSt
             append("<time>").append(isoTime(p.timeMs)).append("</time>")
             append("<extensions><speed>").append(number(p.speedMps.toDouble())).append("</speed>")
             p.bearingDeg?.let { append("<course>").append(number(it.toDouble())).append("</course>") }
+            p.altitudeM?.let { append("<rawaltitude>").append(number(it.toDouble())).append("</rawaltitude>") }
+            if (p.altitudeM != null) p.altitudeAccuracyM?.let { append("<rawaltitudeaccuracy>").append(number(it.toDouble())).append("</rawaltitudeaccuracy>") }
             append("</extensions></trkpt>\n")
         }
     } else {

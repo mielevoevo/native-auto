@@ -34,7 +34,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.nativeauto.garage.DATE_NAMES
 import com.nativeauto.garage.DueLevel
-import com.nativeauto.garage.SERVICE_NAMES
+import com.nativeauto.garage.BikeType
+import com.nativeauto.garage.serviceNames
 import com.nativeauto.garage.ServiceDraft
 import com.nativeauto.garage.ServiceDue
 import com.nativeauto.garage.ServiceItem
@@ -72,7 +73,7 @@ internal fun ServicesSection(
     }
     if (services.isEmpty()) {
         Text(
-            "Add what you service (oil, CVT, tires…) with your own intervals, and dates like vehicle tax.",
+            "Add what you service (oil, tires, brakes…) with your own intervals, and dates like vehicle tax.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textDim,
         )
@@ -129,6 +130,7 @@ internal fun ServicesSection(
 @Composable
 internal fun ServiceEditor(
     item: ServiceItem?,
+    type: BikeType,
     estimateKm: Double?,
     onSave: (ServiceDraft) -> Unit,
     onDelete: (() -> Unit)?,
@@ -187,7 +189,7 @@ internal fun ServiceEditor(
         }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (kind == ServiceKind.DISTANCE) {
-                SERVICE_NAMES.forEach { n -> AssistChip(onClick = { haptics.tick(); name = n }, label = { Text(n) }, modifier = Modifier.heightIn(min = 48.dp)) }
+                serviceNames(type).forEach { n -> AssistChip(onClick = { haptics.tick(); name = n }, label = { Text(n) }, modifier = Modifier.heightIn(min = 48.dp)) }
             } else {
                 DATE_NAMES.forEach { (n, m) ->
                     AssistChip(onClick = { haptics.tick(); name = n; months = m.toString() }, label = { Text(n) }, modifier = Modifier.heightIn(min = 48.dp))

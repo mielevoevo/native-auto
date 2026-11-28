@@ -951,3 +951,18 @@ repeated fix with a speed counts as riding) and `settings put global hide_error_
   (uninstall first; What's new covers the dashboard on an updated one).
 - **4.7.3 (versionCode 39):** the slim log face puts its figures beside the controls (`LogCompact`); `PortraitCardsTest.theLogFacesLastLine...` measures every portrait shape.
   Check portrait cards at `wm density 440` (the Redmi is 393 x 873 dp; the emulator default is larger), `wm density reset` after.
+
+- **4.8 (versionCode 40, Room v11, `MIGRATION_10_11`; choices in DECISIONS.md "4.8"):**
+  - **Range:** `garage/Effort.kt` (`EffortAccumulator`, O(1) per accepted fix; `EffortTrail` decides when `LiveRidingLoad` is published; `trips.effort*`,
+    `TripDao.fillMissingEffort()` rebuilds older and imported trips) and `garage/RangeModel.kt` (`dashSteps`, `learnRangeModel` with its gate, `rangeLoad`). They replace
+    `RANGE_FOLLOWS_RIDING`, `fitLoad`, `spanLoads`; `LoadSums` stays for the traffic line. `GarageRepository.learned()` recomputes on entries only. Change a constant there only
+    after checking it on real figures. `garage_range_mode` says how far a bike is.
+  - `FuelLevel.cautiousRangeKm` is the only range shown (`caution`, `stepKm`, `heldKm` from `RangeHold`). `learnConsumption` groups dash figures per tank; `Consumption.dashRatio`.
+  - `Fuel` is an interface: `FuelType` (pump) and `CustomFuel` (table, `retired`). Use `fuelOf(key, custom)` / `fuelChoices`; `BikeRecord.fuel` is gone. Tags: `fuelTag(fuel)`.
+  - `RefuelDialog(existing = ...)` corrects (`garage_refuel_row` is tappable); `reviewRefuel` → `garage_review_issue|fix|save|no_learn`; `RefuelRecord.learn`.
+    Dash figures: `garage_dash_row|delete|all`; `DashKmPerLDialog` has `kmpl_minus|plus` and opens with the last figure.
+  - **Backup:** `BackupController` + `BackupDialogs` (`backup_dialog`, `backup_scope_<NAME>`, `backup_protect`, `backup_password`, `backup_save`; `backup_password_dialog`) serve both the
+    settings and the history. `Backup.readAll(bytes, password)` throws `PasswordException`.
+  - **Keys:** release for the public: `-PpublicBuild`, then `checkPublicApk -PcheckApk=<path>`.
+  - Trip detail map: `SpeedShading.kt`, `TripMaps.speedOverview`, `SpeedLegend` (`history_speed_legend`). Shots: `DesignShotsTest.garage48`.
+  - Bash here can't run heredocs with many apostrophes: write Python edit scripts with the Write tool.

@@ -19,6 +19,7 @@ playServicesLocation = "21.4.0"
 ferrostar = "0.59.0"
 room = "2.8.5"
 okhttp = "5.5.1"
+zip4j = "2.11.6"
 serializationJson = "1.12.0"
 desugar = "2.1.5"
 benchmark = "1.5.0"
@@ -63,6 +64,7 @@ play-services-maps = { group = "com.google.android.gms", name = "play-services-m
 maplibre-android = { group = "org.maplibre.gl", name = "android-sdk-opengl", version.ref = "maplibre" }  # OpenGL ES renderer: the default Vulkan one crashes the emulator's GPU emulation
 ferrostar-core = { group = "com.stadiamaps.ferrostar", name = "core", version.ref = "ferrostar" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
+zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serializationJson" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

@@ -14,6 +14,7 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import com.nativeauto.garage.BikeRecord
+import com.nativeauto.garage.CustomFuel
 import com.nativeauto.garage.DashKmPerL
 import com.nativeauto.garage.FuelMark
 import com.nativeauto.garage.FuelPrice
@@ -65,6 +66,15 @@ data class TripRecord(
     val loadCrawlS: Double? = null,
     val loadCrawlM: Double? = null,
     val loadCrawlClimbM: Double? = null,
+    /**
+     * 4.8: the trip's effort ([com.nativeauto.garage.EffortSums]). Null on older and imported trips until it has been
+     * worked out from their saved track ([TripDao.tripsWithoutEffort]), and on trips without one.
+     */
+    val effortM: Double? = null,
+    val effortFlatJ: Double? = null,
+    val effortSlopeJ: Double? = null,
+    val effortSlopeM: Double? = null,
+    val effortSlowS: Double? = null,
 ) {
     val averageSpeedMps: Float get() = if (durationMs < 1_000) 0f else (distanceM / (durationMs / 1000.0)).toFloat()
     val movingAverageMps: Float get() = if (movingMs < 1_000) 0f else (distanceM / (movingMs / 1000.0)).toFloat()
@@ -121,6 +131,16 @@ interface TripDao {
     @Query("UPDATE trips SET startAddress = :start, endAddress = :end WHERE id = :id")
     suspend fun setAddresses(id: Long, start: String?, end: String?)
 
+    /** 4.8: trips with a saved track whose effort isn't known yet. */
+    @Query("SELECT id FROM trips WHERE effortM IS NULL AND id IN (SELECT DISTINCT tripId FROM track_points)")
+    suspend fun tripsWithoutEffort(): List<Long>
+
+    @Query(
+        "UPDATE trips SET effortM = :distanceM, effortFlatJ = :flatJ, effortSlopeJ = :slopeJ, effortSlopeM = :slopeM, " +
+            "effortSlowS = :slowS WHERE id = :id",
+    )
+    suspend fun setEffort(id: Long, distanceM: Double, flatJ: Double, slopeJ: Double, slopeM: Double, slowS: Double)
+
     @Query("SELECT * FROM trips WHERE startAddress IS NULL OR endAddress IS NULL")
     suspend fun missingAddresses(): List<TripRecord>
 
@@ -167,8 +187,9 @@ interface RecentPlaceDao {
         TripRecord::class, RecentPlaceRecord::class, TrackPointRecord::class, BikeRecord::class, OdometerReading::class,
         RefuelRecord::class, FuelPrice::class, LiveTripRecord::class, LivePointRecord::class,
         ServiceItem::class, ServiceRecord::class, FuelMark::class, DashKmPerL::class,
+        CustomFuel::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -321,5 +342,18 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         listOf("track_points", "live_points").forEach { table ->
             listOf("altitudeM", "altitudeAccuracyM").forEach { db.execSQL("ALTER TABLE $table ADD COLUMN $it REAL") }
         }
+    }
+}
+
+/** 4.8: each bike's caution, fill-ups not to learn from, the rider's own fuels, and each trip's effort. */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE bikes ADD COLUMN cautionPct INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE refuels ADD COLUMN learn INTEGER NOT NULL DEFAULT 1")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS custom_fuels (" +
+                "`key` TEXT NOT NULL, name TEXT NOT NULL, createdAtMs INTEGER NOT NULL, retired INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`key`))",
+        )
+        listOf("effortM", "effortFlatJ", "effortSlopeJ", "effortSlopeM", "effortSlowS").forEach { db.execSQL("ALTER TABLE trips ADD COLUMN $it REAL") }
     }
 }

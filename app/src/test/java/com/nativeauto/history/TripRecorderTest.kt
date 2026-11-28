@@ -52,6 +52,12 @@ class TripRecorderTest {
             trips.value = trips.value.filterNot { it.id == id }
         }
         override suspend fun deletePoints(tripId: Long) { track.removeAll { it.tripId == tripId } }
+        override suspend fun tripsWithoutEffort() = trips.value.filter { t -> t.effortM == null && track.any { it.tripId == t.id } }.map { it.id }
+        override suspend fun setEffort(id: Long, distanceM: Double, flatJ: Double, slopeJ: Double, slopeM: Double, slowS: Double) {
+            trips.value = trips.value.map {
+                if (it.id == id) it.copy(effortM = distanceM, effortFlatJ = flatJ, effortSlopeJ = slopeJ, effortSlopeM = slopeM, effortSlowS = slowS) else it
+            }
+        }
     }
 
     /** Names a point by its rounded northing; [online] off answers null, like a failed lookup. */

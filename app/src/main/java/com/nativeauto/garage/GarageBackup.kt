@@ -25,6 +25,8 @@ data class GarageData(
     /** 4.7.2: gauge readings and dash km/L; none in older backups. */
     val fuelMarks: List<FuelMark> = emptyList(),
     val dashKmPerL: List<DashKmPerL> = emptyList(),
+    /** 4.8: the rider's own fuels. */
+    val customFuels: List<CustomFuel> = emptyList(),
 ) {
     val isEmpty: Boolean get() = bikes.isEmpty() && prices.isEmpty()
 }
@@ -46,6 +48,7 @@ object GarageBackup {
         serviceRecords = dao.allServiceRecords(),
         fuelMarks = dao.allFuelMarks(),
         dashKmPerL = dao.allDashKmPerL(),
+        customFuels = dao.allCustomFuels(),
     )
 
     fun encode(g: GarageData): JsonObject = buildJsonObject {
@@ -56,6 +59,7 @@ object GarageBackup {
                     put("tankLitres", b.tankLitres); put("reserveLitres", b.reserveLitres); put("fuelType", b.fuelType)
                     put("startKmPerL", b.startKmPerL); put("odoFactor", b.odoFactor); put("active", b.active); put("lowFuelKm", b.lowFuelKm)
                     put("gaugeBars", b.gaugeBars); b.odoFactorManual?.let { put("odoFactorManual", it) }
+                    put("cautionPct", b.cautionPct)
                     put("lastUsedAtMs", b.lastUsedAtMs); put("createdAtMs", b.createdAtMs)
                 }
             }
@@ -73,11 +77,17 @@ object GarageBackup {
                 addJsonObject {
                     put("bikeId", r.bikeId); put("timeMs", r.timeMs); put("odometerKm", r.odometerKm); put("litres", r.litres)
                     put("pricePerL", r.pricePerL); put("totalRp", r.totalRp); put("full", r.full); put("fuelType", r.fuelType)
+                    if (!r.learn) put("learn", false)
                 }
             }
         }
         putJsonArray("prices") {
             g.prices.forEach { p -> addJsonObject { put("fuelType", p.fuelType); put("pricePerL", p.pricePerL); put("updatedAtMs", p.updatedAtMs) } }
+        }
+        putJsonArray("customFuels") {
+            g.customFuels.forEach { f ->
+                addJsonObject { put("key", f.key); put("name", f.name); put("createdAtMs", f.createdAtMs); put("retired", f.retired) }
+            }
         }
         putJsonArray("services") {
             g.services.forEach { s ->
@@ -126,6 +136,7 @@ object GarageBackup {
                     gaugeBars = b.int("gaugeBars")?.takeIf { it in GAUGE_BARS_RANGE }
                         ?: BikeModel.entries.firstOrNull { it.name == b.str("model") }?.gaugeBars ?: DEFAULT_GAUGE_BARS,
                     odoFactorManual = b.dbl("odoFactorManual")?.takeIf { it in FACTOR_RANGE },
+                    cautionPct = b.int("cautionPct")?.takeIf { p -> RangeCaution.entries.any { it.percent == p } } ?: 0,
                 )
             },
             readings = list("readings").map { r ->
@@ -138,8 +149,11 @@ object GarageBackup {
                 RefuelRecord(
                     bikeId = r.str("bikeId")!!, timeMs = r.lng("timeMs")!!, odometerKm = r.dbl("odometerKm")!!, litres = r.dbl("litres")!!,
                     pricePerL = r.dbl("pricePerL") ?: 0.0, totalRp = r.dbl("totalRp") ?: 0.0, full = r.bool("full") ?: true,
-                    fuelType = r.str("fuelType") ?: FuelType.PERTAMAX.name,
+                    fuelType = r.str("fuelType") ?: FuelType.PERTAMAX.name, learn = r.bool("learn") ?: true,
                 )
+            },
+            customFuels = list("customFuels").map { f ->
+                CustomFuel(f.str("key")!!, f.str("name") ?: "Other fuel", f.lng("createdAtMs") ?: 0, f.bool("retired") ?: false)
             },
             prices = list("prices").map { p -> FuelPrice(p.str("fuelType")!!, p.dbl("pricePerL")!!, p.lng("updatedAtMs") ?: 0) },
             services = list("services").map { s ->
@@ -190,6 +204,9 @@ object GarageBackup {
         g.readings.filter { it.bikeId in known && readings.add(it.bikeId to it.timeMs) }.forEach { dao.insertReading(it.copy(id = 0)); added++ }
         val refuels = dao.allRefuels().mapTo(HashSet()) { it.bikeId to it.timeMs }
         g.refuels.filter { it.bikeId in known && refuels.add(it.bikeId to it.timeMs) }.forEach { dao.insertRefuel(it.copy(id = 0)); added++ }
+        // 4.8: the rider's own fuels, by key; one that is here (or was deleted here) stays as it is.
+        val fuels = dao.allCustomFuels().mapTo(HashSet()) { it.key }
+        g.customFuels.filter { fuels.add(it.key) }.forEach { dao.upsertCustomFuel(it); added++ }
         val prices = dao.allPrices().associateBy { it.fuelType }
         g.prices.filter { p -> (prices[p.fuelType]?.updatedAtMs ?: Long.MIN_VALUE) < p.updatedAtMs }.forEach { dao.upsertPrice(it) }
         // Service items get new ids here; their history follows them.

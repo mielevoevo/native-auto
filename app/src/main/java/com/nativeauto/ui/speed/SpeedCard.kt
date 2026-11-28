@@ -116,7 +116,9 @@ fun SpeedCard(
     var dashGiven by rememberSaveable(savedTrip?.id) { mutableStateOf<Double?>(null) }
     if (askingDash && savedTrip != null && bike != null) {
         DashKmPerLDialog(
-            bikeName = bike.name,
+            title = "${bike.name}'s km/L",
+            initial = garage.state?.fuel?.dash?.firstOrNull()?.kmPerL,
+            startAt = garage.state?.fuel?.consumption?.kmPerL ?: bike.startKmPerL,
             onSave = { v ->
                 haptics.confirm()
                 garageViewModel.addDashKmPerL(bike.id, v, savedTrip.distanceM / 1000)

@@ -1,7 +1,15 @@
 package com.nativeauto.history
 
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import net.lingala.zip4j.exception.ZipException
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.AesKeyStrength
+import net.lingala.zip4j.model.enums.EncryptionMethod
+import net.lingala.zip4j.io.inputstream.ZipInputStream as ProtectedZipInputStream
+import net.lingala.zip4j.io.outputstream.ZipOutputStream as ProtectedZipOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -34,7 +42,9 @@ import kotlinx.serialization.json.putJsonArray
  * (every trip with all its figures and its full track), and `gpx/` holds one GPX per trip for other
  * apps. Import reads only `backup.json`. Format 2 (11c) adds the Garage (`garage`, see
  * [GarageBackup]); format 1 files still import (no Garage in them). 4.7.2 adds altitude to the points, and gauge readings
- * and dash km/L to the Garage; both optional, so the format stays 2.
+ * and dash km/L to the Garage; both optional, so the format stays 2. 4.8: `scope` says when a backup holds the Garage only
+ * (its trips are empty), and a backup may be protected: the same `backup.json`, AES-256, with the GPX files in one
+ * archive beside it (`gpx.zip`), so their names say nothing either.
  *
  * Plain JVM code (java.util.zip + the kotlinx JSON tree), so it's unit-tested without a device.
  */
@@ -47,17 +57,76 @@ object Backup {
     /** A backup's contents: the trips and (format 2) the Garage. */
     class Contents(val trips: List<TripWithTrack>, val garage: GarageData?)
 
-    fun write(trips: List<TripWithTrack>, out: OutputStream, garage: GarageData? = null) {
+    /** A protected backup was opened without its password ([wrong] false), or with another one. Nothing was read. */
+    class PasswordException(val wrong: Boolean) : IllegalArgumentException(if (wrong) "Wrong password" else "This backup needs its password")
+
+    fun write(trips: List<TripWithTrack>, out: OutputStream, garage: GarageData? = null, password: CharArray? = null, scope: BackupScope = BackupScope.EVERYTHING) {
+        val json = encode(trips, garage, scope).toByteArray()
+        if (password != null) {
+            writeProtected(json, trips, out, password)
+            return
+        }
         ZipOutputStream(out).use { zip ->
             zip.putNextEntry(ZipEntry(JSON_ENTRY))
-            zip.write(encode(trips, garage).toByteArray())
+            zip.write(json)
             zip.closeEntry()
-            trips.forEach { t ->
-                zip.putNextEntry(ZipEntry("gpx/" + gpxFileName(t.trip)))
-                zip.write(buildGpx(t.trip, t.points).toByteArray())
+            writeGpx(zip, trips, "gpx/")
+        }
+    }
+
+    private fun writeGpx(zip: ZipOutputStream, trips: List<TripWithTrack>, folder: String) = trips.forEach { t ->
+        zip.putNextEntry(ZipEntry(folder + gpxFileName(t.trip)))
+        zip.write(buildGpx(t.trip, t.points).toByteArray())
+        zip.closeEntry()
+    }
+
+    private fun writeProtected(json: ByteArray, trips: List<TripWithTrack>, out: OutputStream, password: CharArray) {
+        ProtectedZipOutputStream(out, password).use { zip ->
+            fun entry(name: String, bytes: ByteArray) {
+                zip.putNextEntry(
+                    ZipParameters().apply {
+                        fileNameInZip = name
+                        isEncryptFiles = true
+                        encryptionMethod = EncryptionMethod.AES
+                        aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
+                    },
+                )
+                zip.write(bytes)
                 zip.closeEntry()
             }
+            entry(JSON_ENTRY, json)
+            if (trips.isNotEmpty()) {
+                val gpx = ByteArrayOutputStream()
+                ZipOutputStream(gpx).use { writeGpx(it, trips, "") }
+                entry("gpx.zip", gpx.toByteArray())
+            }
         }
+    }
+
+    /** The first entry's "encrypted" flag (every backup starts with its JSON). */
+    fun isProtected(file: ByteArray): Boolean =
+        file.size > 8 && file[0] == 'P'.code.toByte() && file[1] == 'K'.code.toByte() && (file[6].toInt() and 1) != 0
+
+    /** Trips and Garage of a backup file; a [PasswordException] when it needs a password or got the wrong one. */
+    fun readAll(file: ByteArray, password: CharArray?): Contents {
+        if (!isProtected(file)) return readAll(file.inputStream())
+        if (password == null || password.isEmpty()) throw PasswordException(wrong = false)
+        val json = try {
+            ProtectedZipInputStream(file.inputStream(), password).use { zip ->
+                var found: ByteArray? = null
+                while (found == null) {
+                    val entry = zip.nextEntry ?: break
+                    if (entry.fileName == JSON_ENTRY) found = zip.readBytes()
+                }
+                found
+            }
+        } catch (e: ZipException) {
+            // The check value, or (one in 65,536) the seal over the contents.
+            throw PasswordException(wrong = true)
+        } catch (e: IOException) {
+            throw PasswordException(wrong = true)
+        } ?: throw IllegalArgumentException("Not a Native Auto backup (no $JSON_ENTRY)")
+        return decodeAll(json.decodeToString())
     }
 
     /** The trips in a backup, or an exception (not a backup, or a newer format) with a reason. */
@@ -74,8 +143,9 @@ object Backup {
         throw IllegalArgumentException("Not a Native Auto backup (no $JSON_ENTRY)")
     }
 
-    internal fun encode(trips: List<TripWithTrack>, garage: GarageData? = null): String = buildJsonObject {
+    internal fun encode(trips: List<TripWithTrack>, garage: GarageData? = null, scope: BackupScope = BackupScope.EVERYTHING): String = buildJsonObject {
         put("format", FORMAT)
+        if (scope == BackupScope.GARAGE) put("scope", "garage")
         put("app", "Native Auto")
         if (garage != null) put("garage", GarageBackup.encode(garage))
         putJsonArray("trips") {
@@ -206,4 +276,12 @@ object Backup {
         }
         return added
     }
+}
+
+/** 4.8: what a backup holds. */
+enum class BackupScope {
+    /** Trips with their tracks, GPX files and the Garage. */
+    EVERYTHING,
+    /** Bikes, odometer, fuel and services: no trips, no routes, no places. */
+    GARAGE,
 }

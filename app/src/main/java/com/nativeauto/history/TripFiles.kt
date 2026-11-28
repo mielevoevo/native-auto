@@ -9,6 +9,7 @@ import java.io.File
 import java.time.LocalDate
 import com.nativeauto.garage.GarageBackup
 import com.nativeauto.garage.GarageDao
+import com.nativeauto.garage.GarageRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,7 @@ class TripFiles @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: TripDao,
     private val garage: GarageDao,
+    private val garageRepository: GarageRepository,
 ) {
     private val dir get() = File(context.cacheDir, "exports").apply { mkdirs() }
 
@@ -35,23 +37,36 @@ class TripFiles @Inject constructor(
         share(uri(file), "application/gpx+xml", file.name)
     }
 
-    /** A share intent for a ZIP of every trip (save it to Drive or Files to keep it). */
-    suspend fun backupShareIntent(): Intent = withContext(Dispatchers.IO) {
-        val file = fresh("native-auto-backup-${LocalDate.now()}.zip")
-        val trips = dao.observeAll().first().map { Backup.TripWithTrack(it, dao.points(it.id)) }
+    /**
+     * A share intent for a backup (save it to Drive or Files to keep it): everything, or (4.8) the Garage only, protected by
+     * [password] if there is one (never stored).
+     */
+    suspend fun backupShareIntent(scope: BackupScope = BackupScope.EVERYTHING, password: CharArray? = null): Intent = withContext(Dispatchers.IO) {
+        val everything = scope == BackupScope.EVERYTHING
+        val file = fresh("native-auto-${if (everything) "backup" else "garage"}-${LocalDate.now()}.zip")
+        val trips = if (everything) dao.observeAll().first().map { Backup.TripWithTrack(it, dao.points(it.id)) } else emptyList()
         // 11c: the Garage goes in the same file (bikes, odometer, fuel, services).
-        val garageData = GarageBackup.collect(garage)
-        file.outputStream().use { Backup.write(trips, it, garageData) }
+        val garageData = GarageBackup.collect(garage).let {
+            // Without the trips the odometer couldn't be worked out from them: where each bike stands goes along.
+            if (everything) it else it.copy(readings = it.readings + garageRepository.odometerAnchors())
+        }
+        file.outputStream().use { Backup.write(trips, it, garageData, password, scope) }
         share(uri(file), "application/zip", file.name)
     }
 
-    /** Restores a picked backup; returns how many trips were new. Throws with a reason on a bad file. */
-    suspend fun import(source: Uri): ImportResult = withContext(Dispatchers.IO) {
-        val contents = context.contentResolver.openInputStream(source)?.use(Backup::readAll)
+    /**
+     * Restores a picked backup; returns how many trips were new. Throws with a reason on a bad file
+     * ([Backup.PasswordException] when it needs a password): then nothing is imported.
+     */
+    suspend fun import(source: Uri, password: CharArray? = null): ImportResult = withContext(Dispatchers.IO) {
+        val file = context.contentResolver.openInputStream(source)?.use { it.readBytes() }
             ?: throw IllegalArgumentException("Couldn't open the file")
+        val contents = Backup.readAll(file, password)
         // The Garage first, so restored trips find their bikes.
         val garageAdded = contents.garage?.let { GarageBackup.restore(garage, it) } ?: 0
-        ImportResult(trips = Backup.restore(dao, contents.trips), garageEntries = garageAdded)
+        val trips = Backup.restore(dao, contents.trips)
+        if (trips > 0) dao.fillMissingEffort()
+        ImportResult(trips = trips, garageEntries = garageAdded)
     }
 
     private fun fresh(name: String): File {

@@ -2,8 +2,14 @@ package com.nativeauto.ui.garage
 
 import kotlinx.coroutines.flow.flowOf
 import com.nativeauto.garage.priceOf
+import com.nativeauto.garage.CustomFuel
+import com.nativeauto.garage.DashKmPerL
+import com.nativeauto.garage.Fuel
 import com.nativeauto.garage.FuelPrice
 import com.nativeauto.garage.FuelType
+import com.nativeauto.garage.RefuelRecord
+import com.nativeauto.garage.fuelChoices
+import com.nativeauto.garage.fuelOf
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -82,7 +88,11 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
     var refuelling by rememberSaveable { mutableStateOf<String?>(null) }
     var addingUntracked by rememberSaveable { mutableStateOf<String?>(null) }
     var settingLevel by rememberSaveable { mutableStateOf<String?>(null) }
-    var editingPrice by rememberSaveable { mutableStateOf<FuelType?>(null) }
+    /** The fuel whose price is open; "" = a new one of the rider's own (4.8). */
+    var editingPrice by rememberSaveable { mutableStateOf<String?>(null) }
+    var editingRefuel by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingDash by rememberSaveable { mutableStateOf<Long?>(null) }
+    val fuels by viewModel.fuels.collectAsStateWithLifecycle()
     val prices by viewModel.prices.collectAsStateWithLifecycle()
     // 11c: the service editor (0 = a new item) and "Mark done", for the selected bike.
     var editingService by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -123,7 +133,11 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                             onUntracked = { haptics.tap(); addingUntracked = selected.id },
                             onSetLevel = { haptics.tap(); settingLevel = selected.id },
                             prices = prices,
-                            onEditPrice = { haptics.tap(); editingPrice = it },
+                            fuels = fuels,
+                            onEditPrice = { haptics.tap(); editingPrice = it.key },
+                            onAddFuel = { haptics.tap(); editingPrice = "" },
+                            onEditRefuel = { editingRefuel = it.id },
+                            onEditDash = { editingDash = it.id },
                             onRefuel = { haptics.tap(); refuelling = selected.id },
                             onAddService = { haptics.tap(); editingService = 0L },
                             onEditService = { haptics.tap(); editingService = it.id },
@@ -163,6 +177,7 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
         BikeEditor(
             bike = bike,
             newModel = newModel,
+            fuels = fuels,
             learnedKmPerL = edited?.consumption?.takeIf { it.learned }?.let { "Learned: ${formatKmPerL(it.kmPerL)} ${kmplSource(it)}. The starting km/L counts less with each fill-up." },
             deleteArmed = bike != null && armed == bike.id,
             onSave = { draft, odometer ->
@@ -190,7 +205,8 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
             correcting = null
         } else {
             val odo by remember(id) { viewModel.odometer(id) }.collectAsStateWithLifecycle(null)
-            OdometerDialog(
+            // 4.8: once the estimate is there, so the field is prefilled.
+            if (odo != null) OdometerDialog(
                 title = if (odo?.lastReading == null) "${bike.name}'s odometer" else "Correct ${bike.name}'s odometer",
                 text = if (odo?.lastReading == null) {
                     "Enter the reading on the bike. From here on, every trip on ${bike.name} adds to it."
@@ -211,15 +227,55 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
             refuelling = null
         } else {
             val odo by remember(id) { viewModel.odometer(id) }.collectAsStateWithLifecycle(null)
+            val state by remember(id) { viewModel.fuel(id) }.collectAsStateWithLifecycle(null)
             // Wait for the estimate, so the odometer field is prefilled.
             if (odo != null) {
                 RefuelDialog(
                     bike = bike,
                     estimateKm = odo?.estimateKm,
                     prices = prices,
+                    fuels = fuels,
+                    state = state,
                     onSave = { draft -> haptics.confirm(); viewModel.logRefuel(id, draft); refuelling = null },
                     onDismiss = { refuelling = null },
                 )
+            }
+        }
+    }
+    // 4.8: corrections of what was entered before.
+    if (selected != null && (editingRefuel != null || editingDash != null)) {
+        val state by remember(selected.id) { viewModel.fuel(selected.id) }.collectAsStateWithLifecycle(null)
+        state?.let { s ->
+            editingRefuel?.let { id ->
+                val entry = s.refuels.firstOrNull { it.id == id }
+                if (entry == null) {
+                    editingRefuel = null
+                } else {
+                    RefuelDialog(
+                        bike = selected,
+                        estimateKm = null,
+                        prices = prices,
+                        fuels = fuels,
+                        state = s,
+                        existing = entry,
+                        onSave = { draft -> haptics.confirm(); viewModel.updateRefuel(id, draft); editingRefuel = null },
+                        onDismiss = { editingRefuel = null },
+                    )
+                }
+            }
+            editingDash?.let { id ->
+                val entry = s.dash.firstOrNull { it.id == id }
+                if (entry == null) {
+                    editingDash = null
+                } else {
+                    DashKmPerLDialog(
+                        title = "Dash km/L · ${readingDate(entry.timeMs)}",
+                        initial = entry.kmPerL,
+                        skipLabel = "Cancel",
+                        onSave = { v -> haptics.confirm(); viewModel.updateDash(id, v); editingDash = null },
+                        onDismiss = { editingDash = null },
+                    )
+                }
             }
         }
     }
@@ -234,6 +290,7 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
                 id != 0L && item == null -> editingService = null
                 else -> ServiceEditor(
                     item = item,
+                    type = selected.bikeType,
                     estimateKm = odo?.estimateKm,
                     onSave = { draft ->
                         haptics.confirm()
@@ -259,13 +316,26 @@ fun GarageScreen(onClose: () -> Unit, viewModel: GarageViewModel = hiltViewModel
             }
         }
     }
-    editingPrice?.let { type ->
-        FuelPriceDialog(
-            fuel = type,
-            current = priceOf(type, prices),
-            onSave = { p -> haptics.confirm(); viewModel.setPrice(type, p); editingPrice = null },
-            onDismiss = { editingPrice = null },
-        )
+    editingPrice?.let { key ->
+        val fuel = if (key.isEmpty()) null else fuelOf(key, fuels)
+        if (fuel is FuelType) {
+            FuelPriceDialog(
+                fuel = fuel,
+                current = priceOf(fuel, prices),
+                onSave = { p -> haptics.confirm(); viewModel.setPrice(fuel, p); editingPrice = null },
+                onDismiss = { editingPrice = null },
+            )
+        } else {
+            val own = fuel as? CustomFuel
+            CustomFuelDialog(
+                fuel = own,
+                current = own?.let { priceOf(it, prices) } ?: 0.0,
+                taken = fuelChoices(fuels).filter { it.key != key }.map { it.label },
+                onSave = { name, p -> haptics.confirm(); viewModel.saveFuel(own?.key, name, p); editingPrice = null },
+                onDelete = own?.let { f -> { haptics.confirm(); viewModel.deleteFuel(f.key); editingPrice = null } },
+                onDismiss = { editingPrice = null },
+            )
+        }
     }
     settingLevel?.let { id ->
         val bike = list?.firstOrNull { it.id == id }
@@ -367,7 +437,11 @@ private fun BikeDetail(
     onUntracked: () -> Unit,
     onSetLevel: () -> Unit,
     prices: List<FuelPrice>,
-    onEditPrice: (FuelType) -> Unit,
+    fuels: List<CustomFuel>,
+    onEditPrice: (Fuel) -> Unit,
+    onAddFuel: () -> Unit,
+    onEditRefuel: (RefuelRecord) -> Unit,
+    onEditDash: (DashKmPerL) -> Unit,
     onRefuel: () -> Unit,
     onAddService: () -> Unit,
     onEditService: (ServiceItem) -> Unit,
@@ -380,6 +454,7 @@ private fun BikeDetail(
     val readings by remember(bike.id) { viewModel.readings(bike.id) }.collectAsStateWithLifecycle(emptyList())
     val fuel by remember(bike.id) { viewModel.fuel(bike.id) }.collectAsStateWithLifecycle(null)
     val refuelArmed by viewModel.refuelArmed.collectAsStateWithLifecycle()
+    val dashArmed by viewModel.dashArmed.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     val dim = AppTheme.colors.textDim
     // 4.7: in portrait under the odometer: beside it they left the number too little room and it broke in two.
@@ -401,7 +476,7 @@ private fun BikeDetail(
             Column(Modifier.weight(1f)) {
                 Text(bike.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "${bike.bikeModel.label} · ${trimNumber(bike.tankLitres)} L tank · ${bike.fuel.label}",
+                    "${bike.bikeModel.label} · ${trimNumber(bike.tankLitres)} L tank · ${fuelOf(bike.fuelType, fuels).label}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = dim,
                 )
@@ -441,7 +516,13 @@ private fun BikeDetail(
             onRefuel = onRefuel,
             onSetLevel = onSetLevel,
             prices = prices,
+            fuels = fuels,
             onEditPrice = onEditPrice,
+            onAddFuel = onAddFuel,
+            onEditRefuel = onEditRefuel,
+            dashArmed = dashArmed,
+            onEditDash = onEditDash,
+            onDeleteDash = { id -> if (viewModel.onDeleteDashTapped(id)) haptics.confirm() else haptics.tap() },
             onDeleteRefuel = { id -> if (viewModel.onDeleteRefuelTapped(id)) haptics.confirm() else haptics.tap() },
         )
         Spacer(Modifier.height(20.dp))

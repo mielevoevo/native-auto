@@ -110,7 +110,7 @@ fun callTitle(info: CallInfo, showCaller: Boolean): String = when {
 
 private val ANSWER_WORDS = listOf("answer", "accept", "pick up", "jawab", "terima", "angkat")
 private val DECLINE_WORDS = listOf("decline", "reject", "dismiss", "tolak")
-private val HANG_UP_WORDS = listOf("hang up", "hangup", "end call", "end", "leave", "akhiri", "tutup", "putus", "selesai")
+private val HANG_UP_WORDS = listOf("hang up", "hangup", "end call", "end", "leave", "disconnect", "akhiri", "tutup", "putus", "selesai")
 
 /** The index of the action that answers, by its label, or null. */
 fun findAnswerAction(titles: List<String>): Int? = titles.indexOfFirst { t -> ANSWER_WORDS.any { hasWord(t, it) } }.takeIf { it >= 0 }

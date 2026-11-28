@@ -1244,3 +1244,34 @@ run:** PortraitCardsTest, PortraitDashboardTest, DesignCardShotsTest.
 - **The rider's 4.7.2 ride as GPX** (processed locally): times, speeds and courses complete at 1 Hz; distance by position and by speed within 0.6 %; one 316 s gap
   starting at a standstill. No altitude, as 4.7.2 left it out of GPX, so altitude is **still unverified on the phone**; it needs the backup.
   15 of 2025 steps change speed by 4 to 7 m/s in one second (the GPS lagging, then catching up); 4.8's signed change of speed must not read them as bursts.
+
+## 4.8: range, fuel and backup (2026-11-26, versionCode 40, Room v11, unattended, rider: "Start 4.8 unattended")
+
+- **Range that follows the riding (replaces `RANGE_FOLLOWS_RIDING` and the 4.3d fit):** learned from the steps between dash km/L figures, not from tanks: the rider
+  has 56 figures and one tank. The dash averages over a stretch of road; a memory of **30 km** predicted best on the rider's own figures (checked 20 to 50).
+  Effort and slow time together cut the error on figures left out by 39 %; each alone does nothing, so both are in or the model is off.
+- **Gate, per bike:** 20 steps, two measured tanks, physical signs, 10 % better on steps left out one by one, and not worse on the newest 40 %. It is worked out again
+  at every entry and has no memory, so it switches itself off. On made-up figures that don't follow the riding it turned on for at most 3 of 40 bikes.
+  On the rider's backup today: 52 steps, 1 tank once the 9 Nov fill-up is corrected to full, so **still off**. With two tanks it would be on, between 0.94 and 1.03.
+- **Limits:** 0.8 to 1.1, the lower of the last 8 and 20 km (drops sooner than it rises). It only scales the plain range; fill-ups keep the last word on km/L.
+- **Slope** joins after four measured tanks ridden with a known height (80 % of the road). The Redmi holds the height up to 90 s after a stop and then jumps, so a height
+  counts only when it changes and its change is spread over the road since, at most 15 %. Older trips have none: rebuilt without it, in the background, once.
+- **No assumption in liters, no passenger load; a paused trip costs nothing.** The range looks again once a minute, sooner only if the last km differs by 25 % for 30 s.
+- **Dash km/L:** all figures of one tank together weigh less than the tank (up to 0.2, 0.4 before any tank); a measured tank replaces its figures and teaches how far the
+  dash is off (0.85 to 1.15). It used to be 0.15 per figure, so 56 figures outweighed everything.
+- **"Don't learn from this"** leaves out the tank that ends at the fill-up and the one that starts at it: what is wrong with it is wrong for both. The level still uses it.
+- **Review only when something is off** (odometer, km/L 25 % from usual, more than the room left, looks full with the switch off, price 30 % off). A correction of an old
+  fill-up stores no odometer reading and changes the fuel's price only if it was the last one.
+- **Range shown:** 2 km steps once learned, 5 km before; falls at once, rises by 4 km or more; a fill-up, gauge reading or setting starts it over. In memory only.
+- **Caution** is on the range, not on the liters or the gauge, so it doesn't move the tank gauge.
+- **Own fuels** are a table with a fixed key; deleting hides one, so old fill-ups keep the name. Four pump fuels stay a segmented row; a fifth makes it a row with tiles.
+  An unknown key reads "Other fuel", never Pertamax.
+- **Service parts** by kind of bike, still names only. A preset bike is a scooter; the kind is asked for "Other" only.
+- **Backup password:** zip4j 2.11.6 (Apache 2.0), AES-256, opens in 7-Zip. The GPX files sit in one archive inside, as ZIP never hides file names. Shown as typed: nobody
+  can recover it. A wrong password or a changed file imports nothing. Garage only adds each bike's odometer as a reading that teaches nothing (no trips to work it out from).
+- **Keys:** `-PpublicBuild` leaves both keys out; `checkPublicApk -PcheckApk=<apk>` fails if a key is in an APK and prints names, never values. The private APK stays keyed.
+- **Speed-shaded route** in the trip detail only; steps 0 / 20 / 40 / 60 / 80 / 100+ (100+ was offered and not answered: taken), mph 0 / 15 / 30 / 45 / 60 / 75.
+- **Altitude in GPX** as `rawaltitude` (+ accuracy) extensions, not `<ele>`: it is above the ellipsoid.
+- **Design review** (`DesignShotsTest.garage48`: landscape, portrait, light): existing segmented rows, tiles, dialogs and switches; no new color or size role. Changed on the
+  way: the legend moved to the top left with room kept for it (it covered the route and the map credit); the password warning takes the hint's place (it was under the keyboard);
+  one "Fuel" title instead of two; the review's two buttons in the text color. Pass. Not changed (older): in portrait the history card's "max" wraps letter by letter; for 4.10.

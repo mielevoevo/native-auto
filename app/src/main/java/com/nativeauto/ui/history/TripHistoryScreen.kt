@@ -91,7 +91,13 @@ import com.nativeauto.garage.GarageDao
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.nativeauto.history.speedShades
+import com.nativeauto.history.speedSteps
 import com.nativeauto.ui.components.AppIcons
+import com.nativeauto.ui.settings.BackupController
+import com.nativeauto.ui.settings.BackupDialogs
 import com.nativeauto.ui.components.LocalPortrait
 import com.nativeauto.ui.components.rememberHaptics
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -132,37 +138,17 @@ class TripHistoryViewModel @Inject constructor(
         _bikeFilter.value = id
     }
 
-    /** Share sheets to open (GPX export, backup); the screen starts them. */
+    /** Export, backup and import, with their messages. */
+    val backup = BackupController(files, viewModelScope)
+
+    /** The GPX share sheet to open; the screen starts it. */
     private val _share = MutableSharedFlow<Intent>(extraBufferCapacity = 1)
     val share: SharedFlow<Intent> = _share.asSharedFlow()
-
-    /** The last export / import result, shown under the title. */
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
 
     fun exportGpx(trip: TripRecord) = viewModelScope.launch {
         runCatching { files.gpxShareIntent(trip) }
             .onSuccess { _share.emit(it) }
-            .onFailure { _message.value = "Export failed: ${it.message}" }
-    }
-
-    fun backup() = viewModelScope.launch {
-        _message.value = "Preparing backup…"
-        runCatching { files.backupShareIntent() }
-            .onSuccess { _message.value = null; _share.emit(it) }
-            .onFailure { _message.value = "Backup failed: ${it.message}" }
-    }
-
-    fun import(source: Uri) = viewModelScope.launch {
-        _message.value = "Importing…"
-        _message.value = runCatching { files.import(source) }.fold(
-            onSuccess = { r ->
-                val trips = if (r.trips == 0) null else "${r.trips} ${if (r.trips == 1) "trip" else "trips"}"
-                val garage = if (r.garageEntries == 0) null else "Garage data"
-                listOfNotNull(trips, garage).takeIf { it.isNotEmpty() }?.joinToString(" and ", prefix = "Imported ") ?: "Nothing new in that backup"
-            },
-            onFailure = { "Import failed: ${it.message}" },
-        )
+            .onFailure { backup.say("Export failed: ${it.message}") }
     }
 
     /** Null while loading, so the empty state doesn't flash before the first read. */
@@ -225,11 +211,13 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
     val unit by viewModel.unit.collectAsStateWithLifecycle()
     val visible by viewModel.visible.collectAsStateWithLifecycle()
     val armed by viewModel.deleteArmed.collectAsStateWithLifecycle()
-    val message by viewModel.message.collectAsStateWithLifecycle()
+    val message by viewModel.backup.message.collectAsStateWithLifecycle()
+    var exporting by rememberSaveable { mutableStateOf(false) }
+    BackupDialogs(viewModel.backup, exporting) { exporting = false }
     val context = LocalContext.current
     LaunchedEffect(viewModel) { viewModel.share.collect { context.startActivity(it) } }
     val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let(viewModel::import)
+        uri?.let { viewModel.backup.import(it) }
     }
     var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selected = viewModel.allTrips.collectAsStateWithLifecycle().value?.firstOrNull { it.id == selectedId }
@@ -270,7 +258,7 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                         ) { Text("Import") }
                         Spacer(Modifier.width(8.dp))
                         FilledTonalButton(
-                            onClick = { haptics.tap(); viewModel.backup() },
+                            onClick = { haptics.tap(); exporting = true },
                             enabled = !trips.isNullOrEmpty(),
                             modifier = Modifier.heightIn(min = 56.dp).testTag("history_backup"),
                         ) { Text("Back up") }
@@ -285,7 +273,7 @@ fun TripHistoryScreen(onClose: () -> Unit, viewModel: TripHistoryViewModel = hil
                         modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("history_import"),
                     ) { Text("Import") }
                     FilledTonalButton(
-                        onClick = { haptics.tap(); viewModel.backup() },
+                        onClick = { haptics.tap(); exporting = true },
                         enabled = !trips.isNullOrEmpty(),
                         modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("history_backup"),
                     ) { Text("Back up") }
@@ -520,7 +508,7 @@ private fun TripDetail(
     }
     if (portrait) {
         Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
-            TripMapImage(trip, maps, width = 520.dp, height = 300.dp, modifier = Modifier.fillMaxWidth().height(220.dp))
+            TripMapImage(trip, maps, width = 520.dp, height = 300.dp, speedUnit = unit, modifier = Modifier.fillMaxWidth().height(220.dp))
             Spacer(Modifier.height(12.dp))
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) { info() }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -530,7 +518,7 @@ private fun TripDetail(
         }
     } else {
         Row(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            TripMapImage(trip, maps, width = 520.dp, height = 300.dp, modifier = Modifier.weight(1.3f).fillMaxHeight())
+            TripMapImage(trip, maps, width = 520.dp, height = 300.dp, speedUnit = unit, modifier = Modifier.weight(1.3f).fillMaxHeight())
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
                 info()
                 Spacer(Modifier.height(4.dp))
@@ -576,20 +564,57 @@ private fun MiniStat(value: String, label: String) {
  * first time) the path itself is drawn on a plain background, so there's always a shape.
  */
 @Composable
-private fun TripMapImage(trip: TripRecord, maps: TripMaps, width: Dp, height: Dp, modifier: Modifier = Modifier) {
+private fun TripMapImage(trip: TripRecord, maps: TripMaps, width: Dp, height: Dp, modifier: Modifier = Modifier, speedUnit: SpeedUnit? = null) {
     val dark = AppTheme.colors.isDark
-    val bitmap by produceState<Bitmap?>(null, trip.id, width, height, dark) {
-        value = maps.overview(trip, width.value.roundToInt(), height.value.roundToInt(), dark)
+    val accent = AppTheme.colors.accent.toArgb()
+    // With [speedUnit] (4.8: the detail) the route is shaded by speed where the trip has its track; else it's the plain line.
+    val picture by produceState<Pair<Bitmap, Boolean>?>(null, trip.id, width, height, dark, accent, speedUnit) {
+        val w = width.value.roundToInt()
+        val h = height.value.roundToInt()
+        value = speedUnit?.let { maps.speedOverview(trip, w, h, dark, accent, it) }?.let { it to true }
+            ?: maps.overview(trip, w, h, dark)?.let { it to false }
     }
     val shape = RoundedCornerShape(14.dp)
     val sized = if (modifier == Modifier) Modifier.size(width, height) else modifier
     Box(sized.clip(shape).background(AppTheme.colors.buttonQuiet).testTag("history_map")) {
-        val b = bitmap
-        if (b != null) {
-            Image(b.asImageBitmap(), contentDescription = "Route map", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        val p = picture
+        if (p != null) {
+            Image(p.first.asImageBitmap(), contentDescription = "Route map", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (p.second && speedUnit != null) SpeedLegend(speedUnit, accent, dark, Modifier.align(Alignment.TopStart).padding(8.dp))
         } else {
             TrackSketch(trip, Modifier.fillMaxSize().padding(12.dp))
         }
+    }
+}
+
+/** 4.8: what the shades mean: each step's color over the speed it starts at. */
+@Composable
+internal fun SpeedLegend(unit: SpeedUnit, accentArgb: Int, dark: Boolean, modifier: Modifier = Modifier) {
+    val steps = speedSteps(unit)
+    val colors = AppTheme.colors
+    Row(
+        modifier
+            .background(colors.surface.copy(alpha = 0.86f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .clearAndSetSemantics { contentDescription = "Route shaded by speed, in ${unit.speedLabel}" }
+            .testTag("history_speed_legend"),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        speedShades(accentArgb, dark).forEachIndexed { i, shade ->
+            Column(Modifier.width(30.dp)) {
+                Box(Modifier.fillMaxWidth().height(6.dp).background(Color(shade)))
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    if (i == steps.lastIndex) "${steps[i]}+" else "${steps[i]}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.text,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(unit.speedLabel, style = MaterialTheme.typography.labelMedium, color = colors.textDim, maxLines = 1)
     }
 }
 

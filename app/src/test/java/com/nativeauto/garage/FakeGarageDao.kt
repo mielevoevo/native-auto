@@ -44,11 +44,21 @@ internal class FakeGarageDao : GarageDao {
     override fun observeMetersSince(bikeId: String, sinceMs: Long, offsetM: Double) = trips.map { meters(it, bikeId, sinceMs, offsetM) }
     override suspend fun metersSince(bikeId: String, sinceMs: Long, offsetM: Double) = meters(trips.value, bikeId, sinceMs, offsetM)
     override suspend fun lastTrip(bikeId: String) = trips.value.filter { it.bikeId == bikeId }.maxByOrNull { it.endedAtMs }
-    override fun observeTripLoads(bikeId: String) = trips.map { list ->
-        list.filter { it.bikeId == bikeId && it.loadDistanceM != null && it.loadAero != null && it.loadAccel != null }
+    override fun observeRideEfforts(bikeId: String) = trips.map { list ->
+        list.filter { it.bikeId == bikeId && it.effortM != null }
             .sortedByDescending { it.endedAtMs }
-            .map { TripLoad(it.endedAtMs, it.loadDistanceM!!, it.loadAero!!, it.loadAccel!!, it.loadClimbM ?: 0.0, it.loadStops ?: 0) }
+            .map { RideEffort(it.endedAtMs, it.effortM!!, it.effortFlatJ!!, it.effortSlopeJ!!, it.effortSlopeM!!, it.effortSlowS!!) }
     }
+    // ---- 4.8 ----
+    val customFuels = MutableStateFlow<List<CustomFuel>>(emptyList())
+    override fun observeCustomFuels() = customFuels
+    override suspend fun allCustomFuels() = customFuels.value
+    override suspend fun upsertCustomFuel(fuel: CustomFuel) { customFuels.value = customFuels.value.filterNot { it.key == fuel.key } + fuel }
+    override suspend fun deleteAllCustomFuels() { customFuels.value = emptyList() }
+    override suspend fun refuel(id: Long) = refuels.value.firstOrNull { it.id == id }
+    override suspend fun updateRefuel(refuel: RefuelRecord) { refuels.value = refuels.value.map { if (it.id == refuel.id) refuel else it } }
+    override suspend fun setDashKmPerL(id: Long, kmPerL: Double) { dash.value = dash.value.map { if (it.id == id) it.copy(kmPerL = kmPerL) else it } }
+    override suspend fun deleteDashEntry(id: Long) { dash.value = dash.value.filterNot { it.id == id } }
     override suspend fun deleteAllBikes() { bikes.value = emptyList() }
     val refuels = MutableStateFlow<List<RefuelRecord>>(emptyList())
     val prices = MutableStateFlow<List<FuelPrice>>(emptyList())
